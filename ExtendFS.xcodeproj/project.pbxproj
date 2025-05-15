@@ -1,0 +1,719 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		9F57A64D2DD6841D00D7E52D /* ext4Extension.appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = 9F57A6432DD6841D00D7E52D /* ext4Extension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		9F57A6232DD6835F00D7E52D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9F57A60C2DD6835E00D7E52D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9F57A6132DD6835E00D7E52D;
+			remoteInfo = ExtendFS;
+		};
+		9F57A62D2DD6835F00D7E52D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9F57A60C2DD6835E00D7E52D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9F57A6132DD6835E00D7E52D;
+			remoteInfo = ExtendFS;
+		};
+		9F57A64B2DD6841D00D7E52D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9F57A60C2DD6835E00D7E52D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9F57A6422DD6841D00D7E52D;
+			remoteInfo = ext4Extension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		9F57A6522DD6841D00D7E52D /* Embed ExtensionKit Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+				9F57A64D2DD6841D00D7E52D /* ext4Extension.appex in Embed ExtensionKit Extensions */,
+			);
+			name = "Embed ExtensionKit Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		9F57A6142DD6835E00D7E52D /* ExtendFS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ExtendFS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9F57A6222DD6835F00D7E52D /* ExtendFSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ExtendFSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9F57A62C2DD6835F00D7E52D /* ExtendFSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ExtendFSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9F57A6432DD6841D00D7E52D /* ext4Extension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = ext4Extension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		9F57A64E2DD6841D00D7E52D /* Exceptions for "ext4Extension" folder in "ext4Extension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 9F57A6422DD6841D00D7E52D /* ext4Extension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		9F57A6162DD6835E00D7E52D /* ExtendFS */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ExtendFS;
+			sourceTree = "<group>";
+		};
+		9F57A6252DD6835F00D7E52D /* ExtendFSTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ExtendFSTests;
+			sourceTree = "<group>";
+		};
+		9F57A62F2DD6835F00D7E52D /* ExtendFSUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ExtendFSUITests;
+			sourceTree = "<group>";
+		};
+		9F57A6442DD6841D00D7E52D /* ext4Extension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				9F57A64E2DD6841D00D7E52D /* Exceptions for "ext4Extension" folder in "ext4Extension" target */,
+			);
+			path = ext4Extension;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		9F57A6112DD6835E00D7E52D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9F57A61F2DD6835F00D7E52D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9F57A6292DD6835F00D7E52D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9F57A6402DD6841D00D7E52D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		9F57A60B2DD6835E00D7E52D = {
+			isa = PBXGroup;
+			children = (
+				9F57A6162DD6835E00D7E52D /* ExtendFS */,
+				9F57A6252DD6835F00D7E52D /* ExtendFSTests */,
+				9F57A62F2DD6835F00D7E52D /* ExtendFSUITests */,
+				9F57A6442DD6841D00D7E52D /* ext4Extension */,
+				9F57A6152DD6835E00D7E52D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		9F57A6152DD6835E00D7E52D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9F57A6142DD6835E00D7E52D /* ExtendFS.app */,
+				9F57A6222DD6835F00D7E52D /* ExtendFSTests.xctest */,
+				9F57A62C2DD6835F00D7E52D /* ExtendFSUITests.xctest */,
+				9F57A6432DD6841D00D7E52D /* ext4Extension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		9F57A6132DD6835E00D7E52D /* ExtendFS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9F57A6362DD6835F00D7E52D /* Build configuration list for PBXNativeTarget "ExtendFS" */;
+			buildPhases = (
+				9F57A6102DD6835E00D7E52D /* Sources */,
+				9F57A6112DD6835E00D7E52D /* Frameworks */,
+				9F57A6122DD6835E00D7E52D /* Resources */,
+				9F57A6522DD6841D00D7E52D /* Embed ExtensionKit Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9F57A64C2DD6841D00D7E52D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				9F57A6162DD6835E00D7E52D /* ExtendFS */,
+			);
+			name = ExtendFS;
+			packageProductDependencies = (
+			);
+			productName = ExtendFS;
+			productReference = 9F57A6142DD6835E00D7E52D /* ExtendFS.app */;
+			productType = "com.apple.product-type.application";
+		};
+		9F57A6212DD6835F00D7E52D /* ExtendFSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9F57A6392DD6835F00D7E52D /* Build configuration list for PBXNativeTarget "ExtendFSTests" */;
+			buildPhases = (
+				9F57A61E2DD6835F00D7E52D /* Sources */,
+				9F57A61F2DD6835F00D7E52D /* Frameworks */,
+				9F57A6202DD6835F00D7E52D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9F57A6242DD6835F00D7E52D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				9F57A6252DD6835F00D7E52D /* ExtendFSTests */,
+			);
+			name = ExtendFSTests;
+			packageProductDependencies = (
+			);
+			productName = ExtendFSTests;
+			productReference = 9F57A6222DD6835F00D7E52D /* ExtendFSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		9F57A62B2DD6835F00D7E52D /* ExtendFSUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9F57A63C2DD6835F00D7E52D /* Build configuration list for PBXNativeTarget "ExtendFSUITests" */;
+			buildPhases = (
+				9F57A6282DD6835F00D7E52D /* Sources */,
+				9F57A6292DD6835F00D7E52D /* Frameworks */,
+				9F57A62A2DD6835F00D7E52D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9F57A62E2DD6835F00D7E52D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				9F57A62F2DD6835F00D7E52D /* ExtendFSUITests */,
+			);
+			name = ExtendFSUITests;
+			packageProductDependencies = (
+			);
+			productName = ExtendFSUITests;
+			productReference = 9F57A62C2DD6835F00D7E52D /* ExtendFSUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		9F57A6422DD6841D00D7E52D /* ext4Extension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9F57A64F2DD6841D00D7E52D /* Build configuration list for PBXNativeTarget "ext4Extension" */;
+			buildPhases = (
+				9F57A63F2DD6841D00D7E52D /* Sources */,
+				9F57A6402DD6841D00D7E52D /* Frameworks */,
+				9F57A6412DD6841D00D7E52D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				9F57A6442DD6841D00D7E52D /* ext4Extension */,
+			);
+			name = ext4Extension;
+			packageProductDependencies = (
+			);
+			productName = ext4Extension;
+			productReference = 9F57A6432DD6841D00D7E52D /* ext4Extension.appex */;
+			productType = "com.apple.product-type.extensionkit-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		9F57A60C2DD6835E00D7E52D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1630;
+				LastUpgradeCheck = 1630;
+				TargetAttributes = {
+					9F57A6132DD6835E00D7E52D = {
+						CreatedOnToolsVersion = 16.3;
+					};
+					9F57A6212DD6835F00D7E52D = {
+						CreatedOnToolsVersion = 16.3;
+						TestTargetID = 9F57A6132DD6835E00D7E52D;
+					};
+					9F57A62B2DD6835F00D7E52D = {
+						CreatedOnToolsVersion = 16.3;
+						TestTargetID = 9F57A6132DD6835E00D7E52D;
+					};
+					9F57A6422DD6841D00D7E52D = {
+						CreatedOnToolsVersion = 16.3;
+					};
+				};
+			};
+			buildConfigurationList = 9F57A60F2DD6835E00D7E52D /* Build configuration list for PBXProject "ExtendFS" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 9F57A60B2DD6835E00D7E52D;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 9F57A6152DD6835E00D7E52D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9F57A6132DD6835E00D7E52D /* ExtendFS */,
+				9F57A6212DD6835F00D7E52D /* ExtendFSTests */,
+				9F57A62B2DD6835F00D7E52D /* ExtendFSUITests */,
+				9F57A6422DD6841D00D7E52D /* ext4Extension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9F57A6122DD6835E00D7E52D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9F57A6202DD6835F00D7E52D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9F57A62A2DD6835F00D7E52D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9F57A6412DD6841D00D7E52D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		9F57A6102DD6835E00D7E52D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9F57A61E2DD6835F00D7E52D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9F57A6282DD6835F00D7E52D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9F57A63F2DD6841D00D7E52D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		9F57A6242DD6835F00D7E52D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9F57A6132DD6835E00D7E52D /* ExtendFS */;
+			targetProxy = 9F57A6232DD6835F00D7E52D /* PBXContainerItemProxy */;
+		};
+		9F57A62E2DD6835F00D7E52D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9F57A6132DD6835E00D7E52D /* ExtendFS */;
+			targetProxy = 9F57A62D2DD6835F00D7E52D /* PBXContainerItemProxy */;
+		};
+		9F57A64C2DD6841D00D7E52D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9F57A6422DD6841D00D7E52D /* ext4Extension */;
+			targetProxy = 9F57A64B2DD6841D00D7E52D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		9F57A6342DD6835F00D7E52D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = YN43D87323;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		9F57A6352DD6835F00D7E52D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = YN43D87323;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		9F57A6372DD6835F00D7E52D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ExtendFS/ExtendFS.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YN43D87323;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kpchew.ExtendFS;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		9F57A6382DD6835F00D7E52D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ExtendFS/ExtendFS.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YN43D87323;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kpchew.ExtendFS;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		9F57A63A2DD6835F00D7E52D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YN43D87323;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kpchew.ExtendFSTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ExtendFS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ExtendFS";
+			};
+			name = Debug;
+		};
+		9F57A63B2DD6835F00D7E52D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YN43D87323;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kpchew.ExtendFSTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ExtendFS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ExtendFS";
+			};
+			name = Release;
+		};
+		9F57A63D2DD6835F00D7E52D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YN43D87323;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kpchew.ExtendFSUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = ExtendFS;
+			};
+			name = Debug;
+		};
+		9F57A63E2DD6835F00D7E52D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YN43D87323;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kpchew.ExtendFSUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = ExtendFS;
+			};
+			name = Release;
+		};
+		9F57A6502DD6841D00D7E52D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ext4Extension/ext4Extension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YN43D87323;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ext4Extension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ext4Extension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kpchew.ExtendFS.ext4Extension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		9F57A6512DD6841D00D7E52D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ext4Extension/ext4Extension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YN43D87323;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ext4Extension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ext4Extension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kpchew.ExtendFS.ext4Extension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		9F57A60F2DD6835E00D7E52D /* Build configuration list for PBXProject "ExtendFS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9F57A6342DD6835F00D7E52D /* Debug */,
+				9F57A6352DD6835F00D7E52D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9F57A6362DD6835F00D7E52D /* Build configuration list for PBXNativeTarget "ExtendFS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9F57A6372DD6835F00D7E52D /* Debug */,
+				9F57A6382DD6835F00D7E52D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9F57A6392DD6835F00D7E52D /* Build configuration list for PBXNativeTarget "ExtendFSTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9F57A63A2DD6835F00D7E52D /* Debug */,
+				9F57A63B2DD6835F00D7E52D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9F57A63C2DD6835F00D7E52D /* Build configuration list for PBXNativeTarget "ExtendFSUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9F57A63D2DD6835F00D7E52D /* Debug */,
+				9F57A63E2DD6835F00D7E52D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9F57A64F2DD6841D00D7E52D /* Build configuration list for PBXNativeTarget "ext4Extension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9F57A6502DD6841D00D7E52D /* Debug */,
+				9F57A6512DD6841D00D7E52D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 9F57A60C2DD6835E00D7E52D /* Project object */;
+}

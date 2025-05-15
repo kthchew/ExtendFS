@@ -1,0 +1,16 @@
+//
+//  ext4Extension.swift
+//  ext4Extension
+//
+//  Created by Kenneth Chew on 5/15/25.
+//
+
+import Foundation
+import FSKit
+
+@main
+struct ext4Extension : UnaryFileSystemExtension {
+    var fileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperations {
+        ext4ExtensionFileSystem()
+    }
+}
