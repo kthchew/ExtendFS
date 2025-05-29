@@ -9,8 +9,9 @@ import Foundation
 import FSKit
 
 @main
-struct ext4Extension : UnaryFileSystemExtension {
+struct ExtFourExtension : UnaryFileSystemExtension {
     var fileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperations {
-        ext4ExtensionFileSystem()
+        Logger(subsystem: "com.kpchew.ExtendFSExtension", category: "start").log("hello world")
+        return ExtFourExtensionFileSystem()
     }
 }

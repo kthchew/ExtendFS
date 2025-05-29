@@ -22,23 +22,50 @@
 			<string>v</string>
 		</dict>
 		<key>FSMediaTypes</key>
-		<dict/>
+		<dict>
+			<key>Whole</key>
+			<dict>
+				<key>FSMediaProperties</key>
+				<dict>
+					<key>Leaf</key>
+					<true/>
+					<key>Whole</key>
+					<true/>
+				</dict>
+				<key>FSProbeOrder</key>
+				<integer>100</integer>
+			</dict>
+			<key>ext4</key>
+			<dict>
+				<key>FSMediaProperties</key>
+				<dict>
+					<key>Content Hint</key>
+					<string>ext4</string>
+					<key>Leaf</key>
+					<true/>
+					<key>Whole</key>
+					<true/>
+				</dict>
+				<key>FSProbeOrder</key>
+				<integer>100</integer>
+			</dict>
+		</dict>
 		<key>FSPersonalities</key>
 		<dict>
-			<key>ext4ExtensionPersonality</key>
+			<key>extExtensionPersonality</key>
 			<dict>
 				<key>FSName</key>
-				<string>ext4ExtensionName</string>
+				<string>ext4</string>
 				<key>FSfileObjectsAreCaseSensitive</key>
-				<false/>
+				<true/>
 			</dict>
 		</dict>
 		<key>FSRequiresSecurityScopedPathURLResources</key>
 		<false/>
 		<key>FSShortName</key>
-		<string>ext4Extensionshortname</string>
+		<string>ExtendFS</string>
 		<key>FSSupportsBlockResources</key>
-		<false/>
+		<true/>
 		<key>FSSupportsGenericURLResources</key>
 		<false/>
 		<key>FSSupportsPathURLs</key>

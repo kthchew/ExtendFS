@@ -6,14 +6,24 @@
 //
 
 import SwiftUI
+import FSKit
 
 struct ContentView: View {
+    @State private var modules: [FSModuleIdentity] = []
+    
     var body: some View {
         VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+            ForEach(modules) {
+                Text($0.description)
+                Text($0.bundleIdentifier)
+            }
+            Button("Reload") {
+                FSClient.shared.fetchInstalledExtensions { modules, err in
+                    if let modules {
+                        self.modules = modules
+                    }
+                }
+            }
         }
         .padding()
     }
