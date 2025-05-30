@@ -23,6 +23,30 @@
 		</dict>
 		<key>FSMediaTypes</key>
 		<dict>
+			<key>EBD0A0A2-B9E5-4433-87C0-68B6B72699C7</key>
+			<dict>
+				<key>FSMediaProperties</key>
+				<dict>
+					<key>Content Hint</key>
+					<string>EBD0A0A2-B9E5-4433-87C0-68B6B72699C7</string>
+					<key>Leaf</key>
+					<true/>
+				</dict>
+				<key>FSProbeOrder</key>
+				<integer>3000</integer>
+			</dict>
+			<key>0FC63DAF-8483-4772-8E79-3D69D8477DE4</key>
+			<dict>
+				<key>FSMediaProperties</key>
+				<dict>
+					<key>Content Hint</key>
+					<string>0FC63DAF-8483-4772-8E79-3D69D8477DE4</string>
+					<key>Leaf</key>
+					<true/>
+				</dict>
+				<key>FSProbeOrder</key>
+				<integer>1000</integer>
+			</dict>
 			<key>Whole</key>
 			<dict>
 				<key>FSMediaProperties</key>
@@ -33,7 +57,7 @@
 					<true/>
 				</dict>
 				<key>FSProbeOrder</key>
-				<integer>100</integer>
+				<integer>3000</integer>
 			</dict>
 			<key>ext4</key>
 			<dict>
@@ -43,19 +67,17 @@
 					<string>ext4</string>
 					<key>Leaf</key>
 					<true/>
-					<key>Whole</key>
-					<true/>
 				</dict>
 				<key>FSProbeOrder</key>
-				<integer>100</integer>
+				<integer>1000</integer>
 			</dict>
 		</dict>
 		<key>FSPersonalities</key>
 		<dict>
-			<key>extExtensionPersonality</key>
+			<key>ext4</key>
 			<dict>
 				<key>FSName</key>
-				<string>ext4</string>
+				<string>Linux Filesystem (ext4)</string>
 				<key>FSfileObjectsAreCaseSensitive</key>
 				<true/>
 			</dict>

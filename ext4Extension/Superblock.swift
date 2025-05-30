@@ -31,101 +31,63 @@ struct BlockDeviceReader {
 //                let loaded = ptr.load(fromByteOffset: targetContentOffset, as: T.self)
             }
         }
+        guard let item else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+        }
         return item
     }
-    static func readLittleEndian<T: FixedWidthInteger>(blockDevice: FSBlockDeviceResource, at offset: off_t) -> T? {
-        do {
-//            var item: T = 0
-//            let bytesRead = try withUnsafeMutableBytes(of: &item) { ptr in
-//                return try blockDevice.read(into: ptr, startingAt: offset, length: MemoryLayout<T>.size)
-//            }
-//            guard bytesRead == MemoryLayout<T>.size else {
-//                return nil
-//            }
-//            return item.littleEndian
-            
-            let item: T? = try readSmallSection(blockDevice: blockDevice, at: offset)
-            return item?.littleEndian
-        } catch {
-            return nil
+    static func readLittleEndian<T: FixedWidthInteger>(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> T {
+        guard let item: T = try readSmallSection(blockDevice: blockDevice, at: offset) else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
         }
+        return item.littleEndian
     }
     
-    static func readBigEndian<T: FixedWidthInteger>(blockDevice: FSBlockDeviceResource, at offset: off_t) -> T? {
-        do {
-//            var item: T?
-//            let bytesRead = try withUnsafeMutableBytes(of: &item) { ptr in
-//                return try blockDevice.read(into: ptr, startingAt: offset, length: MemoryLayout<T>.size)
-//            }
-//            guard bytesRead == MemoryLayout<T>.size else {
-//                return nil
-//            }
-//            return item?.bigEndian
-            
-            let item: T? = try readSmallSection(blockDevice: blockDevice, at: offset)
-            return item?.bigEndian
-        } catch {
-            return nil
+    static func readBigEndian<T: FixedWidthInteger>(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> T {
+        guard let item: T = try readSmallSection(blockDevice: blockDevice, at: offset) else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
         }
+        return item.bigEndian
     }
     
-    static func readUUID(blockDevice: FSBlockDeviceResource, at offset: off_t) -> UUID? {
-        do {
-//            var uuid: uuid_t?
-//            let bytesRead = try withUnsafeMutableBytes(of: &uuid) { ptr in
-//                return try blockDevice.read(into: ptr, startingAt: offset, length: MemoryLayout<uuid_t>.size)
-//            }
-//            guard let uuid, bytesRead == MemoryLayout<uuid_t>.size else {
-//                return nil
-//            }
-//            return UUID(uuid: uuid)
-            
-            let uuid: uuid_t? = try readSmallSection(blockDevice: blockDevice, at: offset)
-            if let uuid {
-                return UUID(uuid: uuid)
+    static func readUUID(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> UUID {
+        guard let uuid: uuid_t = try readSmallSection(blockDevice: blockDevice, at: offset) else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+        }
+        
+        return UUID(uuid: uuid)
+    }
+    
+    static func readString(blockDevice: FSBlockDeviceResource, at offset: off_t, maxLength: Int) throws -> String {
+        // FIXME: do this better
+        let startReadAt = (offset / off_t(blockDevice.physicalBlockSize)) * off_t(blockDevice.physicalBlockSize)
+        let targetContentOffset = Int(offset - startReadAt)
+        let targetContentEnd = Int(targetContentOffset) + maxLength
+        let readLength = targetContentEnd < blockDevice.physicalBlockSize ? Int(blockDevice.physicalBlockSize) : Int(blockDevice.physicalBlockSize) * 2
+        var string: String?
+        try withUnsafeTemporaryAllocation(byteCount: readLength, alignment: 1) { ptr in
+            let read = try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
+            let stringStart = ptr.baseAddress!.assumingMemoryBound(to: CChar.self) + targetContentOffset
+            var cString = [CChar]()
+            for i in 0..<maxLength {
+                let char = (stringStart + i).pointee
+                if char == 0 {
+                    break
+                }
+                cString.append(char)
+            }
+            cString.append(0)
+            if read >= targetContentEnd {
+                // FIXME: UTF8?
+                string = String(cString: cString, encoding: .utf8)
             } else {
-                return nil
+                throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
             }
-        } catch {
-            return nil
         }
-    }
-    
-    static func readString(blockDevice: FSBlockDeviceResource, at offset: off_t, maxLength: Int) -> String? {
-        do {
-//            let chars = try [CChar](unsafeUninitializedCapacity: length) { buffer, initializedCount in
-//                let readBytes = try blockDevice.read(into: UnsafeMutableRawBufferPointer(buffer), startingAt: offset, length: length)
-//                initializedCount = readBytes
-//            }
-//            return String(cString: chars + [0x0], encoding: .utf8)
-            
-            // FIXME: do this better
-            let startReadAt = (offset / off_t(blockDevice.physicalBlockSize)) * off_t(blockDevice.physicalBlockSize)
-            let targetContentOffset = Int(offset - startReadAt)
-            let targetContentEnd = Int(targetContentOffset) + maxLength
-            let readLength = targetContentEnd < blockDevice.physicalBlockSize ? Int(blockDevice.physicalBlockSize) : Int(blockDevice.physicalBlockSize) * 2
-            var string: String?
-            try withUnsafeTemporaryAllocation(byteCount: readLength, alignment: 1) { ptr in
-                let read = try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
-                let stringStart = ptr.baseAddress!.assumingMemoryBound(to: CChar.self) + targetContentOffset
-                var cString = [CChar]()
-                for i in 0..<maxLength {
-                    let char = (stringStart + i).pointee
-                    if char == 0 {
-                        break
-                    }
-                    cString.append(char)
-                }
-                cString.append(0)
-                if read >= targetContentEnd {
-                    // FIXME: UTF8?
-                    string = String(cString: cString, encoding: .utf8)
-                }
-            }
-            return string
-        } catch {
-            return nil
+        guard let string else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
         }
+        return string
     }
 }
 
@@ -146,6 +108,7 @@ struct Superblock {
         case `continue` = 1
         case remountReadOnly = 2
         case panic = 3
+        case unknown = 65535
     }
     
     enum FilesystemCreator: UInt32 {
@@ -154,12 +117,18 @@ struct Superblock {
         case masix = 2
         case freeBSD = 3
         case lites = 4
+        case unknown = 4294967295
     }
     
-    enum Revision: UInt32 {
+    enum Revision: UInt32, Comparable {
+        static func < (lhs: Superblock.Revision, rhs: Superblock.Revision) -> Bool {
+            lhs.rawValue < rhs.rawValue
+        }
+        
         case original = 0
         /// Has dynamic inode sizes.
         case version2 = 1
+        case unknown = 4294967295
     }
     
     struct CompatibleFeatures: OptionSet {
@@ -198,6 +167,11 @@ struct Superblock {
         static let largeDirectory = IncompatibleFeatures(rawValue: 1 << 12)
         static let inlineDataInInode = IncompatibleFeatures(rawValue: 1 << 13)
         static let encryptedInodes = IncompatibleFeatures(rawValue: 1 << 14)
+        
+        /// The set of features supported by the driver.
+        ///
+        /// If a filesystem enables any features not included in this set, it should not be mounted.
+        static let supportedFeatures: IncompatibleFeatures = [.filetype, .extents, .enable64BitSize, .metadataChecksumSeedInSuperblock]
     }
     
     struct ReadOnlyCompatibleFeatures: OptionSet {
@@ -224,6 +198,11 @@ struct Superblock {
         static let supportsReplicas = ReadOnlyCompatibleFeatures(rawValue: 1 << 11)
         static let readOnlyFileSystemImage = ReadOnlyCompatibleFeatures(rawValue: 1 << 12)
         static let tracksProjectQuotas = ReadOnlyCompatibleFeatures(rawValue: 1 << 13)
+        
+        /// The set of features supported by the driver.
+        ///
+        /// If a filesystem enables any features not included in this set, it can still mount as read-only.
+        static let supportedFeatures: ReadOnlyCompatibleFeatures = []
     }
     
     enum HashVersion: UInt8 {
@@ -256,112 +235,504 @@ struct Superblock {
     }
     
     /// Total inode count.
-    lazy var inodeCount: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x0)
+    var inodeCount: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x0) } }
     /// Total block count.
-    lazy var blockCount: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x4)
+    var blockCount: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x4) } }
     /// This number of blocks can only be allocated by the super-user.
-    lazy var superUserBlockCount: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x8)
-    lazy var freeBlockCount: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xC)
-    lazy var freeInodeCount: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x10)
+    var superUserBlockCount: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x8) } }
+    var freeBlockCount: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xC) } }
+    var freeInodeCount: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x10) } }
     /// First data block.
     ///
     /// This must be at least 1 for 1k-block filesystems and is typically 0 for all other block sizes.
-    lazy var firstDataBlock: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x14)
+    var firstDataBlock: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x14) } }
     /// Block size is 2 ^ (10 + `logBlockSize`).
-    var logBlockSize: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x18) }
-    var blockSize: Int? {
-        if let logBlockSize {
-            Int(pow(2, 10 + Double(logBlockSize)))
-        } else {
-            nil
+    var logBlockSize: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x18) } }
+    var blockSize: Int {
+        get throws {
+            try Int(pow(2, 10 + Double(logBlockSize)))
         }
     }
     /// Cluster size is (2 ^ `logClusterSize`) blocks if bigalloc is enabled. Otherwise `logClusterSize` must equal `logBlockSize`.
-    var logClusterSize: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x1C) }
-    var clusterSize: Int? {
-        if let logClusterSize {
-            Int(pow(2, Double(logClusterSize)))
-        } else {
-            nil
+    var logClusterSize: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x1C) } }
+    var clusterSize: Int {
+        get throws {
+            try Int(pow(2, Double(logClusterSize)))
         }
     }
-    lazy var blocksPerGroup: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x20)
-    lazy var clustersPerGroup: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x24)
-    lazy var inodesPerGroup: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x28)
+    var blocksPerGroup: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x20) } }
+    var clustersPerGroup: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x24) } }
+    var inodesPerGroup: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x28) } }
     /// Mount time, in seconds since the epoch.
-    lazy var mountTime: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x2C)
+    var mountTime: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x2C) } }
     /// Write time, in seconds since the epoch.
-    lazy var writeTime: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x30)
+    var writeTime: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x30) } }
     /// Number of mounts since the last `fsck`.
-    lazy var mountCount: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x34)
+    var mountCount: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x34) } }
     /// Number of mounts beyond which a `fsck` is needed.
-    lazy var maxMountCount: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x36)
+    var maxMountCount: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x36) } }
     /// Magic signature, should be `0xEF53`.
-    lazy var magic: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x38)
-    lazy var state: State = Superblock.State(rawValue: BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x3A) ?? 0)
-    lazy var errors: ErrorPolicy? = ErrorPolicy(rawValue: BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x3C) ?? 0)
-    lazy var minorRevisionLevel: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x3E)
+    var magic: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x38) } }
+    var state: State { get throws { Superblock.State(rawValue: try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x3A)) } }
+    var errors: ErrorPolicy { get throws { ErrorPolicy(rawValue: try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x3C)) ?? .unknown } }
+    var minorRevisionLevel: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x3E) } }
     /// Time of last check, in seconds since the epoch.
-    lazy var lastCheckTime: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x40)
-    lazy var checkInterval: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x44)
-    lazy var creatorOS: FilesystemCreator? = FilesystemCreator(rawValue: BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x48) ?? UInt32.max)
-    lazy var revisionLevel: Revision? = Revision(rawValue: BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x4C) ?? UInt32.max)
-    lazy var defaultReservedUid: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x50)
-    lazy var defaultReservedGid: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x52)
+    var lastCheckTime: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x40) } }
+    var checkInterval: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x44) } }
+    var creatorOS: FilesystemCreator { get throws { FilesystemCreator(rawValue: try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x48)) ?? .unknown } }
+    var revisionLevel: Revision { get throws { Revision(rawValue: try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x4C)) ?? .unknown } }
+    var defaultReservedUid: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x50) } }
+    var defaultReservedGid: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x52) } }
     
     // MARK: - `EXT4_DYNAMIC_REV` superblocks only
-    lazy var firstNonReservedInode: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x54)
+    var revisionSupportsDynamicInodeSizes: Bool {
+        get throws {
+            try revisionLevel != .unknown && revisionLevel >= Revision.version2
+        }
+    }
+    var firstNonReservedInode: UInt32 {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return 11
+            }
+            return try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x54)
+        }
+    }
     /// Size of inode structure, in bytes.
-    lazy var inodeSize: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x58)
-    lazy var blockGroupNumber: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x5A)
-    lazy var featureCompatibilityFlags: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x5C)
-    lazy var featureIncompatibleFlags: IncompatibleFeatures? = IncompatibleFeatures(rawValue: BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x60) ?? 0)
-    lazy var readonlyFeatureCompatibilityFlags: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x64)
-    lazy var uuid: UUID? = BlockDeviceReader.readUUID(blockDevice: blockDevice, at: offset + 0x68)
+    var inodeSize: UInt16 {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return 128
+            }
+            return try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x58)
+        }
+    }
+    var blockGroupNumber: UInt16? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader
+                .readLittleEndian(blockDevice: blockDevice, at: offset + 0x5A)
+        }
+    }
+    var featureCompatibilityFlags: CompatibleFeatures {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return CompatibleFeatures()
+            }
+            return CompatibleFeatures(
+                rawValue: try BlockDeviceReader.readLittleEndian(
+                    blockDevice: blockDevice,
+                    at: offset + 0x5C
+                )
+            )
+        }
+    }
+    var featureIncompatibleFlags: IncompatibleFeatures {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return IncompatibleFeatures()
+            }
+            return IncompatibleFeatures(
+                rawValue: try BlockDeviceReader
+                    .readLittleEndian(
+                        blockDevice: blockDevice,
+                        at: offset + 0x60
+                    )
+            )
+        }
+    }
+    var readonlyFeatureCompatibilityFlags: ReadOnlyCompatibleFeatures {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return ReadOnlyCompatibleFeatures()
+            }
+            return try ReadOnlyCompatibleFeatures(
+                rawValue: BlockDeviceReader
+                    .readLittleEndian(
+                        blockDevice: blockDevice,
+                        at: offset + 0x64
+                    )
+            ) 
+        }
+    }
+    var uuid: UUID? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader.readUUID(blockDevice: blockDevice, at: offset + 0x68)
+        }
+    }
     /// Volume label, maximum length 16.
-    lazy var volumeName: String? = BlockDeviceReader.readString(blockDevice: blockDevice, at: offset + 0x78, maxLength: 16)
+    var volumeName: String? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader
+                .readString(
+                    blockDevice: blockDevice,
+                    at: offset + 0x78,
+                    maxLength: 16
+                )
+        }
+    }
     /// Directory where filesystem was last mounted, maximum length 64.
-    lazy var lastMounted: String? = BlockDeviceReader.readString(blockDevice: blockDevice, at: offset + 0x88, maxLength: 64)
-    lazy var algorithmUsageBitmap: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xC8)
+    var lastMountedDirectory: String? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader
+                .readString(
+                    blockDevice: blockDevice,
+                    at: offset + 0x88,
+                    maxLength: 64
+                )
+        }
+    }
+    var algorithmUsageBitmap: UInt32? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader
+                .readLittleEndian(blockDevice: blockDevice, at: offset + 0xC8)
+        }
+    }
     
     // MARK: - Performance hints
-    lazy var preallocateBlocks: UInt8? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xCC)
-    lazy var preallocateDirectoryBlock: UInt8? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xCD)
-    lazy var reservedGDTblocks: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xCE)
+    var preallocateBlocks: UInt8? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.directoryPreallocation) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0xCC
+            )
+        }
+    }
+    var preallocateDirectoryBlock: UInt8? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.directoryPreallocation) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0xCD
+            )
+        }
+    }
+    var reservedGDTblocks: UInt16? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.directoryPreallocation) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xCE)
+        }
+    }
     
     // MARK: - Journalling support
-    lazy var journalUUID: UUID? = BlockDeviceReader.readUUID(blockDevice: blockDevice, at: offset + 0xD0)
-    lazy var journalInodeNumber: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xE0)
-    lazy var journalDeviceNumber: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xE4)
+    var journalUUID: UUID? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+                return nil
+            }
+            return try BlockDeviceReader.readUUID(
+                blockDevice: blockDevice,
+                at: offset + 0xD0
+            )
+        }
+    }
+    var journalInodeNumber: UInt32? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0xE0
+            )
+        }
+    }
+    var journalDeviceNumber: UInt32? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0xE4
+            )
+        }
+    }
     
-    lazy var lastOrphan: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xE8)
-//    lazy var hashSeed: [UInt32] // size 4
-    lazy var defaultHashVersion: UInt8? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xFC)
-    lazy var journalBackupType: UInt8? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xFD)
-    lazy var descriptorSize: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xFE)
-    lazy var defaultMountOptions: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x100)
-    lazy var firstMetablockBlockGroup: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x104)
+    var lastOrphan: UInt32? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0xE8
+            )
+        }
+    }
+    //    var hashSeed: [UInt32] // size 4
+    var defaultHashVersion: UInt8? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0xFC
+            )
+        }
+    }
+    var journalBackupType: UInt8? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0xFD
+            )
+        }
+    }
+    var descriptorSize: UInt16? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0xFE
+            )
+        }
+    }
+    var defaultMountOptions: UInt32? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x100
+            )
+        }
+    }
+    var firstMetablockBlockGroup: UInt32? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x104
+            )
+        }
+    }
     /// When the filesystem was created, in seconds since the epoch.
-    lazy var mkfsTime: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x108)
-//    lazy var journalBlocks: [UInt32] // size 17
+    var mkfsTime: UInt32? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x108)
+        }
+    }
+//    var journalBlocks: [UInt32] // size 17
     
     // MARK: - 64-bit support
-    lazy var blocksCountHigh: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x150)
-    lazy var reservedBlocksCountHigh: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x154)
-    lazy var freeBlocksCountHigh: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x158)
+    var blocksCountHigh: UInt32? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x150
+            )
+        }
+    }
+    var reservedBlocksCountHigh: UInt32? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x154
+            )
+        }
+    }
+    var freeBlocksCountHigh: UInt32? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x158
+            )
+        }
+    }
     /// All inodes have at least `minimumExtraInodeSize` bytes.
-    lazy var minimumExtraInodeSize: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x15C)
+    var minimumExtraInodeSize: UInt16? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x15C
+            )
+        }
+    }
     /// New inodes should reserve `wantExtraInodeSize` bytes.
-    lazy var wantExtraInodeSize: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x15E)
-    lazy var flags: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x160)
-    lazy var raidStride: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x164)
-    lazy var mmpInternal: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x166)
-    lazy var mmpBlock: UInt64? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x168)
-    lazy var raidStripeWidth: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x170)
-    lazy var logGroupsPerFlexibleGroup: UInt8? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x174)
-    lazy var checksumType: UInt8? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x175)
-    lazy var reservedPad: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x176)
-    lazy var kbytesWritten: UInt64? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x178)
-    lazy var snapshotInodeNumber: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x180)
-    lazy var snapshotId: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x184)
+    var wantExtraInodeSize: UInt16? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x15E
+            )
+        }
+    }
+    var flags: UInt32? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x160
+            )
+        }
+    }
+    var raidStride: UInt16? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x164
+            )
+        }
+    }
+    var mmpInternal: UInt16? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x166
+            )
+        }
+    }
+    var mmpBlock: UInt64? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x168
+            )
+        }
+    }
+    var raidStripeWidth: UInt32? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x170
+            )
+        }
+    }
+    var logGroupsPerFlexibleGroup: UInt8? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.flexibleBlockGroups) else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x174
+            )
+        }
+    }
+    var groupsPerFlexibleGroup: UInt64? {
+        get throws {
+            guard let logGroupsPerFlexibleGroup = try logGroupsPerFlexibleGroup else {
+                return nil
+            }
+            return UInt64(pow(2, Double(logGroupsPerFlexibleGroup)))
+        }
+    }
+    var checksumType: UInt8? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x175
+            )
+        }
+    }
+    var reservedPad: UInt16? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x176
+            )
+        }
+    }
+    var kbytesWritten: UInt64? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x178
+            )
+        }
+    }
+    var snapshotInodeNumber: UInt32? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x180
+            )
+        }
+    }
+    var snapshotId: UInt32? {
+        get throws {
+            guard try revisionSupportsDynamicInodeSizes else {
+                return nil
+            }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: blockDevice,
+                at: offset + 0x184
+            )
+        }
+    }
 }

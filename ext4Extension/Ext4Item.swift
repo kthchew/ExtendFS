@@ -77,45 +77,36 @@ class Ext4Item: FSItem {
     let inodeNumber: UInt32
     var parentInodeNumber: UInt32
     
-    var blockGroupNumber: UInt32? {
-        if let inodesPerGroup = containingVolume.superblock.inodesPerGroup {
-            (inodeNumber - 1) / inodesPerGroup
-        } else {
-            nil
+    var blockGroupNumber: UInt32 {
+        get throws {
+            (inodeNumber - 1) / (try containingVolume.superblock.inodesPerGroup)
         }
     }
     var blockGroupDescriptor: BlockGroupDescriptor? {
-        if let blockGroupNumber {
-            logger.log("Getting block group descriptor \(blockGroupNumber), inode number is \(self.inodeNumber)")
-            return containingVolume.blockGroupDescriptors[Int(blockGroupNumber)]
-        } else {
-            return nil
+        get throws {
+            logger.log("Getting block group descriptor \((try? self.blockGroupNumber).debugDescription), inode number is \(self.inodeNumber)")
+            return try containingVolume.blockGroupDescriptors[Int(blockGroupNumber)]
         }
     }
-    var groupInodeTableIndex: UInt32? {
-        if let inodesPerGroup = containingVolume.superblock.inodesPerGroup {
-            (inodeNumber - 1) % inodesPerGroup
-        } else {
-            nil
+    var groupInodeTableIndex: UInt32 {
+        get throws {
+            (inodeNumber - 1) % (try containingVolume.superblock.inodesPerGroup)
         }
     }
-    var inodeTableOffset: UInt64? {
-        // FIXME: not all inode entries are necessarily the same size - see https://www.kernel.org/doc/html/v4.19/filesystems/ext4/ondisk/index.html#inode-size
-        // this might be correct though since the records should be the correct size?
-        if let groupInodeTableIndex, let inodeSize = containingVolume.superblock.inodeSize {
-            UInt64(groupInodeTableIndex) * UInt64(inodeSize)
-        } else {
-            nil
+    var inodeTableOffset: UInt64 {
+        get throws {
+            // FIXME: not all inode entries are necessarily the same size - see https://www.kernel.org/doc/html/v4.19/filesystems/ext4/ondisk/index.html#inode-size
+            // this might be correct though since the records should be the correct size?
+            try UInt64(groupInodeTableIndex) * UInt64(containingVolume.superblock.inodeSize)
         }
     }
     /// The offset of the inode table entry on the disk.
-    // FIXME: should not force unwrap
-    var inodeLocation: Int64! {
-        if let inodeTableOffset, let inodeTableLocation = blockGroupDescriptor?.inodeTableLocation {
-            return Int64((inodeTableLocation * UInt64(containingVolume.superblock.blockSize ?? 4096)) + inodeTableOffset)
-        } else {
-            logger.log("inodetableoffset \(self.inodeTableOffset.debugDescription, privacy: .public), table location \(self.blockGroupDescriptor?.inodeTableLocation.debugDescription ?? "oops", privacy: .public), block group descriptor \(self.blockGroupDescriptor.debugDescription, privacy: .public)")
-            return nil
+    var inodeLocation: Int64 {
+        get throws {
+            guard let inodeTableLocation = try blockGroupDescriptor?.inodeTableLocation else {
+                throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+            }
+            return try Int64((inodeTableLocation * UInt64(containingVolume.superblock.blockSize)) + inodeTableOffset)
         }
     }
     
@@ -129,88 +120,87 @@ class Ext4Item: FSItem {
         self.parentInodeNumber = parentInodeNumber
     }
     
-    var mode: Mode? {
-        if let inodeLocation {
-            Mode(rawValue: BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x0) ?? 0)
-        } else {
-            nil
+    var mode: Mode {
+        get throws {
+            try Mode(rawValue: BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x0))
         }
     }
-    var lowerUID: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x2) }
-    var lowerSize: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x4) }
+    var lowerUID: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x2) } }
+    var lowerSize: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x4) } }
     /// Last access time in seconds since the epoch, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
-    var storedAccessTime: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x8) }
+    var storedAccessTime: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x8) } }
     /// Last inode change time in seconds since the epoch, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
-    var storedChangeTime: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0xC) }
+    var storedChangeTime: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0xC) } }
     /// Last data modification time in seconds since the epoch, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
-    var storedModificationTime: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x10) }
-    var deletionTime: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x14) }
-    var lowerGID: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x18) }
+    var storedModificationTime: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x10) } }
+    var deletionTime: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x14) } }
+    var lowerGID: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x18) } }
     /// Hard link count.
     ///
     /// Normally, ext4 does not permit an inode to have more than 65,000 hard links. This applies to files as well as directories, which means that there cannot be more than 64,998 subdirectories in a directory (each subdirectory’s `..` entry counts as a hard link, as does the `.` entry in the directory itself). With the `DIR_NLINK` feature enabled, ext4 supports more than 64,998 subdirectories by setting this field to 1 to indicate that the number of hard links is not known.
-    var hardLinkCount: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x1A) }
-    var lowerBlockCount: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x1C) }
+    var hardLinkCount: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x1A) } }
+    var lowerBlockCount: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x1C) } }
     var flags: Flags? {
-        if let inodeLocation {
-            Flags(rawValue: BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x20) ?? 0)
-        } else {
-            nil
+        get throws {
+            Flags(rawValue: try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x20))
         }
     }
-    var fileGenerationForNFS: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x64) }
-    var lowerExtendedAttributeBlock: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x68) }
-    var upperSize: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x1A) }
+    var fileGenerationForNFS: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x64) } }
+    var lowerExtendedAttributeBlock: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x68) } }
+    var upperSize: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x1A) } }
     
     var filetype: FSItem.ItemType {
-        logger.log("getting filetype of item, mode \(self.mode.debugDescription, privacy: .public)")
-        guard let mode else { return .unknown }
-        switch mode {
-        case let mode where mode.contains(.regularFileType):
-            logger.log("is regular")
-            return .file
-        case let mode where mode.contains(.directoryType):
-            logger.log("is directory")
-            return .directory
-        case let mode where mode.contains(.blockDeviceType):
-            return .blockDevice
-        case let mode where mode.contains(.characterDeviceType):
-            return .charDevice
-        case let mode where mode.contains(.fifoType):
-            return .fifo
-        case let mode where mode.contains(.socketType):
-            return .socket
-        case let mode where mode.contains(.symbolicLinkType):
-            return .symlink
-        default:
-            return .unknown
+        get throws {
+            switch try mode {
+            case let mode where mode.contains(.regularFileType):
+                logger.log("is regular")
+                return .file
+            case let mode where mode.contains(.directoryType):
+                logger.log("is directory")
+                return .directory
+            case let mode where mode.contains(.blockDeviceType):
+                return .blockDevice
+            case let mode where mode.contains(.characterDeviceType):
+                return .charDevice
+            case let mode where mode.contains(.fifoType):
+                return .fifo
+            case let mode where mode.contains(.socketType):
+                return .socket
+            case let mode where mode.contains(.symbolicLinkType):
+                return .symlink
+            default:
+                return .unknown
+            }
         }
     }
     
     // TODO: extra bits from extended fields, actual file contents, osd values
     
     var extentTreeRoot: FileExtentTreeLevel? {
-        // FIXME: don't just assume this is actually an extent tree
-        FileExtentTreeLevel(volume: containingVolume, offset: inodeLocation + 0x28)
+        get throws {
+            // FIXME: don't just assume this is actually an extent tree
+            FileExtentTreeLevel(volume: containingVolume, offset: try inodeLocation + 0x28)
+        }
     }
     
     var directoryContents: [Ext4Item]? {
-        guard let mode, mode.contains(.directoryType) else { return nil }
-        guard let extents = extentTreeRoot?.findExtentsCovering(0, with: Int.max) else { return nil }
-        let filetypeFeatureFlagSet = containingVolume.superblock.featureIncompatibleFlags?.contains(.filetype) ?? false
-        var contents = [Ext4Item]()
-        for extent in extents {
-            let byteOffset = extent.physicalBlock * Int64(containingVolume.superblock.blockSize!)
-            var currentOffset = 0
-            while currentOffset < Int(extent.lengthInBlocks!) * containingVolume.superblock.blockSize! {
-                let directoryEntry = DirectoryEntry(volume: containingVolume, offset: byteOffset + Int64(currentOffset), usesFiletype: filetypeFeatureFlagSet)
-                guard directoryEntry.inodePointee != 0, directoryEntry.nameLength != 0 else { break }
-                contents.append(Ext4Item(name: FSFileName(string: directoryEntry.name ?? ""), in: containingVolume, inodeNumber: directoryEntry.inodePointee, parentInodeNumber: inodeNumber))
-                currentOffset += Int(directoryEntry.directoryEntryLength!)
+        get throws {
+            guard try mode.contains(.directoryType) else { return nil }
+            guard let extents = try extentTreeRoot?.findExtentsCovering(0, with: Int.max) else { return nil }
+            var contents = [Ext4Item]()
+            for extent in extents {
+                let byteOffset = extent.physicalBlock * Int64(try containingVolume.superblock.blockSize)
+                var currentOffset = 0
+                while try currentOffset < Int(extent.lengthInBlocks!) * containingVolume.superblock.blockSize {
+                    let directoryEntry = DirectoryEntry(volume: containingVolume, offset: byteOffset + Int64(currentOffset))
+                    guard try directoryEntry.inodePointee != 0, try directoryEntry.nameLength != 0 else { break }
+                    contents.append(Ext4Item(name: FSFileName(string: try directoryEntry.name ?? ""), in: containingVolume, inodeNumber: try directoryEntry.inodePointee, parentInodeNumber: inodeNumber))
+                    currentOffset += Int(try directoryEntry.directoryEntryLength)
+                }
             }
+            
+            return contents
         }
-        
-        return contents
     }
     
     func getAttributes(_ request: GetAttributesRequest) -> FSItem.Attributes {
@@ -218,43 +208,42 @@ class Ext4Item: FSItem {
         
         // FIXME: many of these need to properly handle the upper values
         if request.isAttributeWanted(.uid) {
-            attributes.uid = UInt32(lowerUID ?? 0)
+            attributes.uid = UInt32((try? lowerUID) ?? 0)
         }
         if request.isAttributeWanted(.gid) {
-            attributes.gid = UInt32(lowerGID ?? 0)
+            attributes.gid = UInt32((try? lowerGID) ?? 0)
         }
         if request.isAttributeWanted(.flags) {
-            attributes.mode = UInt32(mode?.rawValue ?? 0x777)
+            attributes.mode = UInt32((try? mode)?.rawValue ?? 0x777)
         }
         if request.isAttributeWanted(.fileID) {
             attributes.fileID = FSItem.Identifier(rawValue: UInt64(inodeNumber)) ?? .invalid
         }
         if request.isAttributeWanted(.type) {
-            attributes.type = filetype
+            attributes.type = (try? filetype) ?? .unknown
         }
         if request.isAttributeWanted(.size) {
-            attributes.size = UInt64(lowerSize ?? 0)
+            attributes.size = UInt64((try? lowerSize) ?? 0)
         }
         if request.isAttributeWanted(.inhibitKernelOffloadedIO) {
             attributes.inhibitKernelOffloadedIO = false
         }
         if request.isAttributeWanted(.accessTime) {
-            attributes.accessTime = timespec(tv_sec: Int(storedAccessTime ?? 0), tv_nsec: 0)
+            attributes.accessTime = timespec(tv_sec: Int((try? storedAccessTime) ?? 0), tv_nsec: 0)
         }
         if request.isAttributeWanted(.changeTime) {
-            attributes.changeTime = timespec(tv_sec: Int(storedChangeTime ?? 0), tv_nsec: 0)
+            attributes.changeTime = timespec(tv_sec: Int((try? storedChangeTime) ?? 0), tv_nsec: 0)
         }
         if request.isAttributeWanted(.modifyTime) {
-            attributes.modifyTime = timespec(tv_sec: Int(storedModificationTime ?? 0), tv_nsec: 0)
+            attributes.modifyTime = timespec(tv_sec: Int((try? storedModificationTime) ?? 0), tv_nsec: 0)
         }
-        if request.isAttributeWanted(.linkCount), let hardLinkCount {
-            attributes.linkCount = UInt32(hardLinkCount)
+        if request.isAttributeWanted(.linkCount) {
+            attributes.linkCount = UInt32((try? hardLinkCount) ?? 1)
         }
         if request.isAttributeWanted(.parentID) {
             attributes.parentID = FSItem.Identifier(rawValue: UInt64(parentInodeNumber)) ?? .invalid
         }
         
-        logger.log("attributes: \(attributes.debugDescription, privacy: .public) \(self.filetype.rawValue, privacy: .public) \(attributes.fileID.rawValue, privacy: .public)")
         return attributes
     }
 }

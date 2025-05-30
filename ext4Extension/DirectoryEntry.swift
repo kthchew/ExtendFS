@@ -10,7 +10,6 @@ import Foundation
 struct DirectoryEntry {
     let volume: Ext4Volume
     let offset: Int64
-    let usesFiletype: Bool
     
     enum Filetype: UInt8 {
         case unknown = 0
@@ -23,15 +22,17 @@ struct DirectoryEntry {
         case symbolicLink
     }
     
-    var inodePointee: UInt32! { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x0) }
-    var directoryEntryLength: UInt16! { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x4) }
-    var nameLength: UInt8! {
-        BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x6)
+    var inodePointee: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x0) } }
+    var directoryEntryLength: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x4) } }
+    var nameLength: UInt8 {
+        get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x6) }
     }
     var fileType: Filetype! {
-        guard usesFiletype else { return nil }
-        return Filetype(rawValue: BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x7)!)
+        get throws {
+            guard try volume.superblock.featureIncompatibleFlags.contains(.filetype) else { return nil }
+            return Filetype(rawValue: try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x7))
+        }
         
     }
-    var name: String! { BlockDeviceReader.readString(blockDevice: volume.resource, at: offset + 0x8, maxLength: Int(nameLength)) }
+    var name: String! { get throws { try BlockDeviceReader.readString(blockDevice: volume.resource, at: offset + 0x8, maxLength: Int(nameLength)) } }
 }

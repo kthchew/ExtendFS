@@ -14,12 +14,12 @@ struct FileExtentNode: Hashable, Comparable {
         lhs.logicalBlock < rhs.logicalBlock
     }
     
-    init(blockDevice: FSBlockDeviceResource, offset: off_t, isLeaf: Bool) {
+    init(blockDevice: FSBlockDeviceResource, offset: off_t, isLeaf: Bool) throws {
         // FIXME: handle optional better
-        let logicalBlock: UInt32 = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset) ?? 0
+        let logicalBlock: UInt32 = try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset)
         self.logicalBlock = off_t(logicalBlock)
         if isLeaf {
-            let length: UInt16 = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x4) ?? 0
+            let length: UInt16 = try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x4)
             if length > 32768 {
                 self.lengthInBlocks = length - 32768
                 self.type = .zeroFill
@@ -27,12 +27,12 @@ struct FileExtentNode: Hashable, Comparable {
                 self.lengthInBlocks = length
                 self.type = .data
             }
-            let upperStartBlock: UInt16 = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x6) ?? 0
-            let lowerStartBlock: UInt32 = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x8) ?? 0
+            let upperStartBlock: UInt16 = try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x6)
+            let lowerStartBlock: UInt32 = try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x8)
             self.physicalBlock = off_t(UInt64.combine(upper: upperStartBlock, lower: lowerStartBlock))
         } else {
-            let lowerStartBlock: UInt32 = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x4) ?? 0
-            let upperStartBlock: UInt16 = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x8) ?? 0
+            let lowerStartBlock: UInt32 = try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x4)
+            let upperStartBlock: UInt16 = try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x8)
             self.physicalBlock = off_t(UInt64.combine(upper: upperStartBlock, lower: lowerStartBlock))
         }
     }

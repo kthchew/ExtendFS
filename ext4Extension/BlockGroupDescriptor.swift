@@ -62,60 +62,60 @@ struct BlockGroupDescriptor {
         static let inodeTableZeroed = Flags(rawValue: 1 << 2)
     }
     
-    var lowerBlockBitmapLocation: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x0) }
-    var lowerInodeBitmapLocation: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x4) }
-    var lowerInodeTableLocation: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x8) }
-    var lowerFreeBlockCountLocation: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0xC) }
-    var lowerFreeInodeCountLocation: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0xE) }
-    var lowerUsedDirectoryCountLocation: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x10) }
-    var flags: Flags? { Flags(rawValue: BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x12) ?? 0) }
-    var lowerSnapshotExclusionBitmapLocation: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x14) }
-    var lowerBlockBitmapChecksum: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x18) }
-    var lowerInodeBitmapChecksum: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x1A) }
-    var lowerUnusedInodeCount: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x1C) }
-    var checksum: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x1E) }
+    var lowerBlockBitmapLocation: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x0) } }
+    var lowerInodeBitmapLocation: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x4) } }
+    var lowerInodeTableLocation: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x8) } }
+    var lowerFreeBlockCountLocation: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0xC) } }
+    var lowerFreeInodeCountLocation: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0xE) } }
+    var lowerUsedDirectoryCountLocation: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x10) } }
+    var flags: Flags { get throws { Flags(rawValue: try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x12)) } }
+    var lowerSnapshotExclusionBitmapLocation: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x14) } }
+    var lowerBlockBitmapChecksum: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x18) } }
+    var lowerInodeBitmapChecksum: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x1A) } }
+    var lowerUnusedInodeCount: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x1C) } }
+    var checksum: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x1E) } }
     
     // MARK: - 64-bit only
     // FIXME: these are not valid if 32-bit is not enabled
-    var upperBlockBitmapLocation: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x20) }
-    var upperInodeBitmapLocation: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x24) }
-    var upperInodeTableLocation: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x28) }
-    var upperFreeBlockCountLocation: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x2C) }
-    var upperFreeInodeCountLocation: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x2E) }
-    var upperUsedDirectoryCountLocation: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x30) }
-    var upperUnusedInodeCount: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x32) }
-    var upperSnapshotExclusionBitmapLocation: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x34) }
-    var upperBlockBitmapChecksum: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x38) }
-    var upperInodeBitmapChecksum: UInt16? { BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x3A) }
+    var upperBlockBitmapLocation: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x20) } }
+    var upperInodeBitmapLocation: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x24) } }
+    var upperInodeTableLocation: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x28) } }
+    var upperFreeBlockCountLocation: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x2C) } }
+    var upperFreeInodeCountLocation: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x2E) } }
+    var upperUsedDirectoryCountLocation: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x30) } }
+    var upperUnusedInodeCount: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x32) } }
+    var upperSnapshotExclusionBitmapLocation: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x34) } }
+    var upperBlockBitmapChecksum: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x38) } }
+    var upperInodeBitmapChecksum: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x3A) } }
     
     var blockBitmapLocation: UInt64? {
-        get { UInt64.combine(upper: upperBlockBitmapLocation, lower: lowerBlockBitmapLocation) }
+        get throws { try UInt64.combine(upper: upperBlockBitmapLocation, lower: lowerBlockBitmapLocation) }
     }
     var inodeBitmapLocation: UInt64? {
-        get { UInt64.combine(upper: upperInodeBitmapLocation, lower: lowerInodeBitmapLocation) }
+        get throws { try UInt64.combine(upper: upperInodeBitmapLocation, lower: lowerInodeBitmapLocation) }
     }
     var inodeTableLocation: UInt64? {
-        get { Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "dc").log("combining \(upperInodeTableLocation.debugDescription, privacy: .public) and \(lowerInodeTableLocation.debugDescription, privacy: .public), offset \(self.offset, privacy: .public)"); return UInt64.combine(upper: upperInodeTableLocation, lower: lowerInodeTableLocation) }
+        get throws { try UInt64.combine(upper: upperInodeTableLocation, lower: lowerInodeTableLocation) }
     }
     var freeBlockCountLocation: UInt32? {
-        get { UInt32.combine(upper: upperFreeBlockCountLocation, lower: lowerFreeBlockCountLocation) }
+        get throws { try UInt32.combine(upper: upperFreeBlockCountLocation, lower: lowerFreeBlockCountLocation) }
     }
     var freeInodeCountLocation: UInt32? {
-        get { UInt32.combine(upper: upperFreeInodeCountLocation, lower: lowerFreeInodeCountLocation) }
+        get throws { try UInt32.combine(upper: upperFreeInodeCountLocation, lower: lowerFreeInodeCountLocation) }
     }
     var usedDirectoryCountLocation: UInt32? {
-        get { UInt32.combine(upper: upperUsedDirectoryCountLocation, lower: lowerUsedDirectoryCountLocation) }
+        get throws { try UInt32.combine(upper: upperUsedDirectoryCountLocation, lower: lowerUsedDirectoryCountLocation) }
     }
     var unusedInodeCount: UInt32? {
-        get { UInt32.combine(upper: upperUnusedInodeCount, lower: lowerUnusedInodeCount) }
+        get throws { try UInt32.combine(upper: upperUnusedInodeCount, lower: lowerUnusedInodeCount) }
     }
     var snapshotExclusionBitmapLocation: UInt64? {
-        get { UInt64.combine(upper: upperSnapshotExclusionBitmapLocation, lower: lowerSnapshotExclusionBitmapLocation) }
+        get throws { try UInt64.combine(upper: upperSnapshotExclusionBitmapLocation, lower: lowerSnapshotExclusionBitmapLocation) }
     }
     var blockBitmapChecksum: UInt32? {
-        get { UInt32.combine(upper: upperBlockBitmapChecksum, lower: lowerBlockBitmapChecksum) }
+        get throws { try UInt32.combine(upper: upperBlockBitmapChecksum, lower: lowerBlockBitmapChecksum) }
     }
     var inodeBitmapChecksum: UInt32? {
-        get { UInt32.combine(upper: upperInodeBitmapChecksum, lower: lowerInodeBitmapChecksum) }
+        get throws { try UInt32.combine(upper: upperInodeBitmapChecksum, lower: lowerInodeBitmapChecksum) }
     }
 }

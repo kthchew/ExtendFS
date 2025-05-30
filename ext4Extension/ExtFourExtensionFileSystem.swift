@@ -24,8 +24,14 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
             return .notRecognized
         }
         
-        var superblock = Superblock(blockDevice: resource, offset: 1024)
-        if let magic = superblock.magic, magic == 0xEF53, let uuid = superblock.uuid, let name = superblock.volumeName {
+        let superblock = Superblock(blockDevice: resource, offset: 1024)
+        if try superblock.magic == 0xEF53 {
+            let name = (try? superblock.volumeName) ?? ""
+            let uuid = (try? superblock.uuid) ?? UUID()
+            guard try superblock.featureIncompatibleFlags.isSubset(of: Superblock.IncompatibleFeatures.supportedFeatures) else {
+                return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+            }
+            
             return .usable(name: name, containerID: FSContainerIdentifier(uuid: uuid))
         } else {
             return .notRecognized
@@ -65,7 +71,7 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
 //            }
 //        }
         
-        let volume = Ext4Volume(resource: resource)
+        let volume = try Ext4Volume(resource: resource)
         containerStatus = .ready
         logger.log("Container status ready")
         return volume
