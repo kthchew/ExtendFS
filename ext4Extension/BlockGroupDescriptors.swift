@@ -20,13 +20,13 @@ class BlockGroupDescriptors {
     }
     
     subscript(index: Int) -> BlockGroupDescriptor? {
-        get {
+        get throws {
             guard index >= 0 && index < blockGroupCount else {
                 return nil
             }
             
-            let descriptorSizeBytes: Int64 = 64
-            return BlockGroupDescriptor(volume: volume, offset: offset + Int64(index) * descriptorSizeBytes)
+            let descriptorSizeBytes = try volume.superblock.descriptorSize
+            return BlockGroupDescriptor(volume: volume, offset: offset + Int64(index) * Int64(descriptorSizeBytes))
         }
     }
 }

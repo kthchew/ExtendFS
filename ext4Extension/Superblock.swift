@@ -151,27 +151,27 @@ struct Superblock {
     struct IncompatibleFeatures: OptionSet {
         let rawValue: UInt32
         
-        static let compression = IncompatibleFeatures(rawValue: 1 << 0)
+        static let compression = IncompatibleFeatures(rawValue: 0x1)
         /// Directory entries record the file type.
-        static let filetype = IncompatibleFeatures(rawValue: 1 << 1)
-        static let needsRecovery = IncompatibleFeatures(rawValue: 1 << 2)
-        static let separateJournalDevice = IncompatibleFeatures(rawValue: 1 << 3)
-        static let metaBlockGroups = IncompatibleFeatures(rawValue: 1 << 4)
-        static let extents = IncompatibleFeatures(rawValue: 1 << 5)
-        static let enable64BitSize = IncompatibleFeatures(rawValue: 1 << 6)
-        static let multipleMountProtection = IncompatibleFeatures(rawValue: 1 << 7)
-        static let flexibleBlockGroups = IncompatibleFeatures(rawValue: 1 << 8)
-        static let inodesCanStoreLargeExtendedAttributes = IncompatibleFeatures(rawValue: 1 << 9)
-        static let dataInDirEntry = IncompatibleFeatures(rawValue: 1 << 10)
-        static let metadataChecksumSeedInSuperblock = IncompatibleFeatures(rawValue: 1 << 11)
-        static let largeDirectory = IncompatibleFeatures(rawValue: 1 << 12)
-        static let inlineDataInInode = IncompatibleFeatures(rawValue: 1 << 13)
-        static let encryptedInodes = IncompatibleFeatures(rawValue: 1 << 14)
+        static let filetype = IncompatibleFeatures(rawValue: 0x2)
+        static let needsRecovery = IncompatibleFeatures(rawValue: 0x4)
+        static let separateJournalDevice = IncompatibleFeatures(rawValue: 0x8)
+        static let metaBlockGroups = IncompatibleFeatures(rawValue: 0x10)
+        static let extents = IncompatibleFeatures(rawValue: 0x40)
+        static let enable64BitSize = IncompatibleFeatures(rawValue: 0x80)
+        static let multipleMountProtection = IncompatibleFeatures(rawValue: 0x100)
+        static let flexibleBlockGroups = IncompatibleFeatures(rawValue: 0x200)
+        static let inodesCanStoreLargeExtendedAttributes = IncompatibleFeatures(rawValue: 0x400)
+        static let dataInDirEntry = IncompatibleFeatures(rawValue: 0x1000)
+        static let metadataChecksumSeedInSuperblock = IncompatibleFeatures(rawValue: 0x2000)
+        static let largeDirectory = IncompatibleFeatures(rawValue: 0x4000)
+        static let inlineDataInInode = IncompatibleFeatures(rawValue: 0x8000)
+        static let encryptedInodes = IncompatibleFeatures(rawValue: 0x10000)
         
         /// The set of features supported by the driver.
         ///
         /// If a filesystem enables any features not included in this set, it should not be mounted.
-        static let supportedFeatures: IncompatibleFeatures = [.filetype, .extents, .enable64BitSize, .metadataChecksumSeedInSuperblock]
+        static let supportedFeatures: IncompatibleFeatures = [.filetype, .extents, .enable64BitSize, .flexibleBlockGroups, .metadataChecksumSeedInSuperblock]
     }
     
     struct ReadOnlyCompatibleFeatures: OptionSet {
@@ -504,10 +504,10 @@ struct Superblock {
             )
         }
     }
-    var descriptorSize: UInt16? {
+    var descriptorSize: UInt16 {
         get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
-                return nil
+            guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
+                return 32
             }
             return try BlockDeviceReader.readLittleEndian(
                 blockDevice: blockDevice,
@@ -672,6 +672,13 @@ struct Superblock {
             )
         }
     }
+    /// The number of block groups in a single logical block group (referred to as a flexible block group).
+    ///
+    /// The bitmap spaces and the inode table space in the first block group of a given flexible block group are expanded to include the bitmaps and inode tables of all other block groups in that flexible group. For example, group 0 contains the data block bitmaps, inode bitmaps, and inode tables for itself as well as other block groups in its flexible group.
+    ///
+    /// Backup copies of the superblock and group descriptors will always be at the beginning of block groups even with flexible block groups enabled.
+    ///
+    /// If flexible block groups are disabled, this returns `nil`.
     var groupsPerFlexibleGroup: UInt64? {
         get throws {
             guard let logGroupsPerFlexibleGroup = try logGroupsPerFlexibleGroup else {

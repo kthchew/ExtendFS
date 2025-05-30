@@ -49,6 +49,9 @@ extension UInt32 {
     }
 }
 
+/// A structure that describes a block group.
+///
+/// There's one descriptor per "real" block group (as opposed to one per flexible block group).
 struct BlockGroupDescriptor {
     let volume: Ext4Volume
     /// The byte offset on the block device at which the descriptor starts.
