@@ -27,7 +27,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     }
     
     private lazy var root: FSItem = {
-        let item = Ext4Item(name: FSFileName(string: "/"), in: self, inodeNumber: 2)
+        let item = Ext4Item(name: FSFileName(string: "/"), in: self, inodeNumber: 2, parentInodeNumber: UInt32(FSItem.Identifier.parentOfRoot.rawValue))
         return item
     }()
     
@@ -183,5 +183,74 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     
     var truncatesLongNames: Bool {
         false
+    }
+}
+
+extension Ext4Volume: FSVolume.ReadWriteOperations {
+    func read(from item: FSItem, at offset: off_t, length: Int, into buffer: FSMutableFileDataBuffer) async throws -> Int {
+        guard let item = item as? Ext4Item else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+        }
+        
+        guard let blockSize = superblock.blockSize else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+        }
+        
+        let blockOffset = Int(offset) / blockSize
+        let blockLength = (Int(offset) + length) / blockSize - blockOffset + 1
+        guard let extents = item.extentTreeRoot?.findExtentsCovering(Int64(blockOffset), with: blockLength) else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+        }
+        var amountRead = 0
+        for extent in extents {
+            amountRead += try buffer.withUnsafeMutableBytes { ptr in
+                // FIXME: this is extremely wrong and will only work for the simplest cases
+                return try resource.read(into: ptr, startingAt: extent.physicalBlock * Int64(superblock.blockSize!), length: min(length, Int(extent.lengthInBlocks ?? 1) * superblock.blockSize!))
+            }
+        }
+        return amountRead
+    }
+    
+    func write(contents: Data, to item: FSItem, at offset: off_t) async throws -> Int {
+        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
+    }
+}
+
+extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
+    func blockmapFile(_ file: FSItem, offset: off_t, length: Int, flags: FSBlockmapFlags, operationID: FSOperationID, packer: FSExtentPacker) async throws {
+        logger.info("blockmapFile")
+        guard let file = file as? Ext4Item else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+        }
+        if flags.contains(.write) {
+            throw fs_errorForPOSIXError(POSIXError.EPERM.rawValue)
+        }
+        
+        guard let blockSize = superblock.blockSize else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+        }
+        
+        let blockOffset = Int(offset) / blockSize
+        let blockLength = (Int(offset) + length) / blockSize - blockOffset + 1
+        guard let extents = file.extentTreeRoot?.findExtentsCovering(Int64(blockOffset), with: blockLength) else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+        }
+        for extent in extents {
+            guard packer.packExtent(resource: resource, type: extent.type!, logicalOffset: extent.logicalBlock * Int64(blockSize), physicalOffset: extent.physicalBlock * Int64(blockSize), length: Int(extent.lengthInBlocks ?? 1) * Int(blockSize)) else {
+                return
+            }
+        }
+    }
+    
+    func completeIO(for file: FSItem, offset: off_t, length: Int, status: any Error, flags: FSCompleteIOFlags, operationID: FSOperationID) async throws {
+        return
+    }
+    
+    func createFile(name: FSFileName, in directory: FSItem, attributes: FSItem.SetAttributesRequest, packer: FSExtentPacker) async throws -> (FSItem, FSFileName) {
+        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
+    }
+    
+    func lookupItem(name: FSFileName, in directory: FSItem, packer: FSExtentPacker) async throws -> (FSItem, FSFileName) {
+        return try await lookupItem(named: name, inDirectory: directory)
     }
 }

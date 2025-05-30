@@ -75,6 +75,7 @@ class Ext4Item: FSItem {
     let containingVolume: Ext4Volume
     /// The number of the index node for this item.
     let inodeNumber: UInt32
+    var parentInodeNumber: UInt32
     
     var blockGroupNumber: UInt32? {
         if let inodesPerGroup = containingVolume.superblock.inodesPerGroup {
@@ -121,10 +122,11 @@ class Ext4Item: FSItem {
     let name: FSFileName
     let attributes = FSItem.Attributes()
     
-    init(name: FSFileName, in volume: Ext4Volume, inodeNumber: UInt32) {
+    init(name: FSFileName, in volume: Ext4Volume, inodeNumber: UInt32, parentInodeNumber: UInt32) {
         self.name = name
         self.containingVolume = volume
         self.inodeNumber = inodeNumber
+        self.parentInodeNumber = parentInodeNumber
     }
     
     var mode: Mode? {
@@ -203,7 +205,7 @@ class Ext4Item: FSItem {
             while currentOffset < Int(extent.lengthInBlocks!) * containingVolume.superblock.blockSize! {
                 let directoryEntry = DirectoryEntry(volume: containingVolume, offset: byteOffset + Int64(currentOffset), usesFiletype: filetypeFeatureFlagSet)
                 guard directoryEntry.inodePointee != 0, directoryEntry.nameLength != 0 else { break }
-                contents.append(Ext4Item(name: FSFileName(string: directoryEntry.name ?? ""), in: containingVolume, inodeNumber: directoryEntry.inodePointee))
+                contents.append(Ext4Item(name: FSFileName(string: directoryEntry.name ?? ""), in: containingVolume, inodeNumber: directoryEntry.inodePointee, parentInodeNumber: inodeNumber))
                 currentOffset += Int(directoryEntry.directoryEntryLength!)
             }
         }
@@ -214,6 +216,7 @@ class Ext4Item: FSItem {
     func getAttributes(_ request: GetAttributesRequest) -> FSItem.Attributes {
         let attributes = FSItem.Attributes()
         
+        // FIXME: many of these need to properly handle the upper values
         if request.isAttributeWanted(.uid) {
             attributes.uid = UInt32(lowerUID ?? 0)
         }
@@ -231,6 +234,24 @@ class Ext4Item: FSItem {
         }
         if request.isAttributeWanted(.size) {
             attributes.size = UInt64(lowerSize ?? 0)
+        }
+        if request.isAttributeWanted(.inhibitKernelOffloadedIO) {
+            attributes.inhibitKernelOffloadedIO = false
+        }
+        if request.isAttributeWanted(.accessTime) {
+            attributes.accessTime = timespec(tv_sec: Int(storedAccessTime ?? 0), tv_nsec: 0)
+        }
+        if request.isAttributeWanted(.changeTime) {
+            attributes.changeTime = timespec(tv_sec: Int(storedChangeTime ?? 0), tv_nsec: 0)
+        }
+        if request.isAttributeWanted(.modifyTime) {
+            attributes.modifyTime = timespec(tv_sec: Int(storedModificationTime ?? 0), tv_nsec: 0)
+        }
+        if request.isAttributeWanted(.linkCount), let hardLinkCount {
+            attributes.linkCount = UInt32(hardLinkCount)
+        }
+        if request.isAttributeWanted(.parentID) {
+            attributes.parentID = FSItem.Identifier(rawValue: UInt64(parentInodeNumber)) ?? .invalid
         }
         
         logger.log("attributes: \(attributes.debugDescription, privacy: .public) \(self.filetype.rawValue, privacy: .public) \(attributes.fileID.rawValue, privacy: .public)")
