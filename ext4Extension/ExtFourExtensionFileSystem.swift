@@ -15,7 +15,7 @@ enum ExtensionError: Error {
 
 @objc
 class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperations {
-    let logger = Logger(subsystem: "com.kpchew.ExtendFS", category: "Ext4Extension")
+    let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Ext4Extension")
     
     func asyncProbeResource(resource: FSResource) async throws -> FSProbeResult {
         logger.log("Probing resource")
@@ -67,6 +67,7 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
         
         let volume = Ext4Volume(resource: resource)
         containerStatus = .ready
+        logger.log("Container status ready")
         return volume
     }
     

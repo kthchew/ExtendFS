@@ -17,6 +17,24 @@ extension UInt64 {
         guard let upper else { return UInt64(lower) }
         return (UInt64(upper) << 32) | UInt64(lower)
     }
+    
+    static func combine(upper: UInt16, lower: UInt32) -> UInt64 {
+        return (UInt64(upper) << 32) | UInt64(lower)
+    }
+    static func combine(upper: UInt16?, lower: UInt32?) -> UInt64? {
+        guard let lower else { return nil }
+        guard let upper else { return UInt64(lower) }
+        return (UInt64(upper) << 32) | UInt64(lower)
+    }
+    
+    static func combine(upper: UInt32, lower: UInt16) -> UInt64 {
+        return (UInt64(upper) << 32) | UInt64(lower)
+    }
+    static func combine(upper: UInt32?, lower: UInt16?) -> UInt64? {
+        guard let lower else { return nil }
+        guard let upper else { return UInt64(lower) }
+        return (UInt64(upper) << 32) | UInt64(lower)
+    }
 }
 
 extension UInt32 {
@@ -77,7 +95,7 @@ struct BlockGroupDescriptor {
         get { UInt64.combine(upper: upperInodeBitmapLocation, lower: lowerInodeBitmapLocation) }
     }
     var inodeTableLocation: UInt64? {
-        get { UInt64.combine(upper: upperInodeTableLocation, lower: lowerInodeTableLocation) }
+        get { Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "dc").log("combining \(upperInodeTableLocation.debugDescription, privacy: .public) and \(lowerInodeTableLocation.debugDescription, privacy: .public), offset \(self.offset, privacy: .public)"); return UInt64.combine(upper: upperInodeTableLocation, lower: lowerInodeTableLocation) }
     }
     var freeBlockCountLocation: UInt32? {
         get { UInt32.combine(upper: upperFreeBlockCountLocation, lower: lowerFreeBlockCountLocation) }

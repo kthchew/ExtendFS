@@ -9,6 +9,8 @@ import Foundation
 import FSKit
 
 class Ext4Item: FSItem {
+    let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item")
+    
     struct Mode: OptionSet {
         let rawValue: UInt16
         
@@ -83,9 +85,10 @@ class Ext4Item: FSItem {
     }
     var blockGroupDescriptor: BlockGroupDescriptor? {
         if let blockGroupNumber {
-            containingVolume.blockGroupDescriptors[Int(blockGroupNumber)]
+            logger.log("Getting block group descriptor \(blockGroupNumber), inode number is \(self.inodeNumber)")
+            return containingVolume.blockGroupDescriptors[Int(blockGroupNumber)]
         } else {
-            nil
+            return nil
         }
     }
     var groupInodeTableIndex: UInt32? {
@@ -108,9 +111,10 @@ class Ext4Item: FSItem {
     // FIXME: should not force unwrap
     var inodeLocation: Int64! {
         if let inodeTableOffset, let inodeTableLocation = blockGroupDescriptor?.inodeTableLocation {
-            Int64(inodeTableLocation + inodeTableOffset)
+            return Int64((inodeTableLocation * UInt64(containingVolume.superblock.blockSize ?? 4096)) + inodeTableOffset)
         } else {
-            nil
+            logger.log("inodetableoffset \(self.inodeTableOffset.debugDescription, privacy: .public), table location \(self.blockGroupDescriptor?.inodeTableLocation.debugDescription ?? "oops", privacy: .public), block group descriptor \(self.blockGroupDescriptor.debugDescription, privacy: .public)")
+            return nil
         }
     }
     
@@ -156,5 +160,80 @@ class Ext4Item: FSItem {
     var lowerExtendedAttributeBlock: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x68) }
     var upperSize: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x1A) }
     
+    var filetype: FSItem.ItemType {
+        logger.log("getting filetype of item, mode \(self.mode.debugDescription, privacy: .public)")
+        guard let mode else { return .unknown }
+        switch mode {
+        case let mode where mode.contains(.regularFileType):
+            logger.log("is regular")
+            return .file
+        case let mode where mode.contains(.directoryType):
+            logger.log("is directory")
+            return .directory
+        case let mode where mode.contains(.blockDeviceType):
+            return .blockDevice
+        case let mode where mode.contains(.characterDeviceType):
+            return .charDevice
+        case let mode where mode.contains(.fifoType):
+            return .fifo
+        case let mode where mode.contains(.socketType):
+            return .socket
+        case let mode where mode.contains(.symbolicLinkType):
+            return .symlink
+        default:
+            return .unknown
+        }
+    }
+    
     // TODO: extra bits from extended fields, actual file contents, osd values
+    
+    var extentTreeRoot: FileExtentTreeLevel? {
+        // FIXME: don't just assume this is actually an extent tree
+        FileExtentTreeLevel(volume: containingVolume, offset: inodeLocation + 0x28)
+    }
+    
+    var directoryContents: [Ext4Item]? {
+        guard let mode, mode.contains(.directoryType) else { return nil }
+        guard let extents = extentTreeRoot?.findExtentsCovering(0, with: Int.max) else { return nil }
+        let filetypeFeatureFlagSet = containingVolume.superblock.featureIncompatibleFlags?.contains(.filetype) ?? false
+        var contents = [Ext4Item]()
+        for extent in extents {
+            let byteOffset = extent.physicalBlock * Int64(containingVolume.superblock.blockSize!)
+            var currentOffset = 0
+            while currentOffset < Int(extent.lengthInBlocks!) * containingVolume.superblock.blockSize! {
+                let directoryEntry = DirectoryEntry(volume: containingVolume, offset: byteOffset + Int64(currentOffset), usesFiletype: filetypeFeatureFlagSet)
+                guard directoryEntry.inodePointee != 0, directoryEntry.nameLength != 0 else { break }
+                contents.append(Ext4Item(name: FSFileName(string: directoryEntry.name ?? ""), in: containingVolume, inodeNumber: directoryEntry.inodePointee))
+                currentOffset += Int(directoryEntry.directoryEntryLength!)
+            }
+        }
+        
+        return contents
+    }
+    
+    func getAttributes(_ request: GetAttributesRequest) -> FSItem.Attributes {
+        let attributes = FSItem.Attributes()
+        
+        if request.isAttributeWanted(.uid) {
+            attributes.uid = UInt32(lowerUID ?? 0)
+        }
+        if request.isAttributeWanted(.gid) {
+            attributes.gid = UInt32(lowerGID ?? 0)
+        }
+        if request.isAttributeWanted(.flags) {
+            attributes.mode = UInt32(mode?.rawValue ?? 0x777)
+        }
+        if request.isAttributeWanted(.fileID) {
+            attributes.fileID = FSItem.Identifier(rawValue: UInt64(inodeNumber)) ?? .invalid
+        }
+        if request.isAttributeWanted(.type) {
+            attributes.type = filetype
+        }
+        if request.isAttributeWanted(.size) {
+            attributes.size = UInt64(lowerSize ?? 0)
+        }
+        
+        logger.log("attributes: \(attributes.debugDescription, privacy: .public) \(self.filetype.rawValue, privacy: .public) \(attributes.fileID.rawValue, privacy: .public)")
+        return attributes
+    }
 }

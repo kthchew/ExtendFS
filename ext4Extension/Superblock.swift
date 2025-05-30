@@ -17,10 +17,18 @@ struct BlockDeviceReader {
         let targetContentOffset = Int(offset - startReadAt)
         let targetContentEnd = Int(targetContentOffset) + MemoryLayout<T>.size
         let readLength = targetContentEnd < blockDevice.physicalBlockSize ? Int(blockDevice.physicalBlockSize) : Int(blockDevice.physicalBlockSize) * 2
+        Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item").log("reading small section at \(offset)\n\(startReadAt) \(targetContentOffset) \(targetContentEnd) \(readLength)")
         try withUnsafeTemporaryAllocation(byteCount: readLength, alignment: 1) { ptr in
             let read = try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
+            Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item").log("read \(read)")
             if read >= targetContentEnd {
-                item = ptr.load(fromByteOffset: targetContentOffset, as: T.self)
+                withUnsafeTemporaryAllocation(byteCount: MemoryLayout<T>.size, alignment: MemoryLayout<T>.alignment) { itemPtr in
+                    itemPtr.copyMemory(from: UnsafeRawBufferPointer(rebasing: ptr[targetContentOffset..<targetContentEnd]))
+                    item = itemPtr.load(as: T.self)
+                    Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item").log("copied item")
+                }
+                Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item").log("item is now \(item.debugDescription, privacy: .public)")
+//                let loaded = ptr.load(fromByteOffset: targetContentOffset, as: T.self)
             }
         }
         return item
@@ -108,6 +116,7 @@ struct BlockDeviceReader {
                     }
                     cString.append(char)
                 }
+                cString.append(0)
                 if read >= targetContentEnd {
                     // FIXME: UTF8?
                     string = String(cString: cString, encoding: .utf8)
@@ -262,7 +271,7 @@ struct Superblock {
     var logBlockSize: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x18) }
     var blockSize: Int? {
         if let logBlockSize {
-            2 ^ (10 + Int(logBlockSize))
+            Int(pow(2, 10 + Double(logBlockSize)))
         } else {
             nil
         }
@@ -271,7 +280,7 @@ struct Superblock {
     var logClusterSize: UInt32? { BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x1C) }
     var clusterSize: Int? {
         if let logClusterSize {
-            2 ^ Int(logClusterSize)
+            Int(pow(2, Double(logClusterSize)))
         } else {
             nil
         }
@@ -306,7 +315,7 @@ struct Superblock {
     lazy var inodeSize: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x58)
     lazy var blockGroupNumber: UInt16? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x5A)
     lazy var featureCompatibilityFlags: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x5C)
-    lazy var featureIncompatibileFlags: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x60)
+    lazy var featureIncompatibleFlags: IncompatibleFeatures? = IncompatibleFeatures(rawValue: BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x60) ?? 0)
     lazy var readonlyFeatureCompatibilityFlags: UInt32? = BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x64)
     lazy var uuid: UUID? = BlockDeviceReader.readUUID(blockDevice: blockDevice, at: offset + 0x68)
     /// Volume label, maximum length 16.
