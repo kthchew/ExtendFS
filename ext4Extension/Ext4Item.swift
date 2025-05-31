@@ -148,6 +148,62 @@ class Ext4Item: FSItem {
     var fileGenerationForNFS: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x64) } }
     var lowerExtendedAttributeBlock: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x68) } }
     var upperSize: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x1A) } }
+    // MARK: - Extended fields beyond original ext2 inode format
+    /// The amount of space, in bytes, that this inode occupies past the original ext2 inode size (128 bytes), including this field.
+    var extraInodeSize: UInt16 {
+        get throws {
+            guard try containingVolume.superblock.inodeSize >= 128 + 2 else { return 0 }
+            return try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x80)
+        }
+    }
+    var upperChecksum: UInt16? {
+        get throws {
+            guard try extraInodeSize >= 4 else { return nil }
+            return try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x82)
+        }
+    }
+    var extraChangeTimeBits: UInt32? {
+        get throws {
+            guard try extraInodeSize >= 8 else { return nil }
+            return try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x84)
+        }
+    }
+    var extraModificationTimeBits: UInt32? {
+        get throws {
+            guard try extraInodeSize >= 12 else { return nil }
+            return try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x88)
+        }
+    }
+    var extraAccessTimeBits: UInt32? {
+        get throws {
+            guard try extraInodeSize >= 16 else { return nil }
+            return try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x8C)
+        }
+    }
+    var storedCreationTime: UInt32? {
+        get throws {
+            guard try extraInodeSize >= 20 else { return nil }
+            return try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x90)
+        }
+    }
+    var extraCreationTimeBits: UInt32? {
+        get throws {
+            guard try extraInodeSize >= 24 else { return nil }
+            return try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x94)
+        }
+    }
+    var upperVersion: UInt32? {
+        get throws {
+            guard try extraInodeSize >= 28 else { return nil }
+            return try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x98)
+        }
+    }
+    var projectId: UInt32? {
+        get throws {
+            guard try extraInodeSize >= 32 else { return nil }
+            return try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x9C)
+        }
+    }
     
     var filetype: FSItem.ItemType {
         get throws {
@@ -213,8 +269,19 @@ class Ext4Item: FSItem {
         if request.isAttributeWanted(.gid) {
             attributes.gid = UInt32((try? lowerGID) ?? 0)
         }
-        if request.isAttributeWanted(.flags) {
-            attributes.mode = UInt32((try? mode)?.rawValue ?? 0x777)
+        if request.isAttributeWanted(.mode) {
+            attributes.mode = UInt32((try? mode)?.rawValue ?? 0o777)
+        }
+        if request.isAttributeWanted(.flags), let fileFlags = try? flags {
+            var flags: UInt32 = 0
+            if fileFlags.contains(.noDump) { flags |= UInt32(UF_NODUMP) }
+            if fileFlags.contains(.immutable) { flags |= UInt32(SF_IMMUTABLE | UF_IMMUTABLE) }
+            if fileFlags.contains(.appendOnly) { flags |= UInt32(SF_APPEND | UF_APPEND) }
+            // no OPAQUE
+            if fileFlags.contains(.compressed) { flags |= UInt32(UF_COMPRESSED) }
+            // no TRACKED
+            // no DATAVAULT
+            // no HIDDEN
         }
         if request.isAttributeWanted(.fileID) {
             attributes.fileID = FSItem.Identifier(rawValue: UInt64(inodeNumber)) ?? .invalid
@@ -236,6 +303,9 @@ class Ext4Item: FSItem {
         }
         if request.isAttributeWanted(.modifyTime) {
             attributes.modifyTime = timespec(tv_sec: Int((try? storedModificationTime) ?? 0), tv_nsec: 0)
+        }
+        if request.isAttributeWanted(.birthTime) {
+            attributes.birthTime = timespec(tv_sec: Int((try? storedCreationTime) ?? 0), tv_nsec: 0)
         }
         if request.isAttributeWanted(.linkCount) {
             attributes.linkCount = UInt32((try? hardLinkCount) ?? 1)

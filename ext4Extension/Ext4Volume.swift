@@ -43,7 +43,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     }
     
     var volumeStatistics: FSStatFSResult {
-        let statistics = FSStatFSResult(fileSystemTypeName: "ext4")
+        let statistics = FSStatFSResult(fileSystemTypeName: "Linux Filesystem")
         do {
             statistics.blockSize = try superblock.blockSize
             statistics.totalBlocks = try UInt64(superblock.blockCount)
@@ -51,6 +51,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             statistics.availableBlocks = try UInt64(superblock.freeBlockCount)
             statistics.usedBlocks = statistics.totalBlocks - statistics.freeBlocks
             statistics.freeFiles = try UInt64(superblock.freeInodeCount)
+            statistics.fileSystemSubType = 2
             return statistics
         } catch {
             return statistics

@@ -32,8 +32,6 @@
 					<key>Leaf</key>
 					<true/>
 				</dict>
-				<key>FSProbeOrder</key>
-				<integer>3000</integer>
 			</dict>
 			<key>0FC63DAF-8483-4772-8E79-3D69D8477DE4</key>
 			<dict>
@@ -44,8 +42,6 @@
 					<key>Leaf</key>
 					<true/>
 				</dict>
-				<key>FSProbeOrder</key>
-				<integer>1000</integer>
 			</dict>
 			<key>Whole</key>
 			<dict>
@@ -56,8 +52,6 @@
 					<key>Whole</key>
 					<true/>
 				</dict>
-				<key>FSProbeOrder</key>
-				<integer>3000</integer>
 			</dict>
 			<key>ext4</key>
 			<dict>
@@ -68,18 +62,43 @@
 					<key>Leaf</key>
 					<true/>
 				</dict>
-				<key>FSProbeOrder</key>
-				<integer>1000</integer>
 			</dict>
 		</dict>
 		<key>FSPersonalities</key>
 		<dict>
+			<key>ext</key>
+			<dict>
+				<key>FSName</key>
+				<string>Linux Filesystem (ext)</string>
+				<key>FSfileObjectsAreCaseSensitive</key>
+				<true/>
+			</dict>
+			<key>ext2</key>
+			<dict>
+				<key>FSName</key>
+				<string>Linux Filesystem (ext2)</string>
+				<key>FSfileObjectsAreCaseSensitive</key>
+				<true/>
+				<key>FSSubType</key>
+				<integer>0</integer>
+			</dict>
+			<key>ext3</key>
+			<dict>
+				<key>FSName</key>
+				<string>Linux Filesystem (ext3)</string>
+				<key>FSfileObjectsAreCaseSensitive</key>
+				<true/>
+				<key>FSSubType</key>
+				<integer>1</integer>
+			</dict>
 			<key>ext4</key>
 			<dict>
 				<key>FSName</key>
 				<string>Linux Filesystem (ext4)</string>
 				<key>FSfileObjectsAreCaseSensitive</key>
 				<true/>
+				<key>FSSubType</key>
+				<integer>2</integer>
 			</dict>
 		</dict>
 		<key>FSRequiresSecurityScopedPathURLResources</key>

@@ -630,7 +630,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ext4Extension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ext4;
+				INFOPLIST_KEY_CFBundleDisplayName = "ExtendFS Linux Filesystem Support";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -658,7 +658,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ext4Extension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ext4;
+				INFOPLIST_KEY_CFBundleDisplayName = "ExtendFS Linux Filesystem Support";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
