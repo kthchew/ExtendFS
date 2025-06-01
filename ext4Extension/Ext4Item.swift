@@ -315,6 +315,13 @@ class Ext4Item: FSItem {
         if request.isAttributeWanted(.size) {
             attributes.size = UInt64((try? lowerSize) ?? 0)
         }
+        if request.isAttributeWanted(.allocSize) {
+            if let inodeSize = try? 128 + extraInodeSize {
+                let usesHugeBlocks = (try? containingVolume.superblock.readonlyFeatureCompatibilityFlags.contains(.hugeFile) && flags.contains(.hugeFile)) ?? false
+                let otherSize = try? (lowerBlockCount ?? 0) * UInt32(usesHugeBlocks ? containingVolume.superblock.blockSize : 512)
+                attributes.allocSize = UInt64(inodeSize) + UInt64(otherSize ?? 0)
+            }
+        }
         if request.isAttributeWanted(.inhibitKernelOffloadedIO) {
             attributes.inhibitKernelOffloadedIO = false
         }
