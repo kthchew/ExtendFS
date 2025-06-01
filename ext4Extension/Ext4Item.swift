@@ -126,7 +126,7 @@ class Ext4Item: FSItem {
         }
     }
     var lowerUID: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x2) } }
-    var lowerSize: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x4) } }
+    var lowerSize: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x4) } }
     /// Last access time in seconds since the epoch, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
     var storedAccessTime: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x8) } }
     /// Last inode change time in seconds since the epoch, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
@@ -140,7 +140,7 @@ class Ext4Item: FSItem {
     /// Normally, ext4 does not permit an inode to have more than 65,000 hard links. This applies to files as well as directories, which means that there cannot be more than 64,998 subdirectories in a directory (each subdirectory’s `..` entry counts as a hard link, as does the `.` entry in the directory itself). With the `DIR_NLINK` feature enabled, ext4 supports more than 64,998 subdirectories by setting this field to 1 to indicate that the number of hard links is not known.
     var hardLinkCount: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x1A) } }
     var lowerBlockCount: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x1C) } }
-    var flags: Flags? {
+    var flags: Flags {
         get throws {
             Flags(rawValue: try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x20))
         }
@@ -207,23 +207,24 @@ class Ext4Item: FSItem {
     
     var filetype: FSItem.ItemType {
         get throws {
+            // cases must be in descending order of value because they are mutually exclusive but can still overlap
             switch try mode {
-            case let mode where mode.contains(.regularFileType):
-                logger.log("is regular")
-                return .file
-            case let mode where mode.contains(.directoryType):
-                logger.log("is directory")
-                return .directory
-            case let mode where mode.contains(.blockDeviceType):
-                return .blockDevice
-            case let mode where mode.contains(.characterDeviceType):
-                return .charDevice
-            case let mode where mode.contains(.fifoType):
-                return .fifo
             case let mode where mode.contains(.socketType):
                 return .socket
             case let mode where mode.contains(.symbolicLinkType):
                 return .symlink
+            case let mode where mode.contains(.regularFileType):
+                logger.log("is regular")
+                return .file
+            case let mode where mode.contains(.blockDeviceType):
+                return .blockDevice
+            case let mode where mode.contains(.directoryType):
+                logger.log("is directory")
+                return .directory
+            case let mode where mode.contains(.characterDeviceType):
+                return .charDevice
+            case let mode where mode.contains(.fifoType):
+                return .fifo
             default:
                 return .unknown
             }
@@ -234,15 +235,15 @@ class Ext4Item: FSItem {
     
     var extentTreeRoot: FileExtentTreeLevel? {
         get throws {
-            // FIXME: don't just assume this is actually an extent tree
-            FileExtentTreeLevel(volume: containingVolume, offset: try inodeLocation + 0x28)
+            guard try flags.contains(.usesExtents) else { return nil }
+            return FileExtentTreeLevel(volume: containingVolume, offset: try inodeLocation + 0x28)
         }
     }
     
     var directoryContents: [Ext4Item]? {
         get throws {
-            guard try mode.contains(.directoryType) else { return nil }
-            guard let extents = try extentTreeRoot?.findExtentsCovering(0, with: Int.max) else { return nil }
+            guard try filetype == .directory else { return nil }
+            let extents = try findExtentsCovering(0, with: Int.max)
             var contents = [Ext4Item]()
             for extent in extents {
                 let byteOffset = extent.physicalBlock * Int64(try containingVolume.superblock.blockSize)
@@ -256,6 +257,28 @@ class Ext4Item: FSItem {
             }
             
             return contents
+        }
+    }
+    
+    var symbolicLinkTarget: String? {
+        get throws {
+            guard try filetype == .symlink else { return nil }
+            if try lowerSize < 60 {
+                return try BlockDeviceReader.readString(blockDevice: containingVolume.resource, at: inodeLocation + 0x28, maxLength: 60)
+            } else {
+                let extents = try findExtentsCovering(0, with: Int.max)
+                let data = try extents.reduce(into: (Data(), try lowerSize)) { result, extent in
+                    let toRead = result.1
+                    var extentData = try Data(capacity: Int(extent.lengthInBlocks ?? 1) * containingVolume.superblock.blockSize)
+                    try extentData.withUnsafeMutableBytes { ptr in
+                        let read = try containingVolume.resource.read(into: ptr, startingAt: extent.physicalBlock * Int64(containingVolume.superblock.blockSize), length: min(Int(toRead), Int(Int(extent.lengthInBlocks ?? 1) * containingVolume.superblock.blockSize)))
+                        result.1 -= UInt32(read)
+                    }
+                    result.0 += extentData
+                }
+                
+                return String(data: data.0, encoding: .utf8)
+            }
         }
     }
     
@@ -315,5 +338,50 @@ class Ext4Item: FSItem {
         }
         
         return attributes
+    }
+    
+    func indirectAddressing(for block: Int64, currentDepth: Int, currentLevelDiskPosition: UInt64, currentLevelStartsAtBlock: Int64) throws -> FileExtentNode {
+        let blockOffset = block - currentLevelStartsAtBlock
+        let pointerSize = Int64(MemoryLayout<UInt32>.size)
+        let coveredPerLevelOfIndirection = try containingVolume.superblock.blockSize / 4
+        
+        if currentDepth == 0 {
+            let address: UInt32 = try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: Int64(currentLevelDiskPosition) + (blockOffset * pointerSize))
+            return FileExtentNode(physicalBlock: off_t(address), logicalBlock: block, lengthInBlocks: 1, type: .data)
+        } else {
+            let blocksCoveredPerItem = Int(pow(Double(coveredPerLevelOfIndirection), Double(currentDepth)))
+            let index = Int(blockOffset) / blocksCoveredPerItem
+            let address: UInt32 = try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: Int64(currentLevelDiskPosition) + (Int64(index) * pointerSize))
+            return try indirectAddressing(for: block, currentDepth: currentDepth - 1, currentLevelDiskPosition: UInt64(address) * UInt64(containingVolume.superblock.blockSize), currentLevelStartsAtBlock: currentLevelStartsAtBlock + Int64((index * blocksCoveredPerItem)))
+        }
+    }
+    
+    func findExtentsCovering(_ fileBlock: Int64, with blockLength: Int) throws -> [FileExtentNode] {
+        if let extentTreeRoot = try extentTreeRoot {
+            return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength)
+        } else {
+            return try (fileBlock..<(fileBlock + Int64(blockLength))).map { block in
+                let iBlockOffset = try inodeLocation + 0x28
+                let pointerSize = Int64(MemoryLayout<UInt32>.size)
+                let coveredPerLevelOfIndirection = Int64(try containingVolume.superblock.blockSize / 4)
+                
+                let level1End: Int64 = 11
+                let level2End = level1End + coveredPerLevelOfIndirection
+                let level3End = level2End + Int64(pow(Double(coveredPerLevelOfIndirection), 2))
+                let level4End = level3End + Int64(pow(Double(coveredPerLevelOfIndirection), 3)) + 1
+                switch block {
+                case 0...level1End:
+                    return try indirectAddressing(for: fileBlock, currentDepth: 0, currentLevelDiskPosition: UInt64(iBlockOffset), currentLevelStartsAtBlock: 0)
+                case (level1End + 1)...(level2End):
+                    return try indirectAddressing(for: fileBlock, currentDepth: 1, currentLevelDiskPosition: UInt64(iBlockOffset) + UInt64(pointerSize * 12), currentLevelStartsAtBlock: level1End + 1)
+                case (level2End + 1)...(level3End):
+                    return try indirectAddressing(for: fileBlock, currentDepth: 2, currentLevelDiskPosition: UInt64(iBlockOffset) + UInt64(pointerSize * 13), currentLevelStartsAtBlock: level2End + 1)
+                case (level3End + 1)...(level4End):
+                    return try indirectAddressing(for: fileBlock, currentDepth: 3, currentLevelDiskPosition: UInt64(iBlockOffset) + UInt64(pointerSize * 14), currentLevelStartsAtBlock: level3End + 1)
+                default:
+                    throw fs_errorForPOSIXError(POSIXError.EFBIG.rawValue)
+                }
+            }
+        }
     }
 }

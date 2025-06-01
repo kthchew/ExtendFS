@@ -15,7 +15,6 @@ struct FileExtentNode: Hashable, Comparable {
     }
     
     init(blockDevice: FSBlockDeviceResource, offset: off_t, isLeaf: Bool) throws {
-        // FIXME: handle optional better
         let logicalBlock: UInt32 = try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset)
         self.logicalBlock = off_t(logicalBlock)
         if isLeaf {
@@ -35,6 +34,19 @@ struct FileExtentNode: Hashable, Comparable {
             let upperStartBlock: UInt16 = try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x8)
             self.physicalBlock = off_t(UInt64.combine(upper: upperStartBlock, lower: lowerStartBlock))
         }
+    }
+    
+    /// Directly create a node representing a file extent.
+    /// - Parameters:
+    ///   - physicalBlock: The offset of the data block on the physical disk, in blocks.
+    ///   - logicalBlock: The offset within the file, in blocks.
+    ///   - lengthInBlocks: The length that this extent covers, in blocks.
+    ///   - type: The type of extent, indicating whether it contains valid data.
+    init(physicalBlock: off_t, logicalBlock: off_t, lengthInBlocks: UInt16, type: FSExtentType) {
+        self.physicalBlock = physicalBlock
+        self.logicalBlock = logicalBlock
+        self.lengthInBlocks = lengthInBlocks
+        self.type = type
     }
     
     /// The extent offset on disk, in blocks, or the block number of the child level.

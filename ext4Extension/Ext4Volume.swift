@@ -113,7 +113,13 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     
     func readSymbolicLink(_ item: FSItem) async throws -> FSFileName {
         logger.log("readSymbolicLink")
-        throw ExtensionError.notImplemented
+        guard let item = item as? Ext4Item else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+        }
+        guard let target = try item.symbolicLinkTarget else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+        }
+        return FSFileName(string: target)
     }
     
     func createItem(named name: FSFileName, type: FSItem.ItemType, inDirectory directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest) async throws -> (FSItem, FSFileName) {

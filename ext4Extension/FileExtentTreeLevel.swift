@@ -34,6 +34,7 @@ struct FileExtentTreeLevel {
         var result: [FileExtentNode] = []
         var lastPotentialChildIndex = 0
         
+        // TODO: improve efficiency (use binary search or something)
         for index in 0..<Int(try numberOfEntries) {
             if let node = try self[index] {
                 if node.logicalBlock < firstBlock {
