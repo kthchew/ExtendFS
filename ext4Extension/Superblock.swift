@@ -11,24 +11,20 @@ import zlib
 
 struct BlockDeviceReader {
     static func readSmallSection<T>(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> T? {
+        Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item").log("Reading some section of disk")
         // FIXME: do this better (can the read be cached?)
         var item: T?
         let startReadAt = (offset / off_t(blockDevice.physicalBlockSize)) * off_t(blockDevice.physicalBlockSize)
         let targetContentOffset = Int(offset - startReadAt)
         let targetContentEnd = Int(targetContentOffset) + MemoryLayout<T>.size
         let readLength = targetContentEnd < blockDevice.physicalBlockSize ? Int(blockDevice.physicalBlockSize) : Int(blockDevice.physicalBlockSize) * 2
-        Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item").log("reading small section at \(offset)\n\(startReadAt) \(targetContentOffset) \(targetContentEnd) \(readLength)")
         try withUnsafeTemporaryAllocation(byteCount: readLength, alignment: 1) { ptr in
             let read = try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
-            Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item").log("read \(read)")
             if read >= targetContentEnd {
                 withUnsafeTemporaryAllocation(byteCount: MemoryLayout<T>.size, alignment: MemoryLayout<T>.alignment) { itemPtr in
                     itemPtr.copyMemory(from: UnsafeRawBufferPointer(rebasing: ptr[targetContentOffset..<targetContentEnd]))
                     item = itemPtr.load(as: T.self)
-                    Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item").log("copied item")
                 }
-                Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item").log("item is now \(item.debugDescription, privacy: .public)")
-//                let loaded = ptr.load(fromByteOffset: targetContentOffset, as: T.self)
             }
         }
         guard let item else {

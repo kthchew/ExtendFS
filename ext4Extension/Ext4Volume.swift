@@ -51,6 +51,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             statistics.availableBlocks = try UInt64(superblock.freeBlockCount)
             statistics.usedBlocks = statistics.totalBlocks - statistics.freeBlocks
             statistics.freeFiles = try UInt64(superblock.freeInodeCount)
+            statistics.ioSize = try superblock.blockSize
             statistics.fileSystemSubType = 2
             return statistics
         } catch {
@@ -206,18 +207,31 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
         
         let blockSize = try superblock.blockSize
         let blockOffset = Int(offset) / blockSize
-        let blockLength = (Int(offset) + length) / blockSize - blockOffset + 1
-        guard let extents = try item.extentTreeRoot?.findExtentsCovering(Int64(blockOffset), with: blockLength) else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
-        }
+        let blockLength = Int((Double(length) / Double(blockSize)).rounded(.up))
+        let extents = try item.findExtentsCovering(Int64(blockOffset), with: blockLength)
+        let firstLogicalBlock = offset / Int64(blockSize)
+        // TODO: do read requests align to blocks? if not this offset is needed but that makes things more annoying
+//        let offsetWithinFirstBlock = offset % Int64(try superblock.blockSize)
         var amountRead = 0
+        let remainingLengthInFile = try off_t(item.lowerSize) - offset
+        let actualLengthToRead = min(length, Int(remainingLengthInFile.roundUp(toMultipleOf: off_t(blockSize))))
         for extent in extents {
+            guard amountRead < actualLengthToRead else {
+                break
+            }
+            guard offset >= extent.logicalBlock else {
+                continue
+            }
+            let startingAtLogicalBlock = amountRead == 0 ? firstLogicalBlock : extent.logicalBlock
+            let startingAtPhysicalBlock = extent.physicalBlock + (startingAtLogicalBlock - extent.logicalBlock)
+            let startingAtPhysicalByte = try startingAtPhysicalBlock * Int64(superblock.blockSize)
+            let blockLengthConsidered = Int(extent.lengthInBlocks ?? 1) - Int(startingAtLogicalBlock - extent.logicalBlock)
+            let readFromThisExtent = try min(actualLengthToRead - amountRead, blockLengthConsidered * superblock.blockSize)
             amountRead += try buffer.withUnsafeMutableBytes { ptr in
-                // FIXME: this is extremely wrong and will only work for the simplest cases
-                return try resource.read(into: ptr, startingAt: extent.physicalBlock * Int64(superblock.blockSize), length: min(length, Int(extent.lengthInBlocks ?? 1) * superblock.blockSize))
+                return try resource.read(into: ptr[amountRead...].base, startingAt: startingAtPhysicalByte, length: readFromThisExtent)
             }
         }
-        return amountRead
+        return min(amountRead, Int(remainingLengthInFile))
     }
     
     func write(contents: Data, to item: FSItem, at offset: off_t) async throws -> Int {
