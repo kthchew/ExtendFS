@@ -52,7 +52,14 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             statistics.usedBlocks = statistics.totalBlocks - statistics.freeBlocks
             statistics.freeFiles = try UInt64(superblock.freeInodeCount)
             statistics.ioSize = try superblock.blockSize
-            statistics.fileSystemSubType = 2
+            
+            if try superblock.featureIncompatibleFlags.contains(.extents) {
+                statistics.fileSystemSubType = ExtendedFilesystemTypes.ext4.rawValue
+            } else if try superblock.featureCompatibilityFlags.contains(.journal) {
+                statistics.fileSystemSubType = ExtendedFilesystemTypes.ext3.rawValue
+            } else {
+                statistics.fileSystemSubType = ExtendedFilesystemTypes.ext2.rawValue
+            }
             return statistics
         } catch {
             return statistics
@@ -213,12 +220,13 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
         // TODO: do read requests align to blocks? if not this offset is needed but that makes things more annoying
 //        let offsetWithinFirstBlock = offset % Int64(try superblock.blockSize)
         var amountRead = 0
-        let remainingLengthInFile = try off_t(item.lowerSize) - offset
+        let remainingLengthInFile = try off_t(item.size) - offset
         let actualLengthToRead = min(length, Int(remainingLengthInFile.roundUp(toMultipleOf: off_t(blockSize))))
         for extent in extents {
             guard amountRead < actualLengthToRead else {
                 break
             }
+            
             let startingAtLogicalBlock = amountRead == 0 ? firstLogicalBlock : extent.logicalBlock
             let startingAtPhysicalBlock = extent.physicalBlock + (startingAtLogicalBlock - extent.logicalBlock)
             let startingAtPhysicalByte = try startingAtPhysicalBlock * Int64(superblock.blockSize)

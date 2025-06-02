@@ -147,7 +147,16 @@ class Ext4Item: FSItem {
     }
     var fileGenerationForNFS: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x64) } }
     var lowerExtendedAttributeBlock: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x68) } }
-    var upperSize: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x1A) } }
+    var upperSize: UInt32? {
+        get throws {
+            return try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x6C)
+        }
+    }
+    var size: UInt64 {
+        get throws {
+            try UInt64.combine(upper: upperSize ?? 0, lower: lowerSize)
+        }
+    }
     // MARK: - Extended fields beyond original ext2 inode format
     /// The amount of space, in bytes, that this inode occupies past the original ext2 inode size (128 bytes), including this field.
     var extraInodeSize: UInt16 {
@@ -263,16 +272,16 @@ class Ext4Item: FSItem {
     var symbolicLinkTarget: String? {
         get throws {
             guard try filetype == .symlink else { return nil }
-            if try lowerSize < 60 {
+            if try size < 60 {
                 return try BlockDeviceReader.readString(blockDevice: containingVolume.resource, at: inodeLocation + 0x28, maxLength: 60)
             } else {
                 let extents = try findExtentsCovering(0, with: Int.max)
-                let data = try extents.reduce(into: (Data(), try lowerSize)) { result, extent in
+                let data = try extents.reduce(into: (Data(), try size)) { result, extent in
                     let toRead = result.1
                     var extentData = try Data(capacity: Int(extent.lengthInBlocks ?? 1) * containingVolume.superblock.blockSize)
                     try extentData.withUnsafeMutableBytes { ptr in
                         let read = try containingVolume.resource.read(into: ptr, startingAt: extent.physicalBlock * Int64(containingVolume.superblock.blockSize), length: min(Int(toRead), Int(Int(extent.lengthInBlocks ?? 1) * containingVolume.superblock.blockSize)))
-                        result.1 -= UInt32(read)
+                        result.1 -= UInt64(read)
                     }
                     result.0 += extentData
                 }
@@ -313,11 +322,11 @@ class Ext4Item: FSItem {
             attributes.type = (try? filetype) ?? .unknown
         }
         if request.isAttributeWanted(.size) {
-            attributes.size = UInt64((try? lowerSize) ?? 0)
+            attributes.size = UInt64((try? size) ?? 0)
         }
         if request.isAttributeWanted(.allocSize) {
             let usesHugeBlocks = (try? containingVolume.superblock.readonlyFeatureCompatibilityFlags.contains(.hugeFile) && flags.contains(.hugeFile)) ?? false
-            attributes.allocSize = UInt64((try? (lowerBlockCount ?? 0) * UInt32(usesHugeBlocks ? containingVolume.superblock.blockSize : 512)) ?? 0)
+            attributes.allocSize = (UInt64((try? lowerBlockCount) ?? 0) * UInt64(usesHugeBlocks ? try! containingVolume.superblock.blockSize : 512))
         }
         if request.isAttributeWanted(.inhibitKernelOffloadedIO) {
             attributes.inhibitKernelOffloadedIO = false
@@ -364,7 +373,7 @@ class Ext4Item: FSItem {
         if let extentTreeRoot = try extentTreeRoot {
             return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength)
         } else {
-            let actualBlockLength = try min(blockLength, Int((Double(lowerSize) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
+            let actualBlockLength = try min(blockLength, Int((Double(size) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
             Logger().log("findExtentsCovering fileBlock is \(fileBlock) actualBlockLength is \(actualBlockLength) name is \(self.name.string ?? "(unknown)", privacy: .public)")
             return try (fileBlock..<(fileBlock + Int64(actualBlockLength))).map { block in
                 let iBlockOffset = try inodeLocation + 0x28

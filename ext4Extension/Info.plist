@@ -69,14 +69,14 @@
 			<key>ext</key>
 			<dict>
 				<key>FSName</key>
-				<string>Linux Filesystem (ext)</string>
+				<string>ext</string>
 				<key>FSfileObjectsAreCaseSensitive</key>
 				<true/>
 			</dict>
 			<key>ext2</key>
 			<dict>
 				<key>FSName</key>
-				<string>Linux Filesystem (ext2)</string>
+				<string>ext2</string>
 				<key>FSfileObjectsAreCaseSensitive</key>
 				<true/>
 				<key>FSSubType</key>
@@ -85,7 +85,7 @@
 			<key>ext3</key>
 			<dict>
 				<key>FSName</key>
-				<string>Linux Filesystem (ext3)</string>
+				<string>ext3</string>
 				<key>FSfileObjectsAreCaseSensitive</key>
 				<true/>
 				<key>FSSubType</key>
@@ -94,7 +94,7 @@
 			<key>ext4</key>
 			<dict>
 				<key>FSName</key>
-				<string>Linux Filesystem (ext4)</string>
+				<string>ext4</string>
 				<key>FSfileObjectsAreCaseSensitive</key>
 				<true/>
 				<key>FSSubType</key>
