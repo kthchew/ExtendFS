@@ -84,7 +84,7 @@ class Ext4Item: FSItem {
     }
     var blockGroupDescriptor: BlockGroupDescriptor? {
         get throws {
-            logger.log("Getting block group descriptor \((try? self.blockGroupNumber).debugDescription), inode number is \(self.inodeNumber)")
+//            logger.log("Getting block group descriptor \((try? self.blockGroupNumber).debugDescription), inode number is \(self.inodeNumber)")
             return try containingVolume.blockGroupDescriptors[Int(blockGroupNumber)]
         }
     }

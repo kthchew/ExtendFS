@@ -11,6 +11,7 @@ import FSKit
 enum ExtensionError: Error {
     case notImplemented
     case resourceUnsupported
+    case unloadedResource
 }
 
 @objc
@@ -54,6 +55,22 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
         // FIXME: do I need to check probe result here?
         logger.log("Loading resource")
         let probeResult = try await asyncProbeResource(resource: resource)
+        var readOnly: Bool
+        switch probeResult.result {
+        case .notRecognized:
+            logger.log("Invalid resource")
+            throw ExtensionError.resourceUnsupported
+        case .recognized:
+            logger.log("Recognized but can't mount")
+            throw ExtensionError.resourceUnsupported
+        case .usableButLimited:
+            readOnly = true
+        case .usable:
+            readOnly = true // write not supported atm
+        @unknown default:
+            logger.log("Unknown probe result")
+            throw ExtensionError.resourceUnsupported
+        }
         guard probeResult != .notRecognized else {
             logger.log("Invalid resource")
             throw ExtensionError.resourceUnsupported
@@ -64,14 +81,18 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
             throw ExtensionError.resourceUnsupported
         }
         
-//        var forcedLoad = false
-//        for option in options {
-//            if option == "-f" {
-//                forcedLoad = true
-//            }
-//        }
+        for option in options.taskOptions {
+            switch option {
+            case "-f":
+                continue
+            case "--rdonly":
+                readOnly = false
+            default:
+                continue
+            }
+        }
         
-        let volume = try await Ext4Volume(resource: resource)
+        let volume = try await Ext4Volume(resource: resource, fileSystem: self, readOnly: readOnly)
         containerStatus = .ready
         logger.log("Container status ready")
         return volume
@@ -91,6 +112,7 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
 
     func unloadResource(resource: FSResource, options: FSTaskOptions) async throws {
         logger.log("Unloading resource")
+        containerStatus = .notReady(status: ExtensionError.unloadedResource)
         return
     }
     
@@ -102,9 +124,11 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
 extension ExtFourExtensionFileSystem: FSManageableResourceMaintenanceOperations {
     func startCheck(task: FSTask, options: FSTaskOptions) throws -> Progress {
         let progress = Progress(totalUnitCount: 100)
+        containerStatus = .active
         Task {
             progress.completedUnitCount = 100
             task.didComplete(error: nil)
+            containerStatus = .ready
         }
         return progress
     }

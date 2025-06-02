@@ -11,10 +11,12 @@ import FSKit
 class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Volume")
     
-    init(resource: FSBlockDeviceResource) async throws {
+    init(resource: FSBlockDeviceResource, fileSystem: FSUnaryFileSystem, readOnly: Bool) async throws {
         logger.log("Initializing volume")
         self.resource = resource
+        self.fileSystem = fileSystem
         self.superblock = try Superblock(blockDevice: resource, offset: 1024)
+        self.readOnly = readOnly
         
         super.init(volumeID: FSVolume.Identifier(uuid: superblock.uuid ?? UUID()), volumeName: FSFileName(string: superblock.volumeName ?? ""))
         
@@ -29,10 +31,13 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     
     private var root: FSItem!
     
+    let fileSystem: FSUnaryFileSystem
     let resource: FSBlockDeviceResource
     /// The superblock in block group 0.
     var superblock: Superblock
     var blockGroupDescriptors: BlockGroupDescriptors!
+    
+    let readOnly: Bool
     
     var supportedVolumeCapabilities: FSVolume.SupportedCapabilities {
         let capabilities = SupportedCapabilities()
@@ -86,6 +91,9 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     
     func setAttributes(_ newAttributes: FSItem.SetAttributesRequest, on item: FSItem) async throws -> FSItem.Attributes {
         logger.log("setAttributes")
+        if readOnly {
+            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+        }
         throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
     }
     
@@ -126,27 +134,42 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     
     func createItem(named name: FSFileName, type: FSItem.ItemType, inDirectory directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest) async throws -> (FSItem, FSFileName) {
         logger.log("createItem")
-        throw ExtensionError.notImplemented
+        if readOnly {
+            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+        }
+        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
     }
     
     func createSymbolicLink(named name: FSFileName, inDirectory directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest, linkContents contents: FSFileName) async throws -> (FSItem, FSFileName) {
         logger.log("createSymbolicLink")
-        throw ExtensionError.notImplemented
+        if readOnly {
+            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+        }
+        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
     }
     
     func createLink(to item: FSItem, named name: FSFileName, inDirectory directory: FSItem) async throws -> FSFileName {
         logger.log("createLink")
-        throw ExtensionError.notImplemented
+        if readOnly {
+            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+        }
+        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
     }
     
     func removeItem(_ item: FSItem, named name: FSFileName, fromDirectory directory: FSItem) async throws {
         logger.log("removeItem(_:named:fromDirectory:)")
-        throw ExtensionError.notImplemented
+        if readOnly {
+            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+        }
+        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
     }
     
     func renameItem(_ item: FSItem, inDirectory sourceDirectory: FSItem, named sourceName: FSFileName, to destinationName: FSFileName, inDirectory destinationDirectory: FSItem, overItem: FSItem?) async throws -> FSFileName {
         logger.log("renameItem")
-        throw ExtensionError.notImplemented
+        if readOnly {
+            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+        }
+        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
     }
     
     func enumerateDirectory(_ directory: FSItem, startingAt cookie: FSDirectoryCookie, verifier: FSDirectoryVerifier, attributes: FSItem.GetAttributesRequest?, packer: FSDirectoryEntryPacker) async throws -> FSDirectoryVerifier {
@@ -175,11 +198,13 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     
     func activate(options: FSTaskOptions) async throws -> FSItem {
         logger.log("activate")
+        fileSystem.containerStatus = .active
         return root
     }
     
     func deactivate(options: FSDeactivateOptions = []) async throws {
         logger.log("deactivate")
+        fileSystem.containerStatus = .ready
         return
     }
     
@@ -238,6 +263,9 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
     }
     
     func write(contents: Data, to item: FSItem, at offset: off_t) async throws -> Int {
+        if readOnly {
+            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+        }
         throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
     }
 }
@@ -269,10 +297,39 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
     }
     
     func createFile(name: FSFileName, in directory: FSItem, attributes: FSItem.SetAttributesRequest, packer: FSExtentPacker) async throws -> (FSItem, FSFileName) {
+        if readOnly {
+            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+        }
         throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
     }
     
     func lookupItem(name: FSFileName, in directory: FSItem, packer: FSExtentPacker) async throws -> (FSItem, FSFileName) {
         return try await lookupItem(named: name, inDirectory: directory)
+    }
+}
+
+extension Ext4Volume: FSVolume.OpenCloseOperations {
+    func openItem(_ item: FSItem, modes: FSVolume.OpenModes) async throws {
+        if modes.contains(.write) {
+            if readOnly {
+                throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+            }
+            throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
+        }
+    }
+    
+    func closeItem(_ item: FSItem, modes: FSVolume.OpenModes) async throws {
+        
+    }
+}
+
+extension Ext4Volume: FSVolume.AccessCheckOperations {
+    func checkAccess(to theItem: FSItem, requestedAccess access: FSVolume.AccessMask) async throws -> Bool {
+        let writeAccess: FSVolume.AccessMask = [.addFile, .addSubdirectory, .appendData, .delete, .deleteChild, .takeOwnership, .writeAttributes, .writeData, .writeSecurity, .writeAttributes]
+        if readOnly && !access.isDisjoint(with: writeAccess) {
+            return false
+        }
+        
+        return true
     }
 }

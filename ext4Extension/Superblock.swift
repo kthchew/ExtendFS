@@ -53,7 +53,6 @@ extension Data {
 
 struct BlockDeviceReader {
     static func readSmallSection<T>(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> T? {
-        Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item").log("Reading some section of disk")
         // FIXME: do this better (can the read be cached?)
         var item: T?
         let blockSize = off_t(blockDevice.physicalBlockSize)
