@@ -232,6 +232,10 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
             let startingAtPhysicalByte = try startingAtPhysicalBlock * Int64(superblock.blockSize)
             let blockLengthConsidered = Int(extent.lengthInBlocks ?? 1) - Int(startingAtLogicalBlock - extent.logicalBlock)
             let readFromThisExtent = try min(actualLengthToRead - amountRead, blockLengthConsidered * superblock.blockSize)
+            if let type = extent.type, type == .zeroFill {
+                amountRead += readFromThisExtent
+                continue
+            }
             amountRead += try buffer.withUnsafeMutableBytes { ptr in
                 return try resource.read(into: UnsafeMutableRawBufferPointer(rebasing: ptr[amountRead...]), startingAt: startingAtPhysicalByte, length: readFromThisExtent)
             }
