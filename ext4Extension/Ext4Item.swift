@@ -111,7 +111,6 @@ class Ext4Item: FSItem {
     }
     
     let name: FSFileName
-    let attributes = FSItem.Attributes()
     
     init(name: FSFileName, in volume: Ext4Volume, inodeNumber: UInt32, parentInodeNumber: UInt32) {
         self.name = name
