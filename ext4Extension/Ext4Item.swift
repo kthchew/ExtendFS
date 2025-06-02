@@ -112,7 +112,7 @@ class Ext4Item: FSItem {
     
     let name: FSFileName
     
-    init(name: FSFileName, in volume: Ext4Volume, inodeNumber: UInt32, parentInodeNumber: UInt32) throws {
+    init(name: FSFileName, in volume: Ext4Volume, inodeNumber: UInt32, parentInodeNumber: UInt32) async throws {
         self.name = name
         self.containingVolume = volume
         self.inodeNumber = inodeNumber
@@ -120,7 +120,7 @@ class Ext4Item: FSItem {
         
         super.init()
         
-        self.extentTreeRoot = try flags.contains(.usesExtents) ? FileExtentTreeLevel(volume: containingVolume, offset: inodeLocation + 0x28) : nil
+        self.extentTreeRoot = try flags.contains(.usesExtents) ? await FileExtentTreeLevel(volume: containingVolume, offset: inodeLocation + 0x28) : nil
     }
     
     var mode: Mode {
@@ -248,9 +248,9 @@ class Ext4Item: FSItem {
     var extentTreeRoot: FileExtentTreeLevel?
     
     var directoryContents: [Ext4Item]? {
-        get throws {
+        get async throws {
             guard try filetype == .directory else { return nil }
-            let extents = try findExtentsCovering(0, with: Int.max)
+            let extents = try await findExtentsCovering(0, with: Int.max)
             var contents = [Ext4Item]()
             for extent in extents {
                 let byteOffset = extent.physicalBlock * Int64(containingVolume.superblock.blockSize)
@@ -258,7 +258,7 @@ class Ext4Item: FSItem {
                 while currentOffset < Int(extent.lengthInBlocks!) * containingVolume.superblock.blockSize {
                     let directoryEntry = DirectoryEntry(volume: containingVolume, offset: byteOffset + Int64(currentOffset))
                     guard try directoryEntry.inodePointee != 0, try directoryEntry.nameLength != 0 else { break }
-                    contents.append(try Ext4Item(name: FSFileName(string: try directoryEntry.name ?? ""), in: containingVolume, inodeNumber: try directoryEntry.inodePointee, parentInodeNumber: inodeNumber))
+                    await contents.append(try Ext4Item(name: FSFileName(string: try directoryEntry.name ?? ""), in: containingVolume, inodeNumber: try directoryEntry.inodePointee, parentInodeNumber: inodeNumber))
                     currentOffset += Int(try directoryEntry.directoryEntryLength)
                 }
             }
@@ -268,24 +268,24 @@ class Ext4Item: FSItem {
     }
     
     var symbolicLinkTarget: String? {
-        get throws {
+        get async throws {
             guard try filetype == .symlink else { return nil }
             if try size < 60 {
                 return try BlockDeviceReader.readString(blockDevice: containingVolume.resource, at: inodeLocation + 0x28, maxLength: 60)
             } else {
-                let extents = try findExtentsCovering(0, with: Int.max)
-                let data = try extents.reduce(into: (Data(), size)) { result, extent in
-                    let remainingSectorAligned = result.1.roundUp(toMultipleOf: containingVolume.resource.physicalBlockSize)
+                let extents = try await findExtentsCovering(0, with: Int.max)
+                var data = try Data(capacity: Int(size).roundUp(toMultipleOf: Int(containingVolume.resource.physicalBlockSize)))
+                let remaining = try size
+                for extent in extents {
+                    let remainingSectorAligned = remaining.roundUp(toMultipleOf: containingVolume.resource.physicalBlockSize)
                     let toActuallyRead = min(Int(remainingSectorAligned), Int(Int(extent.lengthInBlocks ?? 1) * containingVolume.superblock.blockSize))
-                    var extentData = Data(count: Int(extent.lengthInBlocks ?? 1) * containingVolume.superblock.blockSize)
-                    try extentData.withUnsafeMutableBytes { ptr in
-                        let read = try containingVolume.resource.read(into: ptr, startingAt: extent.physicalBlock * Int64(containingVolume.superblock.blockSize), length: toActuallyRead)
-                        result.1 -= min(result.1, UInt64(read))
-                    }
-                    result.0 += extentData
+                    let pointer = UnsafeMutableRawBufferPointer.allocate(byteCount: toActuallyRead, alignment: MemoryLayout<UInt8>.alignment)
+                    defer { pointer.deallocate() }
+                    let actuallyRead = try await containingVolume.resource.read(into: pointer, startingAt: extent.physicalBlock * Int64(containingVolume.superblock.blockSize), length: toActuallyRead)
+                    data += Data(bytes: pointer.baseAddress!, count: actuallyRead)
                 }
                 
-                return String(data: data.0, encoding: .utf8)
+                return String(data: data, encoding: .utf8)
             }
         }
     }
@@ -368,9 +368,9 @@ class Ext4Item: FSItem {
         }
     }
     
-    func findExtentsCovering(_ fileBlock: Int64, with blockLength: Int) throws -> [FileExtentNode] {
+    func findExtentsCovering(_ fileBlock: Int64, with blockLength: Int) async throws -> [FileExtentNode] {
         if let extentTreeRoot {
-            return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength)
+            return try await extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength)
         } else {
             let actualBlockLength = try min(blockLength, Int((Double(size) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
             Logger().log("findExtentsCovering fileBlock is \(fileBlock) actualBlockLength is \(actualBlockLength) name is \(self.name.string ?? "(unknown)", privacy: .public)")

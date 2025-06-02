@@ -71,7 +71,7 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
 //            }
 //        }
         
-        let volume = try Ext4Volume(resource: resource)
+        let volume = try await Ext4Volume(resource: resource)
         containerStatus = .ready
         logger.log("Container status ready")
         return volume

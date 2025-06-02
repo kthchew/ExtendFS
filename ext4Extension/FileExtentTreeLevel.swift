@@ -35,18 +35,16 @@ class FileExtentTreeLevel {
     
     private var data: Data
     
-    init(volume: Ext4Volume, offset: Int64) throws {
+    init(volume: Ext4Volume, offset: Int64) async throws {
         self.volume = volume
         self.offset = offset
         self.data = Data() // get the compiler to stop complaining
-        var data = Data(count: volume.superblock.blockSize)
-        let actuallyRead = try data.withUnsafeMutableBytes { ptr in
-            try volume.resource.read(into: ptr, startingAt: blockNumber * Int64(volume.superblock.blockSize), length: volume.superblock.blockSize)
-        }
+        let pointer = UnsafeMutableRawBufferPointer.allocate(byteCount: volume.superblock.blockSize, alignment: MemoryLayout<UInt8>.alignment)
+        let actuallyRead = try await volume.resource.read(into: pointer, startingAt: blockNumber * Int64(volume.superblock.blockSize), length: volume.superblock.blockSize)
         guard actuallyRead == volume.superblock.blockSize else {
             throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
         }
-        self.data = data
+        self.data = Data(bytesNoCopy: pointer.baseAddress!, count: volume.superblock.blockSize, deallocator: .free)
     }
     
     var isLeaf: Bool {
@@ -55,7 +53,7 @@ class FileExtentTreeLevel {
         }
     }
     
-    func findExtentsCovering(_ fileBlock: Int64, with blockLength: Int) throws -> [FileExtentNode] {
+    func findExtentsCovering(_ fileBlock: Int64, with blockLength: Int) async throws -> [FileExtentNode] {
         let firstBlock = fileBlock
         let lastBlock = Int(fileBlock) + blockLength - 1
         
@@ -78,7 +76,7 @@ class FileExtentTreeLevel {
                 
                 result.append(node)
             } else {
-                let childResult = try FileExtentTreeLevel(volume: volume, offset: node.physicalBlock * Int64(volume.superblock.blockSize)).findExtentsCovering(fileBlock, with: blockLength)
+                let childResult = try await FileExtentTreeLevel(volume: volume, offset: node.physicalBlock * Int64(volume.superblock.blockSize)).findExtentsCovering(fileBlock, with: blockLength)
                 if childResult.isEmpty {
                     break
                 }

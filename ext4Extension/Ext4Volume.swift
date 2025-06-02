@@ -11,7 +11,7 @@ import FSKit
 class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Volume")
     
-    init(resource: FSBlockDeviceResource) throws {
+    init(resource: FSBlockDeviceResource) async throws {
         logger.log("Initializing volume")
         self.resource = resource
         self.superblock = try Superblock(blockDevice: resource, offset: 1024)
@@ -23,12 +23,11 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         let firstBlockAfterSuperblockOffset = Int64(ceil(Double(endOfSuperblock) / Double(blockSize))) * Int64(blockSize)
         logger.log("first block after superblock: \(firstBlockAfterSuperblockOffset, privacy: .public) \(endOfSuperblock) \(blockSize)")
         self.blockGroupDescriptors = BlockGroupDescriptors(volume: self, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
+        
+        self.root = try! await Ext4Item(name: FSFileName(string: "/"), in: self, inodeNumber: 2, parentInodeNumber: UInt32(FSItem.Identifier.parentOfRoot.rawValue))
     }
     
-    private lazy var root: FSItem = {
-        let item = try! Ext4Item(name: FSFileName(string: "/"), in: self, inodeNumber: 2, parentInodeNumber: UInt32(FSItem.Identifier.parentOfRoot.rawValue))
-        return item
-    }()
+    private var root: FSItem!
     
     let resource: FSBlockDeviceResource
     /// The superblock in block group 0.
@@ -96,7 +95,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             throw fs_errorForPOSIXError(POSIXError.ENOENT.rawValue)
         }
         
-        guard let entries = try directory.directoryContents else {
+        guard let entries = try await directory.directoryContents else {
             throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
         }
         for entry in entries {
@@ -119,7 +118,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         guard let item = item as? Ext4Item else {
             throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
         }
-        guard let target = try item.symbolicLinkTarget else {
+        guard let target = try await item.symbolicLinkTarget else {
             throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
         }
         return FSFileName(string: target)
@@ -156,7 +155,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             throw ExtensionError.notImplemented
         }
         
-        guard let contents = try directory.directoryContents else {
+        guard let contents = try await directory.directoryContents else {
             // TODO: throw or return?
 //            throw fs_errorForPOSIXError(POSIXError.ENOENT.rawValue)
             return verifier
@@ -210,7 +209,7 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
         let blockSize = superblock.blockSize
         let blockOffset = Int(offset) / blockSize
         let blockLength = Int((Double(length) / Double(blockSize)).rounded(.up))
-        let extents = try item.findExtentsCovering(Int64(blockOffset), with: blockLength)
+        let extents = try await item.findExtentsCovering(Int64(blockOffset), with: blockLength)
         let firstLogicalBlock = offset / Int64(blockSize)
         // TODO: do read requests align to blocks? if not this offset is needed but that makes things more annoying
 //        let offsetWithinFirstBlock = offset % Int64(try superblock.blockSize)
@@ -257,7 +256,7 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
         
         let blockOffset = Int(offset) / blockSize
         let blockLength = (Int(offset) + length) / blockSize - blockOffset + 1
-        let extents = try file.findExtentsCovering(Int64(blockOffset), with: blockLength)
+        let extents = try await file.findExtentsCovering(Int64(blockOffset), with: blockLength)
         for extent in extents {
             guard packer.packExtent(resource: resource, type: extent.type!, logicalOffset: extent.logicalBlock * Int64(blockSize), physicalOffset: extent.physicalBlock * Int64(blockSize), length: Int(extent.lengthInBlocks ?? 1) * Int(blockSize)) else {
                 return
