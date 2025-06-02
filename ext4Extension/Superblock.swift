@@ -9,15 +9,58 @@ import Foundation
 import FSKit
 import zlib
 
+extension Data {
+    func readSmallSection<T>(at offset: off_t) throws -> T {
+        let size = MemoryLayout<T>.size
+        let alignment = MemoryLayout<T>.alignment
+        return self.withUnsafeBytes { ptr in
+            return withUnsafeTemporaryAllocation(byteCount: size, alignment: alignment) { itemPtr in
+                itemPtr.copyMemory(from: UnsafeRawBufferPointer(rebasing: ptr[Int(offset)..<Int(Int(offset) + size)]))
+                return itemPtr.load(as: T.self)
+            }
+        }
+    }
+    
+    func readLittleEndian<T: FixedWidthInteger>(at offset: off_t) throws -> T {
+        let number: T = try self.readSmallSection(at: offset)
+        return number.littleEndian
+    }
+    
+    func readUUID(at offset: off_t) throws -> UUID {
+        let uuid: uuid_t = try self.readSmallSection(at: offset)
+        return UUID(uuid: uuid)
+    }
+    
+    func readString(at offset: off_t, maxLength: Int) throws -> String {
+        return self.withUnsafeBytes { ptr in
+            guard let stringStart = ptr.baseAddress?.assumingMemoryBound(to: CChar.self).advanced(by: Int(offset - 1024)) else {
+                return ""
+            }
+            
+            var cString = [CChar]()
+            for i in 0..<maxLength {
+                let char = (stringStart + i).pointee
+                cString.append(char)
+                if char == 0 {
+                    return String(cString: cString, encoding: .utf8) ?? ""
+                }
+            }
+            
+            return ""
+        }
+    }
+}
+
 struct BlockDeviceReader {
     static func readSmallSection<T>(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> T? {
         Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item").log("Reading some section of disk")
         // FIXME: do this better (can the read be cached?)
         var item: T?
-        let startReadAt = (offset / off_t(blockDevice.physicalBlockSize)) * off_t(blockDevice.physicalBlockSize)
+        let blockSize = off_t(blockDevice.physicalBlockSize)
+        let startReadAt = (offset / blockSize) * blockSize
         let targetContentOffset = Int(offset - startReadAt)
         let targetContentEnd = Int(targetContentOffset) + MemoryLayout<T>.size
-        let readLength = targetContentEnd < blockDevice.physicalBlockSize ? Int(blockDevice.physicalBlockSize) : Int(blockDevice.physicalBlockSize) * 2
+        let readLength = targetContentEnd < blockSize ? Int(blockSize) : Int(blockSize) * 2
         try withUnsafeTemporaryAllocation(byteCount: readLength, alignment: 1) { ptr in
             let read = try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
             if read >= targetContentEnd {
@@ -91,6 +134,22 @@ struct Superblock {
     let blockDevice: FSBlockDeviceResource
     /// The byte offset on the block device at which the superblock starts.
     let offset: Int64
+    
+    private var data: Data
+    
+    init(blockDevice: FSBlockDeviceResource, offset: Int64) throws {
+        self.blockDevice = blockDevice
+        self.offset = offset
+        
+        let superblockSize = 1024
+        self.data = Data(count: superblockSize)
+        let actuallyRead = try self.data.withUnsafeMutableBytes { ptr in
+            return try blockDevice.read(into: ptr, startingAt: offset, length: 1024)
+        }
+        guard actuallyRead == superblockSize else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+        }
+    }
     
     struct State: OptionSet {
         let rawValue: UInt16
@@ -231,54 +290,54 @@ struct Superblock {
     }
     
     /// Total inode count.
-    var inodeCount: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x0) } }
+    var inodeCount: UInt32 { get throws { try data.readLittleEndian(at: 0x0) } }
     /// Total block count.
-    var blockCount: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x4) } }
+    var blockCount: UInt32 { get throws { try data.readLittleEndian(at: 0x4) } }
     /// This number of blocks can only be allocated by the super-user.
-    var superUserBlockCount: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x8) } }
-    var freeBlockCount: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xC) } }
-    var freeInodeCount: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x10) } }
+    var superUserBlockCount: UInt32 { get throws { try data.readLittleEndian(at: 0x8) } }
+    var freeBlockCount: UInt32 { get throws { try data.readLittleEndian(at: 0xC) } }
+    var freeInodeCount: UInt32 { get throws { try data.readLittleEndian(at: 0x10) } }
     /// First data block.
     ///
     /// This must be at least 1 for 1k-block filesystems and is typically 0 for all other block sizes.
-    var firstDataBlock: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x14) } }
+    var firstDataBlock: UInt32 { get throws { try data.readLittleEndian(at: 0x14) } }
     /// Block size is 2 ^ (10 + `logBlockSize`).
-    var logBlockSize: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x18) } }
+    var logBlockSize: UInt32 { get throws { try data.readLittleEndian(at: 0x18) } }
     var blockSize: Int {
         get throws {
             try Int(pow(2, 10 + Double(logBlockSize)))
         }
     }
     /// Cluster size is (2 ^ `logClusterSize`) blocks if bigalloc is enabled. Otherwise `logClusterSize` must equal `logBlockSize`.
-    var logClusterSize: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x1C) } }
+    var logClusterSize: UInt32 { get throws { try data.readLittleEndian(at: 0x1C) } }
     var clusterSize: Int {
         get throws {
             try Int(pow(2, Double(logClusterSize)))
         }
     }
-    var blocksPerGroup: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x20) } }
-    var clustersPerGroup: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x24) } }
-    var inodesPerGroup: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x28) } }
+    var blocksPerGroup: UInt32 { get throws { try data.readLittleEndian(at: 0x20) } }
+    var clustersPerGroup: UInt32 { get throws { try data.readLittleEndian(at: 0x24) } }
+    var inodesPerGroup: UInt32 { get throws { try data.readLittleEndian(at: 0x28) } }
     /// Mount time, in seconds since the epoch.
-    var mountTime: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x2C) } }
+    var mountTime: UInt32 { get throws { try data.readLittleEndian(at: 0x2C) } }
     /// Write time, in seconds since the epoch.
-    var writeTime: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x30) } }
+    var writeTime: UInt32 { get throws { try data.readLittleEndian(at: 0x30) } }
     /// Number of mounts since the last `fsck`.
-    var mountCount: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x34) } }
+    var mountCount: UInt16 { get throws { try data.readLittleEndian(at: 0x34) } }
     /// Number of mounts beyond which a `fsck` is needed.
-    var maxMountCount: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x36) } }
+    var maxMountCount: UInt16 { get throws { try data.readLittleEndian(at: 0x36) } }
     /// Magic signature, should be `0xEF53`.
-    var magic: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x38) } }
-    var state: State { get throws { Superblock.State(rawValue: try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x3A)) } }
-    var errors: ErrorPolicy { get throws { ErrorPolicy(rawValue: try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x3C)) ?? .unknown } }
-    var minorRevisionLevel: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x3E) } }
+    var magic: UInt16 { get throws { try data.readLittleEndian(at: 0x38) } }
+    var state: State { get throws { Superblock.State(rawValue: try data.readLittleEndian(at: 0x3A)) } }
+    var errors: ErrorPolicy { get throws { ErrorPolicy(rawValue: try data.readLittleEndian(at: 0x3C)) ?? .unknown } }
+    var minorRevisionLevel: UInt16 { get throws { try data.readLittleEndian(at: 0x3E) } }
     /// Time of last check, in seconds since the epoch.
-    var lastCheckTime: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x40) } }
-    var checkInterval: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x44) } }
-    var creatorOS: FilesystemCreator { get throws { FilesystemCreator(rawValue: try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x48)) ?? .unknown } }
-    var revisionLevel: Revision { get throws { Revision(rawValue: try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x4C)) ?? .unknown } }
-    var defaultReservedUid: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x50) } }
-    var defaultReservedGid: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x52) } }
+    var lastCheckTime: UInt32 { get throws { try data.readLittleEndian(at: 0x40) } }
+    var checkInterval: UInt32 { get throws { try data.readLittleEndian(at: 0x44) } }
+    var creatorOS: FilesystemCreator { get throws { FilesystemCreator(rawValue: try data.readLittleEndian(at: 0x48)) ?? .unknown } }
+    var revisionLevel: Revision { get throws { Revision(rawValue: try data.readLittleEndian(at: 0x4C)) ?? .unknown } }
+    var defaultReservedUid: UInt16 { get throws { try data.readLittleEndian(at: 0x50) } }
+    var defaultReservedGid: UInt16 { get throws { try data.readLittleEndian(at: 0x52) } }
     
     // MARK: - `EXT4_DYNAMIC_REV` superblocks only
     var revisionSupportsDynamicInodeSizes: Bool {
@@ -291,7 +350,7 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return 11
             }
-            return try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x54)
+            return try data.readLittleEndian(at: 0x54)
         }
     }
     /// Size of inode structure, in bytes.
@@ -300,7 +359,7 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return 128
             }
-            return try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x58)
+            return try data.readLittleEndian(at: 0x58)
         }
     }
     var blockGroupNumber: UInt16? {
@@ -308,8 +367,7 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader
-                .readLittleEndian(blockDevice: blockDevice, at: offset + 0x5A)
+            return try data.readLittleEndian(at: 0x5A)
         }
     }
     var featureCompatibilityFlags: CompatibleFeatures {
@@ -318,9 +376,8 @@ struct Superblock {
                 return CompatibleFeatures()
             }
             return CompatibleFeatures(
-                rawValue: try BlockDeviceReader.readLittleEndian(
-                    blockDevice: blockDevice,
-                    at: offset + 0x5C
+                rawValue: try data.readLittleEndian(
+                    at: 0x5C
                 )
             )
         }
@@ -331,10 +388,8 @@ struct Superblock {
                 return IncompatibleFeatures()
             }
             return IncompatibleFeatures(
-                rawValue: try BlockDeviceReader
-                    .readLittleEndian(
-                        blockDevice: blockDevice,
-                        at: offset + 0x60
+                rawValue: try data.readLittleEndian(
+                        at: 0x60
                     )
             )
         }
@@ -345,10 +400,8 @@ struct Superblock {
                 return ReadOnlyCompatibleFeatures()
             }
             return try ReadOnlyCompatibleFeatures(
-                rawValue: BlockDeviceReader
-                    .readLittleEndian(
-                        blockDevice: blockDevice,
-                        at: offset + 0x64
+                rawValue: data.readLittleEndian(
+                        at: 0x64
                     )
             ) 
         }
@@ -358,7 +411,7 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader.readUUID(blockDevice: blockDevice, at: offset + 0x68)
+            return try data.readUUID(at: 0x68)
         }
     }
     /// Volume label, maximum length 16.
@@ -367,10 +420,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader
-                .readString(
-                    blockDevice: blockDevice,
-                    at: offset + 0x78,
+            return try data.readString(
+                    at: 0x78,
                     maxLength: 16
                 )
         }
@@ -381,10 +432,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader
-                .readString(
-                    blockDevice: blockDevice,
-                    at: offset + 0x88,
+            return try data.readString(
+                    at: 0x88,
                     maxLength: 64
                 )
         }
@@ -394,8 +443,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader
-                .readLittleEndian(blockDevice: blockDevice, at: offset + 0xC8)
+            return try data
+                .readLittleEndian(at: 0xC8)
         }
     }
     
@@ -405,9 +454,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.directoryPreallocation) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0xCC
+            return try data.readLittleEndian(                
+                at: 0xCC
             )
         }
     }
@@ -416,9 +464,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.directoryPreallocation) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0xCD
+            return try data.readLittleEndian(                
+                at: 0xCD
             )
         }
     }
@@ -427,7 +474,7 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.directoryPreallocation) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0xCE)
+            return try data.readLittleEndian(at: 0xCE)
         }
     }
     
@@ -437,9 +484,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try BlockDeviceReader.readUUID(
-                blockDevice: blockDevice,
-                at: offset + 0xD0
+            return try data.readUUID(
+                at: 0xD0
             )
         }
     }
@@ -448,9 +494,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0xE0
+            return try data.readLittleEndian(                
+                at: 0xE0
             )
         }
     }
@@ -459,9 +504,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0xE4
+            return try data.readLittleEndian(                
+                at: 0xE4
             )
         }
     }
@@ -471,9 +515,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0xE8
+            return try data.readLittleEndian(                
+                at: 0xE8
             )
         }
     }
@@ -483,9 +526,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0xFC
+            return try data.readLittleEndian(                
+                at: 0xFC
             )
         }
     }
@@ -494,9 +536,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0xFD
+            return try data.readLittleEndian(                
+                at: 0xFD
             )
         }
     }
@@ -505,9 +546,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
                 return 32
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0xFE
+            return try data.readLittleEndian(                
+                at: 0xFE
             )
         }
     }
@@ -516,9 +556,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x100
+            return try data.readLittleEndian(                
+                at: 0x100
             )
         }
     }
@@ -527,9 +566,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x104
+            return try data.readLittleEndian(                
+                at: 0x104
             )
         }
     }
@@ -539,7 +577,7 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x108)
+            return try data.readLittleEndian(at: 0x108)
         }
     }
 //    var journalBlocks: [UInt32] // size 17
@@ -550,9 +588,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x150
+            return try data.readLittleEndian(
+                at: 0x150
             )
         }
     }
@@ -561,9 +598,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x154
+            return try data.readLittleEndian(
+                at: 0x154
             )
         }
     }
@@ -572,9 +608,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x158
+            return try data.readLittleEndian(
+                at: 0x158
             )
         }
     }
@@ -584,9 +619,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x15C
+            return try data.readLittleEndian(
+                at: 0x15C
             )
         }
     }
@@ -596,9 +630,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x15E
+            return try data.readLittleEndian(                
+                at: 0x15E
             )
         }
     }
@@ -607,9 +640,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x160
+            return try data.readLittleEndian(                
+                at: 0x160
             )
         }
     }
@@ -618,9 +650,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x164
+            return try data.readLittleEndian(                
+                at: 0x164
             )
         }
     }
@@ -629,9 +660,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x166
+            return try data.readLittleEndian(
+                at: 0x166
             )
         }
     }
@@ -640,9 +670,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x168
+            return try data.readLittleEndian(
+                at: 0x168
             )
         }
     }
@@ -651,9 +680,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x170
+            return try data.readLittleEndian(                
+                at: 0x170
             )
         }
     }
@@ -662,9 +690,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.flexibleBlockGroups) else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x174
+            return try data.readLittleEndian(                
+                at: 0x174
             )
         }
     }
@@ -688,9 +715,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x175
+            return try data.readLittleEndian(                
+                at: 0x175
             )
         }
     }
@@ -699,9 +725,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x176
+            return try data.readLittleEndian(                
+                at: 0x176
             )
         }
     }
@@ -710,9 +735,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x178
+            return try data.readLittleEndian(                
+                at: 0x178
             )
         }
     }
@@ -721,9 +745,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x180
+            return try data.readLittleEndian(                
+                at: 0x180
             )
         }
     }
@@ -732,9 +755,8 @@ struct Superblock {
             guard try revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try BlockDeviceReader.readLittleEndian(
-                blockDevice: blockDevice,
-                at: offset + 0x184
+            return try data.readLittleEndian(                
+                at: 0x184
             )
         }
     }
