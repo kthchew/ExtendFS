@@ -10,7 +10,7 @@ import FSKit
 import zlib
 
 extension Data {
-    func readSmallSection<T>(at offset: off_t) throws -> T {
+    func readSmallSection<T>(at offset: off_t) -> T {
         let size = MemoryLayout<T>.size
         let alignment = MemoryLayout<T>.alignment
         return self.withUnsafeBytes { ptr in
@@ -21,17 +21,17 @@ extension Data {
         }
     }
     
-    func readLittleEndian<T: FixedWidthInteger>(at offset: off_t) throws -> T {
-        let number: T = try self.readSmallSection(at: offset)
+    func readLittleEndian<T: FixedWidthInteger>(at offset: off_t) -> T {
+        let number: T = self.readSmallSection(at: offset)
         return number.littleEndian
     }
     
-    func readUUID(at offset: off_t) throws -> UUID {
-        let uuid: uuid_t = try self.readSmallSection(at: offset)
+    func readUUID(at offset: off_t) -> UUID {
+        let uuid: uuid_t = self.readSmallSection(at: offset)
         return UUID(uuid: uuid)
     }
     
-    func readString(at offset: off_t, maxLength: Int) throws -> String {
+    func readString(at offset: off_t, maxLength: Int) -> String {
         return self.withUnsafeBytes { ptr in
             guard let stringStart = ptr.baseAddress?.assumingMemoryBound(to: CChar.self).advanced(by: Int(offset - 1024)) else {
                 return ""
@@ -290,116 +290,116 @@ struct Superblock {
     }
     
     /// Total inode count.
-    var inodeCount: UInt32 { get throws { try data.readLittleEndian(at: 0x0) } }
+    var inodeCount: UInt32 { get { data.readLittleEndian(at: 0x0) } }
     /// Total block count.
-    var blockCount: UInt32 { get throws { try data.readLittleEndian(at: 0x4) } }
+    var blockCount: UInt32 { get { data.readLittleEndian(at: 0x4) } }
     /// This number of blocks can only be allocated by the super-user.
-    var superUserBlockCount: UInt32 { get throws { try data.readLittleEndian(at: 0x8) } }
-    var freeBlockCount: UInt32 { get throws { try data.readLittleEndian(at: 0xC) } }
-    var freeInodeCount: UInt32 { get throws { try data.readLittleEndian(at: 0x10) } }
+    var superUserBlockCount: UInt32 { get { data.readLittleEndian(at: 0x8) } }
+    var freeBlockCount: UInt32 { get { data.readLittleEndian(at: 0xC) } }
+    var freeInodeCount: UInt32 { get { data.readLittleEndian(at: 0x10) } }
     /// First data block.
     ///
     /// This must be at least 1 for 1k-block filesystems and is typically 0 for all other block sizes.
-    var firstDataBlock: UInt32 { get throws { try data.readLittleEndian(at: 0x14) } }
+    var firstDataBlock: UInt32 { get { data.readLittleEndian(at: 0x14) } }
     /// Block size is 2 ^ (10 + `logBlockSize`).
-    var logBlockSize: UInt32 { get throws { try data.readLittleEndian(at: 0x18) } }
+    var logBlockSize: UInt32 { get { data.readLittleEndian(at: 0x18) } }
     var blockSize: Int {
-        get throws {
-            try Int(pow(2, 10 + Double(logBlockSize)))
+        get {
+            Int(pow(2, 10 + Double(logBlockSize)))
         }
     }
     /// Cluster size is (2 ^ `logClusterSize`) blocks if bigalloc is enabled. Otherwise `logClusterSize` must equal `logBlockSize`.
-    var logClusterSize: UInt32 { get throws { try data.readLittleEndian(at: 0x1C) } }
+    var logClusterSize: UInt32 { get { data.readLittleEndian(at: 0x1C) } }
     var clusterSize: Int {
         get throws {
-            try Int(pow(2, Double(logClusterSize)))
+            Int(pow(2, Double(logClusterSize)))
         }
     }
-    var blocksPerGroup: UInt32 { get throws { try data.readLittleEndian(at: 0x20) } }
-    var clustersPerGroup: UInt32 { get throws { try data.readLittleEndian(at: 0x24) } }
-    var inodesPerGroup: UInt32 { get throws { try data.readLittleEndian(at: 0x28) } }
+    var blocksPerGroup: UInt32 { get { data.readLittleEndian(at: 0x20) } }
+    var clustersPerGroup: UInt32 { get { data.readLittleEndian(at: 0x24) } }
+    var inodesPerGroup: UInt32 { get { data.readLittleEndian(at: 0x28) } }
     /// Mount time, in seconds since the epoch.
-    var mountTime: UInt32 { get throws { try data.readLittleEndian(at: 0x2C) } }
+    var mountTime: UInt32 { get { data.readLittleEndian(at: 0x2C) } }
     /// Write time, in seconds since the epoch.
-    var writeTime: UInt32 { get throws { try data.readLittleEndian(at: 0x30) } }
+    var writeTime: UInt32 { get { data.readLittleEndian(at: 0x30) } }
     /// Number of mounts since the last `fsck`.
-    var mountCount: UInt16 { get throws { try data.readLittleEndian(at: 0x34) } }
+    var mountCount: UInt16 { get { data.readLittleEndian(at: 0x34) } }
     /// Number of mounts beyond which a `fsck` is needed.
-    var maxMountCount: UInt16 { get throws { try data.readLittleEndian(at: 0x36) } }
+    var maxMountCount: UInt16 { get { data.readLittleEndian(at: 0x36) } }
     /// Magic signature, should be `0xEF53`.
-    var magic: UInt16 { get throws { try data.readLittleEndian(at: 0x38) } }
-    var state: State { get throws { Superblock.State(rawValue: try data.readLittleEndian(at: 0x3A)) } }
-    var errors: ErrorPolicy { get throws { ErrorPolicy(rawValue: try data.readLittleEndian(at: 0x3C)) ?? .unknown } }
-    var minorRevisionLevel: UInt16 { get throws { try data.readLittleEndian(at: 0x3E) } }
+    var magic: UInt16 { get { data.readLittleEndian(at: 0x38) } }
+    var state: State { get { Superblock.State(rawValue: data.readLittleEndian(at: 0x3A)) } }
+    var errors: ErrorPolicy { get throws { ErrorPolicy(rawValue: data.readLittleEndian(at: 0x3C)) ?? .unknown } }
+    var minorRevisionLevel: UInt16 { get { data.readLittleEndian(at: 0x3E) } }
     /// Time of last check, in seconds since the epoch.
-    var lastCheckTime: UInt32 { get throws { try data.readLittleEndian(at: 0x40) } }
-    var checkInterval: UInt32 { get throws { try data.readLittleEndian(at: 0x44) } }
-    var creatorOS: FilesystemCreator { get throws { FilesystemCreator(rawValue: try data.readLittleEndian(at: 0x48)) ?? .unknown } }
-    var revisionLevel: Revision { get throws { Revision(rawValue: try data.readLittleEndian(at: 0x4C)) ?? .unknown } }
-    var defaultReservedUid: UInt16 { get throws { try data.readLittleEndian(at: 0x50) } }
-    var defaultReservedGid: UInt16 { get throws { try data.readLittleEndian(at: 0x52) } }
+    var lastCheckTime: UInt32 { get { data.readLittleEndian(at: 0x40) } }
+    var checkInterval: UInt32 { get { data.readLittleEndian(at: 0x44) } }
+    var creatorOS: FilesystemCreator { get { FilesystemCreator(rawValue: data.readLittleEndian(at: 0x48)) ?? .unknown } }
+    var revisionLevel: Revision { get { Revision(rawValue: data.readLittleEndian(at: 0x4C)) ?? .unknown } }
+    var defaultReservedUid: UInt16 { get { data.readLittleEndian(at: 0x50) } }
+    var defaultReservedGid: UInt16 { get { data.readLittleEndian(at: 0x52) } }
     
     // MARK: - `EXT4_DYNAMIC_REV` superblocks only
     var revisionSupportsDynamicInodeSizes: Bool {
-        get throws {
-            try revisionLevel != .unknown && revisionLevel >= Revision.version2
+        get {
+            revisionLevel != .unknown && revisionLevel >= Revision.version2
         }
     }
     var firstNonReservedInode: UInt32 {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return 11
             }
-            return try data.readLittleEndian(at: 0x54)
+            return data.readLittleEndian(at: 0x54)
         }
     }
     /// Size of inode structure, in bytes.
     var inodeSize: UInt16 {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return 128
             }
-            return try data.readLittleEndian(at: 0x58)
+            return data.readLittleEndian(at: 0x58)
         }
     }
     var blockGroupNumber: UInt16? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readLittleEndian(at: 0x5A)
+            return data.readLittleEndian(at: 0x5A)
         }
     }
     var featureCompatibilityFlags: CompatibleFeatures {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return CompatibleFeatures()
             }
             return CompatibleFeatures(
-                rawValue: try data.readLittleEndian(
+                rawValue: data.readLittleEndian(
                     at: 0x5C
                 )
             )
         }
     }
     var featureIncompatibleFlags: IncompatibleFeatures {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return IncompatibleFeatures()
             }
             return IncompatibleFeatures(
-                rawValue: try data.readLittleEndian(
+                rawValue: data.readLittleEndian(
                         at: 0x60
                     )
             )
         }
     }
     var readonlyFeatureCompatibilityFlags: ReadOnlyCompatibleFeatures {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return ReadOnlyCompatibleFeatures()
             }
-            return try ReadOnlyCompatibleFeatures(
+            return ReadOnlyCompatibleFeatures(
                 rawValue: data.readLittleEndian(
                         at: 0x64
                     )
@@ -407,20 +407,20 @@ struct Superblock {
         }
     }
     var uuid: UUID? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readUUID(at: 0x68)
+            return data.readUUID(at: 0x68)
         }
     }
     /// Volume label, maximum length 16.
     var volumeName: String? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readString(
+            return data.readString(
                     at: 0x78,
                     maxLength: 16
                 )
@@ -428,269 +428,269 @@ struct Superblock {
     }
     /// Directory where filesystem was last mounted, maximum length 64.
     var lastMountedDirectory: String? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readString(
+            return data.readString(
                     at: 0x88,
                     maxLength: 64
                 )
         }
     }
     var algorithmUsageBitmap: UInt32? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data
+            return data
                 .readLittleEndian(at: 0xC8)
         }
     }
     
     // MARK: - Performance hints
     var preallocateBlocks: UInt8? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.directoryPreallocation) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.directoryPreallocation) else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0xCC
             )
         }
     }
     var preallocateDirectoryBlock: UInt8? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.directoryPreallocation) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.directoryPreallocation) else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0xCD
             )
         }
     }
     var reservedGDTblocks: UInt16? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.directoryPreallocation) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.directoryPreallocation) else {
                 return nil
             }
-            return try data.readLittleEndian(at: 0xCE)
+            return data.readLittleEndian(at: 0xCE)
         }
     }
     
     // MARK: - Journalling support
     var journalUUID: UUID? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try data.readUUID(
+            return data.readUUID(
                 at: 0xD0
             )
         }
     }
     var journalInodeNumber: UInt32? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0xE0
             )
         }
     }
     var journalDeviceNumber: UInt32? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0xE4
             )
         }
     }
     
     var lastOrphan: UInt32? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0xE8
             )
         }
     }
     //    var hashSeed: [UInt32] // size 4
     var defaultHashVersion: UInt8? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0xFC
             )
         }
     }
     var journalBackupType: UInt8? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0xFD
             )
         }
     }
     var descriptorSize: UInt16 {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
                 return 32
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0xFE
             )
         }
     }
     var defaultMountOptions: UInt32? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0x100
             )
         }
     }
     var firstMetablockBlockGroup: UInt32? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0x104
             )
         }
     }
     /// When the filesystem was created, in seconds since the epoch.
     var mkfsTime: UInt32? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureCompatibilityFlags.contains(.journal) else {
                 return nil
             }
-            return try data.readLittleEndian(at: 0x108)
+            return data.readLittleEndian(at: 0x108)
         }
     }
 //    var journalBlocks: [UInt32] // size 17
     
     // MARK: - 64-bit support
     var blocksCountHigh: UInt32? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
                 return nil
             }
-            return try data.readLittleEndian(
+            return data.readLittleEndian(
                 at: 0x150
             )
         }
     }
     var reservedBlocksCountHigh: UInt32? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
                 return nil
             }
-            return try data.readLittleEndian(
+            return data.readLittleEndian(
                 at: 0x154
             )
         }
     }
     var freeBlocksCountHigh: UInt32? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.enable64BitSize) else {
                 return nil
             }
-            return try data.readLittleEndian(
+            return data.readLittleEndian(
                 at: 0x158
             )
         }
     }
     /// All inodes have at least `minimumExtraInodeSize` bytes.
     var minimumExtraInodeSize: UInt16? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readLittleEndian(
+            return data.readLittleEndian(
                 at: 0x15C
             )
         }
     }
     /// New inodes should reserve `wantExtraInodeSize` bytes.
     var wantExtraInodeSize: UInt16? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0x15E
             )
         }
     }
     var flags: UInt32? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0x160
             )
         }
     }
     var raidStride: UInt16? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0x164
             )
         }
     }
     var mmpInternal: UInt16? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readLittleEndian(
+            return data.readLittleEndian(
                 at: 0x166
             )
         }
     }
     var mmpBlock: UInt64? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readLittleEndian(
+            return data.readLittleEndian(
                 at: 0x168
             )
         }
     }
     var raidStripeWidth: UInt32? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0x170
             )
         }
     }
     var logGroupsPerFlexibleGroup: UInt8? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.flexibleBlockGroups) else {
+        get {
+            guard revisionSupportsDynamicInodeSizes && featureIncompatibleFlags.contains(.flexibleBlockGroups) else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0x174
             )
         }
@@ -703,59 +703,59 @@ struct Superblock {
     ///
     /// If flexible block groups are disabled, this returns `nil`.
     var groupsPerFlexibleGroup: UInt64? {
-        get throws {
-            guard let logGroupsPerFlexibleGroup = try logGroupsPerFlexibleGroup else {
+        get {
+            guard let logGroupsPerFlexibleGroup = logGroupsPerFlexibleGroup else {
                 return nil
             }
             return UInt64(pow(2, Double(logGroupsPerFlexibleGroup)))
         }
     }
     var checksumType: UInt8? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0x175
             )
         }
     }
     var reservedPad: UInt16? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0x176
             )
         }
     }
     var kbytesWritten: UInt64? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0x178
             )
         }
     }
     var snapshotInodeNumber: UInt32? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0x180
             )
         }
     }
     var snapshotId: UInt32? {
-        get throws {
-            guard try revisionSupportsDynamicInodeSizes else {
+        get {
+            guard revisionSupportsDynamicInodeSizes else {
                 return nil
             }
-            return try data.readLittleEndian(                
+            return data.readLittleEndian(
                 at: 0x184
             )
         }

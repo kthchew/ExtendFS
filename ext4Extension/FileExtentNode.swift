@@ -36,6 +36,28 @@ struct FileExtentNode: Hashable, Comparable {
         }
     }
     
+    init(data: Data, offset: off_t, isLeaf: Bool) {
+        let logicalBlock: UInt32 = data.readLittleEndian(at: offset)
+        self.logicalBlock = off_t(logicalBlock)
+        if isLeaf {
+            let length: UInt16 = data.readLittleEndian(at: offset + 0x4)
+            if length > 32768 {
+                self.lengthInBlocks = length - 32768
+                self.type = .zeroFill
+            } else {
+                self.lengthInBlocks = length
+                self.type = .data
+            }
+            let upperStartBlock: UInt16 = data.readLittleEndian(at: offset + 0x6)
+            let lowerStartBlock: UInt32 = data.readLittleEndian(at: offset + 0x8)
+            self.physicalBlock = off_t(UInt64.combine(upper: upperStartBlock, lower: lowerStartBlock))
+        } else {
+            let lowerStartBlock: UInt32 = data.readLittleEndian(at: offset + 0x4)
+            let upperStartBlock: UInt16 = data.readLittleEndian(at: offset + 0x8)
+            self.physicalBlock = off_t(UInt64.combine(upper: upperStartBlock, lower: lowerStartBlock))
+        }
+    }
+    
     /// Directly create a node representing a file extent.
     /// - Parameters:
     ///   - physicalBlock: The offset of the data block on the physical disk, in blocks.

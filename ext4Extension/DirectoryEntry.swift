@@ -29,7 +29,7 @@ struct DirectoryEntry {
     }
     var fileType: Filetype! {
         get throws {
-            guard try volume.superblock.featureIncompatibleFlags.contains(.filetype) else { return nil }
+            guard volume.superblock.featureIncompatibleFlags.contains(.filetype) else { return nil }
             return Filetype(rawValue: try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x7))
         }
         

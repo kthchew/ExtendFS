@@ -82,7 +82,7 @@ struct BlockGroupDescriptor {
     // FIXME: these are not valid if 32-bit is not enabled
     var upperBlockBitmapLocation: UInt32? {
         get throws {
-            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            guard volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
             return try BlockDeviceReader.readLittleEndian(
                 blockDevice: volume.resource,
                 at: offset + 0x20
@@ -91,7 +91,7 @@ struct BlockGroupDescriptor {
     }
     var upperInodeBitmapLocation: UInt32? {
         get throws {
-            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            guard volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
             return try BlockDeviceReader.readLittleEndian(
                 blockDevice: volume.resource,
                 at: offset + 0x24
@@ -100,7 +100,7 @@ struct BlockGroupDescriptor {
     }
     var upperInodeTableLocation: UInt32? {
         get throws {
-            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            guard volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
             return try BlockDeviceReader.readLittleEndian(
                 blockDevice: volume.resource,
                 at: offset + 0x28
@@ -109,7 +109,7 @@ struct BlockGroupDescriptor {
     }
     var upperFreeBlockCountLocation: UInt16? {
         get throws {
-            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            guard volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
             return try BlockDeviceReader.readLittleEndian(
                 blockDevice: volume.resource,
                 at: offset + 0x2C
@@ -118,7 +118,7 @@ struct BlockGroupDescriptor {
     }
     var upperFreeInodeCountLocation: UInt16? {
         get throws {
-            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            guard volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
             return try BlockDeviceReader.readLittleEndian(
                 blockDevice: volume.resource,
                 at: offset + 0x2E
@@ -127,7 +127,7 @@ struct BlockGroupDescriptor {
     }
     var upperUsedDirectoryCountLocation: UInt16? {
         get throws {
-            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            guard volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
             return try BlockDeviceReader.readLittleEndian(
                 blockDevice: volume.resource,
                 at: offset + 0x30
@@ -136,7 +136,7 @@ struct BlockGroupDescriptor {
     }
     var upperUnusedInodeCount: UInt16? {
         get throws {
-            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            guard volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
             return try BlockDeviceReader.readLittleEndian(
                 blockDevice: volume.resource,
                 at: offset + 0x32
@@ -145,7 +145,7 @@ struct BlockGroupDescriptor {
     }
     var upperSnapshotExclusionBitmapLocation: UInt32? {
         get throws {
-            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            guard volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
             return try BlockDeviceReader.readLittleEndian(
                 blockDevice: volume.resource,
                 at: offset + 0x34
@@ -154,7 +154,7 @@ struct BlockGroupDescriptor {
     }
     var upperBlockBitmapChecksum: UInt16? {
         get throws {
-            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            guard volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
             return try BlockDeviceReader.readLittleEndian(
                 blockDevice: volume.resource,
                 at: offset + 0x38
@@ -163,7 +163,7 @@ struct BlockGroupDescriptor {
     }
     var upperInodeBitmapChecksum: UInt16? {
         get throws {
-            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            guard volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
             return try BlockDeviceReader.readLittleEndian(
                 blockDevice: volume.resource,
                 at: offset + 0x3A

@@ -16,14 +16,13 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         self.resource = resource
         self.superblock = try Superblock(blockDevice: resource, offset: 1024)
         
-        try super.init(volumeID: FSVolume.Identifier(uuid: superblock.uuid ?? UUID()), volumeName: FSFileName(string: superblock.volumeName ?? ""))
+        super.init(volumeID: FSVolume.Identifier(uuid: superblock.uuid ?? UUID()), volumeName: FSFileName(string: superblock.volumeName ?? ""))
         
         let endOfSuperblock = superblock.offset + 1024
-        // FIXME: if this is nil, that's probably an error
-        let blockSize = try superblock.blockSize
+        let blockSize = superblock.blockSize
         let firstBlockAfterSuperblockOffset = Int64(ceil(Double(endOfSuperblock) / Double(blockSize))) * Int64(blockSize)
         logger.log("first block after superblock: \(firstBlockAfterSuperblockOffset, privacy: .public) \(endOfSuperblock) \(blockSize)")
-        self.blockGroupDescriptors = try BlockGroupDescriptors(volume: self, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
+        self.blockGroupDescriptors = BlockGroupDescriptors(volume: self, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
     }
     
     private lazy var root: FSItem = {
@@ -44,26 +43,22 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     
     var volumeStatistics: FSStatFSResult {
         let statistics = FSStatFSResult(fileSystemTypeName: "Linux Filesystem")
-        do {
-            statistics.blockSize = try superblock.blockSize
-            statistics.totalBlocks = try UInt64(superblock.blockCount)
-            statistics.freeBlocks = try UInt64(superblock.freeBlockCount)
-            statistics.availableBlocks = try UInt64(superblock.freeBlockCount)
-            statistics.usedBlocks = statistics.totalBlocks - statistics.freeBlocks
-            statistics.freeFiles = try UInt64(superblock.freeInodeCount)
-            statistics.ioSize = try superblock.blockSize
-            
-            if try superblock.featureIncompatibleFlags.contains(.extents) {
-                statistics.fileSystemSubType = ExtendedFilesystemTypes.ext4.rawValue
-            } else if try superblock.featureCompatibilityFlags.contains(.journal) {
-                statistics.fileSystemSubType = ExtendedFilesystemTypes.ext3.rawValue
-            } else {
-                statistics.fileSystemSubType = ExtendedFilesystemTypes.ext2.rawValue
-            }
-            return statistics
-        } catch {
-            return statistics
+        statistics.blockSize = superblock.blockSize
+        statistics.totalBlocks = UInt64(superblock.blockCount)
+        statistics.freeBlocks = UInt64(superblock.freeBlockCount)
+        statistics.availableBlocks = UInt64(superblock.freeBlockCount)
+        statistics.usedBlocks = statistics.totalBlocks - statistics.freeBlocks
+        statistics.freeFiles = UInt64(superblock.freeInodeCount)
+        statistics.ioSize = superblock.blockSize
+        
+        if superblock.featureIncompatibleFlags.contains(.extents) {
+            statistics.fileSystemSubType = ExtendedFilesystemTypes.ext4.rawValue
+        } else if superblock.featureCompatibilityFlags.contains(.journal) {
+            statistics.fileSystemSubType = ExtendedFilesystemTypes.ext3.rawValue
+        } else {
+            statistics.fileSystemSubType = ExtendedFilesystemTypes.ext2.rawValue
         }
+        return statistics
     }
     
     func mount(options: FSTaskOptions) async throws {
@@ -212,7 +207,7 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
             throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
         }
         
-        let blockSize = try superblock.blockSize
+        let blockSize = superblock.blockSize
         let blockOffset = Int(offset) / blockSize
         let blockLength = Int((Double(length) / Double(blockSize)).rounded(.up))
         let extents = try item.findExtentsCovering(Int64(blockOffset), with: blockLength)
@@ -229,9 +224,9 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
             
             let startingAtLogicalBlock = amountRead == 0 ? firstLogicalBlock : extent.logicalBlock
             let startingAtPhysicalBlock = extent.physicalBlock + (startingAtLogicalBlock - extent.logicalBlock)
-            let startingAtPhysicalByte = try startingAtPhysicalBlock * Int64(superblock.blockSize)
+            let startingAtPhysicalByte = startingAtPhysicalBlock * Int64(superblock.blockSize)
             let blockLengthConsidered = Int(extent.lengthInBlocks ?? 1) - Int(startingAtLogicalBlock - extent.logicalBlock)
-            let readFromThisExtent = try min(actualLengthToRead - amountRead, blockLengthConsidered * superblock.blockSize)
+            let readFromThisExtent = min(actualLengthToRead - amountRead, blockLengthConsidered * superblock.blockSize)
             if let type = extent.type, type == .zeroFill {
                 amountRead += readFromThisExtent
                 continue
@@ -258,7 +253,7 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
             throw fs_errorForPOSIXError(POSIXError.EPERM.rawValue)
         }
         
-        let blockSize = try superblock.blockSize
+        let blockSize = superblock.blockSize
         
         let blockOffset = Int(offset) / blockSize
         let blockLength = (Int(offset) + length) / blockSize - blockOffset + 1

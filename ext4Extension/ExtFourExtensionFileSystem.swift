@@ -25,10 +25,10 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
         }
         
         let superblock = try Superblock(blockDevice: resource, offset: 1024)
-        if try superblock.magic == 0xEF53 {
-            let name = (try? superblock.volumeName) ?? ""
-            let uuid = (try? superblock.uuid) ?? UUID()
-            guard try superblock.featureIncompatibleFlags.isSubset(of: Superblock.IncompatibleFeatures.supportedFeatures) else {
+        if superblock.magic == 0xEF53 {
+            let name = superblock.volumeName ?? ""
+            let uuid = superblock.uuid ?? UUID()
+            guard superblock.featureIncompatibleFlags.isSubset(of: Superblock.IncompatibleFeatures.supportedFeatures) else {
                 return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
             }
             

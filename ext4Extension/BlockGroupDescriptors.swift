@@ -25,7 +25,7 @@ class BlockGroupDescriptors {
                 return nil
             }
             
-            let descriptorSizeBytes = try volume.superblock.descriptorSize
+            let descriptorSizeBytes = volume.superblock.descriptorSize
             return BlockGroupDescriptor(volume: volume, offset: offset + Int64(index) * Int64(descriptorSizeBytes))
         }
     }

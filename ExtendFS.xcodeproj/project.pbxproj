@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9F283FD22DED6F90005EF8BB /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 9F283FD12DED6F90005EF8BB /* Algorithms */; };
 		9F57A64D2DD6841D00D7E52D /* ExtendFSExtension.appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = 9F57A6432DD6841D00D7E52D /* ExtendFSExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -117,6 +118,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9F283FD22DED6F90005EF8BB /* Algorithms in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -235,6 +237,7 @@
 			);
 			name = ExtendFSExtension;
 			packageProductDependencies = (
+				9F283FD12DED6F90005EF8BB /* Algorithms */,
 			);
 			productName = ext4Extension;
 			productReference = 9F57A6432DD6841D00D7E52D /* ExtendFSExtension.appex */;
@@ -275,6 +278,9 @@
 			);
 			mainGroup = 9F57A60B2DD6835E00D7E52D;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9F283FD02DED6F90005EF8BB /* XCRemoteSwiftPackageReference "swift-algorithms" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9F57A6152DD6835E00D7E52D /* Products */;
 			projectDirPath = "";
@@ -724,6 +730,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		9F283FD02DED6F90005EF8BB /* XCRemoteSwiftPackageReference "swift-algorithms" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-algorithms.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9F283FD12DED6F90005EF8BB /* Algorithms */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9F283FD02DED6F90005EF8BB /* XCRemoteSwiftPackageReference "swift-algorithms" */;
+			productName = Algorithms;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 9F57A60C2DD6835E00D7E52D /* Project object */;
 }

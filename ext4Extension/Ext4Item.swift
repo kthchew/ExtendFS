@@ -79,7 +79,7 @@ class Ext4Item: FSItem {
     
     var blockGroupNumber: UInt32 {
         get throws {
-            (inodeNumber - 1) / (try containingVolume.superblock.inodesPerGroup)
+            (inodeNumber - 1) / containingVolume.superblock.inodesPerGroup
         }
     }
     var blockGroupDescriptor: BlockGroupDescriptor? {
@@ -89,15 +89,15 @@ class Ext4Item: FSItem {
         }
     }
     var groupInodeTableIndex: UInt32 {
-        get throws {
-            (inodeNumber - 1) % (try containingVolume.superblock.inodesPerGroup)
+        get {
+            (inodeNumber - 1) % (containingVolume.superblock.inodesPerGroup)
         }
     }
     var inodeTableOffset: UInt64 {
         get throws {
             // FIXME: not all inode entries are necessarily the same size - see https://www.kernel.org/doc/html/v4.19/filesystems/ext4/ondisk/index.html#inode-size
             // this might be correct though since the records should be the correct size?
-            try UInt64(groupInodeTableIndex) * UInt64(containingVolume.superblock.inodeSize)
+            UInt64(groupInodeTableIndex) * UInt64(containingVolume.superblock.inodeSize)
         }
     }
     /// The offset of the inode table entry on the disk.
@@ -161,7 +161,7 @@ class Ext4Item: FSItem {
     /// The amount of space, in bytes, that this inode occupies past the original ext2 inode size (128 bytes), including this field.
     var extraInodeSize: UInt16 {
         get throws {
-            guard try containingVolume.superblock.inodeSize >= 128 + 2 else { return 0 }
+            guard containingVolume.superblock.inodeSize >= 128 + 2 else { return 0 }
             return try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: inodeLocation + 0x80)
         }
     }
@@ -245,7 +245,7 @@ class Ext4Item: FSItem {
     var extentTreeRoot: FileExtentTreeLevel? {
         get throws {
             guard try flags.contains(.usesExtents) else { return nil }
-            return FileExtentTreeLevel(volume: containingVolume, offset: try inodeLocation + 0x28)
+            return try FileExtentTreeLevel(volume: containingVolume, offset: try inodeLocation + 0x28)
         }
     }
     
@@ -255,9 +255,9 @@ class Ext4Item: FSItem {
             let extents = try findExtentsCovering(0, with: Int.max)
             var contents = [Ext4Item]()
             for extent in extents {
-                let byteOffset = extent.physicalBlock * Int64(try containingVolume.superblock.blockSize)
+                let byteOffset = extent.physicalBlock * Int64(containingVolume.superblock.blockSize)
                 var currentOffset = 0
-                while try currentOffset < Int(extent.lengthInBlocks!) * containingVolume.superblock.blockSize {
+                while currentOffset < Int(extent.lengthInBlocks!) * containingVolume.superblock.blockSize {
                     let directoryEntry = DirectoryEntry(volume: containingVolume, offset: byteOffset + Int64(currentOffset))
                     guard try directoryEntry.inodePointee != 0, try directoryEntry.nameLength != 0 else { break }
                     contents.append(Ext4Item(name: FSFileName(string: try directoryEntry.name ?? ""), in: containingVolume, inodeNumber: try directoryEntry.inodePointee, parentInodeNumber: inodeNumber))
@@ -278,7 +278,7 @@ class Ext4Item: FSItem {
                 let extents = try findExtentsCovering(0, with: Int.max)
                 let data = try extents.reduce(into: (Data(), try size)) { result, extent in
                     let toRead = result.1
-                    var extentData = try Data(capacity: Int(extent.lengthInBlocks ?? 1) * containingVolume.superblock.blockSize)
+                    var extentData = Data(capacity: Int(extent.lengthInBlocks ?? 1) * containingVolume.superblock.blockSize)
                     try extentData.withUnsafeMutableBytes { ptr in
                         let read = try containingVolume.resource.read(into: ptr, startingAt: extent.physicalBlock * Int64(containingVolume.superblock.blockSize), length: min(Int(toRead), Int(Int(extent.lengthInBlocks ?? 1) * containingVolume.superblock.blockSize)))
                         result.1 -= UInt64(read)
@@ -326,7 +326,7 @@ class Ext4Item: FSItem {
         }
         if request.isAttributeWanted(.allocSize) {
             let usesHugeBlocks = (try? containingVolume.superblock.readonlyFeatureCompatibilityFlags.contains(.hugeFile) && flags.contains(.hugeFile)) ?? false
-            attributes.allocSize = (UInt64((try? lowerBlockCount) ?? 0) * UInt64(usesHugeBlocks ? try! containingVolume.superblock.blockSize : 512))
+            attributes.allocSize = (UInt64((try? lowerBlockCount) ?? 0) * UInt64(usesHugeBlocks ? containingVolume.superblock.blockSize : 512))
         }
         if request.isAttributeWanted(.inhibitKernelOffloadedIO) {
             attributes.inhibitKernelOffloadedIO = false
@@ -356,7 +356,7 @@ class Ext4Item: FSItem {
     func indirectAddressing(for block: Int64, currentDepth: Int, currentLevelDiskPosition: UInt64, currentLevelStartsAtBlock: Int64) throws -> FileExtentNode {
         let blockOffset = block - currentLevelStartsAtBlock
         let pointerSize = Int64(MemoryLayout<UInt32>.size)
-        let coveredPerLevelOfIndirection = try containingVolume.superblock.blockSize / 4
+        let coveredPerLevelOfIndirection = containingVolume.superblock.blockSize / 4
         
         if currentDepth == 0 {
             let address: UInt32 = try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: Int64(currentLevelDiskPosition) + (blockOffset * pointerSize))
@@ -378,7 +378,7 @@ class Ext4Item: FSItem {
             return try (fileBlock..<(fileBlock + Int64(actualBlockLength))).map { block in
                 let iBlockOffset = try inodeLocation + 0x28
                 let pointerSize = Int64(MemoryLayout<UInt32>.size)
-                let coveredPerLevelOfIndirection = Int64(try containingVolume.superblock.blockSize / 4)
+                let coveredPerLevelOfIndirection = Int64(containingVolume.superblock.blockSize / 4)
                 
                 let level1End: Int64 = 11
                 let level2End = level1End + coveredPerLevelOfIndirection

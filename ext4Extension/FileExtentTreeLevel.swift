@@ -5,6 +5,7 @@
 //  Created by Kenneth Chew on 5/29/25.
 //
 
+import Algorithms
 import Foundation
 import FSKit
 
@@ -12,18 +13,45 @@ struct FileExtentTreeLevel {
     let volume: Ext4Volume
     let offset: Int64
     
+    var blockNumber: Int64 {
+        get {
+            offset / Int64(volume.superblock.blockSize)
+        }
+    }
+    var offsetInBlock: Int64 {
+        get {
+            offset % Int64(volume.superblock.blockSize)
+        }
+    }
+    
     private var blockDevice: FSBlockDeviceResource {
         volume.resource
     }
     
-    var numberOfEntries: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x2) } }
-    var maxNumberOfEntries: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x4) } }
-    var depth: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x6) } }
-    var generation: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: blockDevice, at: offset + 0x8) } }
+    var numberOfEntries: UInt16 { get { data.readLittleEndian(at: offsetInBlock + 0x2) } }
+    var maxNumberOfEntries: UInt16 { get { data.readLittleEndian(at: offsetInBlock + 0x4) } }
+    var depth: UInt16 { get { data.readLittleEndian(at: offsetInBlock + 0x6) } }
+    var generation: UInt32 { get { data.readLittleEndian(at: offsetInBlock + 0x8) } }
+    
+    private var data: Data
+    
+    init(volume: Ext4Volume, offset: Int64) throws {
+        self.volume = volume
+        self.offset = offset
+        self.data = Data() // get the compiler to stop complaining
+        var data = Data(count: volume.superblock.blockSize)
+        let actuallyRead = try data.withUnsafeMutableBytes { ptr in
+            try volume.resource.read(into: ptr, startingAt: blockNumber * Int64(volume.superblock.blockSize), length: volume.superblock.blockSize)
+        }
+        guard actuallyRead == volume.superblock.blockSize else {
+            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+        }
+        self.data = data
+    }
     
     var isLeaf: Bool {
-        get throws {
-            (try depth) == 0
+        get {
+            depth == 0
         }
     }
     
@@ -32,25 +60,16 @@ struct FileExtentTreeLevel {
         let lastBlock = Int(fileBlock) + blockLength - 1
         
         var result: [FileExtentNode] = []
-        var lastPotentialChildIndex = 0
-        
-        // TODO: improve efficiency (use binary search or something)
-        for index in 0..<Int(try numberOfEntries) {
-            if let node = try self[index] {
-                if node.logicalBlock <= firstBlock {
-                    lastPotentialChildIndex = index
-                } else {
-                    break
-                }
-            }
+        let lastPotentialChildIndex = -1 + self.partitioningIndex { element in
+            element!.logicalBlock > firstBlock
         }
         
-        for index in lastPotentialChildIndex..<(Int(try numberOfEntries)) {
-            guard let node = try self[Int(index)] else {
+        for node in self[lastPotentialChildIndex..<(Int(numberOfEntries))] {
+            guard let node else {
                 break
             }
             
-            if try isLeaf, let lengthInBlocks = node.lengthInBlocks {
+            if isLeaf, let lengthInBlocks = node.lengthInBlocks {
                 let firstBlockCoveredByExtent = node.logicalBlock
                 let lastBlockCoveredByExtent = Int(node.logicalBlock) + Int(lengthInBlocks) - 1
                 if lastBlockCoveredByExtent < firstBlock || firstBlockCoveredByExtent > lastBlock {
@@ -71,12 +90,21 @@ struct FileExtentTreeLevel {
     }
     
     subscript(index: Int) -> FileExtentNode? {
-        get throws {
-            guard index < (try numberOfEntries) else {
+        get {
+            guard index < numberOfEntries else {
                 return nil
             }
             
-            return try FileExtentNode(blockDevice: blockDevice, offset: offset + 12 + (12 * Int64(index)), isLeaf: depth == 0)
+            return FileExtentNode(data: data, offset: offsetInBlock + 12 + (12 * Int64(index)), isLeaf: depth == 0)
         }
+    }
+}
+
+extension FileExtentTreeLevel: Collection, RandomAccessCollection {
+    var startIndex: Int {
+        0
+    }
+    var endIndex: Int {
+        Int(numberOfEntries)
     }
 }
