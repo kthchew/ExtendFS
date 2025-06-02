@@ -14,7 +14,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     init(resource: FSBlockDeviceResource) throws {
         logger.log("Initializing volume")
         self.resource = resource
-        self.superblock = Superblock(blockDevice: resource, offset: 1024)
+        self.superblock = try Superblock(blockDevice: resource, offset: 1024)
         
         try super.init(volumeID: FSVolume.Identifier(uuid: superblock.uuid ?? UUID()), volumeName: FSFileName(string: superblock.volumeName ?? ""))
         
@@ -219,16 +219,13 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
             guard amountRead < actualLengthToRead else {
                 break
             }
-            guard offset >= extent.logicalBlock else {
-                continue
-            }
             let startingAtLogicalBlock = amountRead == 0 ? firstLogicalBlock : extent.logicalBlock
             let startingAtPhysicalBlock = extent.physicalBlock + (startingAtLogicalBlock - extent.logicalBlock)
             let startingAtPhysicalByte = try startingAtPhysicalBlock * Int64(superblock.blockSize)
             let blockLengthConsidered = Int(extent.lengthInBlocks ?? 1) - Int(startingAtLogicalBlock - extent.logicalBlock)
             let readFromThisExtent = try min(actualLengthToRead - amountRead, blockLengthConsidered * superblock.blockSize)
             amountRead += try buffer.withUnsafeMutableBytes { ptr in
-                return try resource.read(into: ptr[amountRead...].base, startingAt: startingAtPhysicalByte, length: readFromThisExtent)
+                return try resource.read(into: UnsafeMutableRawBufferPointer(rebasing: ptr[amountRead...]), startingAt: startingAtPhysicalByte, length: readFromThisExtent)
             }
         }
         return min(amountRead, Int(remainingLengthInFile))
@@ -253,9 +250,7 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
         
         let blockOffset = Int(offset) / blockSize
         let blockLength = (Int(offset) + length) / blockSize - blockOffset + 1
-        guard let extents = try file.extentTreeRoot?.findExtentsCovering(Int64(blockOffset), with: blockLength) else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
-        }
+        let extents = try file.findExtentsCovering(Int64(blockOffset), with: blockLength)
         for extent in extents {
             guard packer.packExtent(resource: resource, type: extent.type!, logicalOffset: extent.logicalBlock * Int64(blockSize), physicalOffset: extent.physicalBlock * Int64(blockSize), length: Int(extent.lengthInBlocks ?? 1) * Int(blockSize)) else {
                 return

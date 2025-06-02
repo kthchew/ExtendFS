@@ -24,7 +24,7 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
             return .notRecognized
         }
         
-        let superblock = Superblock(blockDevice: resource, offset: 1024)
+        let superblock = try Superblock(blockDevice: resource, offset: 1024)
         if try superblock.magic == 0xEF53 {
             let name = (try? superblock.volumeName) ?? ""
             let uuid = (try? superblock.uuid) ?? UUID()

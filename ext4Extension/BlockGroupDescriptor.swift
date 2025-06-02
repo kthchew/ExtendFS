@@ -80,16 +80,96 @@ struct BlockGroupDescriptor {
     
     // MARK: - 64-bit only
     // FIXME: these are not valid if 32-bit is not enabled
-    var upperBlockBitmapLocation: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x20) } }
-    var upperInodeBitmapLocation: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x24) } }
-    var upperInodeTableLocation: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x28) } }
-    var upperFreeBlockCountLocation: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x2C) } }
-    var upperFreeInodeCountLocation: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x2E) } }
-    var upperUsedDirectoryCountLocation: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x30) } }
-    var upperUnusedInodeCount: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x32) } }
-    var upperSnapshotExclusionBitmapLocation: UInt32? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x34) } }
-    var upperBlockBitmapChecksum: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x38) } }
-    var upperInodeBitmapChecksum: UInt16? { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x3A) } }
+    var upperBlockBitmapLocation: UInt32? {
+        get throws {
+            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: volume.resource,
+                at: offset + 0x20
+            )
+        }
+    }
+    var upperInodeBitmapLocation: UInt32? {
+        get throws {
+            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: volume.resource,
+                at: offset + 0x24
+            )
+        }
+    }
+    var upperInodeTableLocation: UInt32? {
+        get throws {
+            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: volume.resource,
+                at: offset + 0x28
+            )
+        }
+    }
+    var upperFreeBlockCountLocation: UInt16? {
+        get throws {
+            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: volume.resource,
+                at: offset + 0x2C
+            )
+        }
+    }
+    var upperFreeInodeCountLocation: UInt16? {
+        get throws {
+            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: volume.resource,
+                at: offset + 0x2E
+            )
+        }
+    }
+    var upperUsedDirectoryCountLocation: UInt16? {
+        get throws {
+            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: volume.resource,
+                at: offset + 0x30
+            )
+        }
+    }
+    var upperUnusedInodeCount: UInt16? {
+        get throws {
+            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: volume.resource,
+                at: offset + 0x32
+            )
+        }
+    }
+    var upperSnapshotExclusionBitmapLocation: UInt32? {
+        get throws {
+            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: volume.resource,
+                at: offset + 0x34
+            )
+        }
+    }
+    var upperBlockBitmapChecksum: UInt16? {
+        get throws {
+            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: volume.resource,
+                at: offset + 0x38
+            )
+        }
+    }
+    var upperInodeBitmapChecksum: UInt16? {
+        get throws {
+            guard try volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) else { return nil }
+            return try BlockDeviceReader.readLittleEndian(
+                blockDevice: volume.resource,
+                at: offset + 0x3A
+            )
+        }
+    }
     
     var blockBitmapLocation: UInt64? {
         get throws { try UInt64.combine(upper: upperBlockBitmapLocation, lower: lowerBlockBitmapLocation) }

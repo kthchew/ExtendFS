@@ -316,11 +316,8 @@ class Ext4Item: FSItem {
             attributes.size = UInt64((try? lowerSize) ?? 0)
         }
         if request.isAttributeWanted(.allocSize) {
-            if let inodeSize = try? 128 + extraInodeSize {
-                let usesHugeBlocks = (try? containingVolume.superblock.readonlyFeatureCompatibilityFlags.contains(.hugeFile) && flags.contains(.hugeFile)) ?? false
-                let otherSize = try? (lowerBlockCount ?? 0) * UInt32(usesHugeBlocks ? containingVolume.superblock.blockSize : 512)
-                attributes.allocSize = UInt64(inodeSize) + UInt64(otherSize ?? 0)
-            }
+            let usesHugeBlocks = (try? containingVolume.superblock.readonlyFeatureCompatibilityFlags.contains(.hugeFile) && flags.contains(.hugeFile)) ?? false
+            attributes.allocSize = UInt64((try? (lowerBlockCount ?? 0) * UInt32(usesHugeBlocks ? containingVolume.superblock.blockSize : 512)) ?? 0)
         }
         if request.isAttributeWanted(.inhibitKernelOffloadedIO) {
             attributes.inhibitKernelOffloadedIO = false
@@ -367,7 +364,9 @@ class Ext4Item: FSItem {
         if let extentTreeRoot = try extentTreeRoot {
             return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength)
         } else {
-            return try (fileBlock..<(fileBlock + Int64(blockLength))).map { block in
+            let actualBlockLength = try min(blockLength, Int((Double(lowerSize) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
+            Logger().log("findExtentsCovering fileBlock is \(fileBlock) actualBlockLength is \(actualBlockLength) name is \(self.name.string ?? "(unknown)", privacy: .public)")
+            return try (fileBlock..<(fileBlock + Int64(actualBlockLength))).map { block in
                 let iBlockOffset = try inodeLocation + 0x28
                 let pointerSize = Int64(MemoryLayout<UInt32>.size)
                 let coveredPerLevelOfIndirection = Int64(try containingVolume.superblock.blockSize / 4)
@@ -378,13 +377,13 @@ class Ext4Item: FSItem {
                 let level4End = level3End + Int64(pow(Double(coveredPerLevelOfIndirection), 3)) + 1
                 switch block {
                 case 0...level1End:
-                    return try indirectAddressing(for: fileBlock, currentDepth: 0, currentLevelDiskPosition: UInt64(iBlockOffset), currentLevelStartsAtBlock: 0)
+                    return try indirectAddressing(for: block, currentDepth: 0, currentLevelDiskPosition: UInt64(iBlockOffset), currentLevelStartsAtBlock: 0)
                 case (level1End + 1)...(level2End):
-                    return try indirectAddressing(for: fileBlock, currentDepth: 1, currentLevelDiskPosition: UInt64(iBlockOffset) + UInt64(pointerSize * 12), currentLevelStartsAtBlock: level1End + 1)
+                    return try indirectAddressing(for: block, currentDepth: 1, currentLevelDiskPosition: UInt64(iBlockOffset) + UInt64(pointerSize * 12), currentLevelStartsAtBlock: level1End + 1)
                 case (level2End + 1)...(level3End):
-                    return try indirectAddressing(for: fileBlock, currentDepth: 2, currentLevelDiskPosition: UInt64(iBlockOffset) + UInt64(pointerSize * 13), currentLevelStartsAtBlock: level2End + 1)
+                    return try indirectAddressing(for: block, currentDepth: 2, currentLevelDiskPosition: UInt64(iBlockOffset) + UInt64(pointerSize * 13), currentLevelStartsAtBlock: level2End + 1)
                 case (level3End + 1)...(level4End):
-                    return try indirectAddressing(for: fileBlock, currentDepth: 3, currentLevelDiskPosition: UInt64(iBlockOffset) + UInt64(pointerSize * 14), currentLevelStartsAtBlock: level3End + 1)
+                    return try indirectAddressing(for: block, currentDepth: 3, currentLevelDiskPosition: UInt64(iBlockOffset) + UInt64(pointerSize * 14), currentLevelStartsAtBlock: level3End + 1)
                 default:
                     throw fs_errorForPOSIXError(POSIXError.EFBIG.rawValue)
                 }
