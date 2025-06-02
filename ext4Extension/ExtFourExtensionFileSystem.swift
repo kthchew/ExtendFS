@@ -103,8 +103,7 @@ extension ExtFourExtensionFileSystem: FSManageableResourceMaintenanceOperations 
     func startCheck(task: FSTask, options: FSTaskOptions) throws -> Progress {
         let progress = Progress(totalUnitCount: 100)
         Task {
-            progress.becomeCurrent(withPendingUnitCount: 100)
-            progress.resignCurrent()
+            progress.completedUnitCount = 100
             task.didComplete(error: nil)
         }
         return progress
