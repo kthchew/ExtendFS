@@ -276,12 +276,13 @@ class Ext4Item: FSItem {
                 return try BlockDeviceReader.readString(blockDevice: containingVolume.resource, at: inodeLocation + 0x28, maxLength: 60)
             } else {
                 let extents = try findExtentsCovering(0, with: Int.max)
-                let data = try extents.reduce(into: (Data(), try size)) { result, extent in
-                    let toRead = result.1
-                    var extentData = Data(capacity: Int(extent.lengthInBlocks ?? 1) * containingVolume.superblock.blockSize)
+                let data = try extents.reduce(into: (Data(), size)) { result, extent in
+                    let remainingSectorAligned = result.1.roundUp(toMultipleOf: containingVolume.resource.physicalBlockSize)
+                    let toActuallyRead = min(Int(remainingSectorAligned), Int(Int(extent.lengthInBlocks ?? 1) * containingVolume.superblock.blockSize))
+                    var extentData = Data(count: Int(extent.lengthInBlocks ?? 1) * containingVolume.superblock.blockSize)
                     try extentData.withUnsafeMutableBytes { ptr in
-                        let read = try containingVolume.resource.read(into: ptr, startingAt: extent.physicalBlock * Int64(containingVolume.superblock.blockSize), length: min(Int(toRead), Int(Int(extent.lengthInBlocks ?? 1) * containingVolume.superblock.blockSize)))
-                        result.1 -= UInt64(read)
+                        let read = try containingVolume.resource.read(into: ptr, startingAt: extent.physicalBlock * Int64(containingVolume.superblock.blockSize), length: toActuallyRead)
+                        result.1 -= min(result.1, UInt64(read))
                     }
                     result.0 += extentData
                 }
