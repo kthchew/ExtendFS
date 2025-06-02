@@ -33,7 +33,7 @@ extension Data {
     
     func readString(at offset: off_t, maxLength: Int) -> String {
         return self.withUnsafeBytes { ptr in
-            guard let stringStart = ptr.baseAddress?.assumingMemoryBound(to: CChar.self).advanced(by: Int(offset - 1024)) else {
+            guard let stringStart = ptr.baseAddress?.assumingMemoryBound(to: CChar.self).advanced(by: Int(offset)) else {
                 return ""
             }
             

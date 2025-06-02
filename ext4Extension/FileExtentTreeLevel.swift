@@ -47,6 +47,12 @@ class FileExtentTreeLevel {
         self.data = Data(bytesNoCopy: pointer.baseAddress!, count: volume.superblock.blockSize, deallocator: .free)
     }
     
+    init(volume: Ext4Volume, offset: Int64, data: Data) {
+        self.volume = volume
+        self.offset = offset
+        self.data = data
+    }
+    
     var isLeaf: Bool {
         get {
             depth == 0
