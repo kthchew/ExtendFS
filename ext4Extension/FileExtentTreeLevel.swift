@@ -9,7 +9,7 @@ import Algorithms
 import Foundation
 import FSKit
 
-struct FileExtentTreeLevel {
+class FileExtentTreeLevel {
     let volume: Ext4Volume
     let offset: Int64
     

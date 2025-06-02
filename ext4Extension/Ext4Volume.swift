@@ -26,7 +26,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     }
     
     private lazy var root: FSItem = {
-        let item = Ext4Item(name: FSFileName(string: "/"), in: self, inodeNumber: 2, parentInodeNumber: UInt32(FSItem.Identifier.parentOfRoot.rawValue))
+        let item = try! Ext4Item(name: FSFileName(string: "/"), in: self, inodeNumber: 2, parentInodeNumber: UInt32(FSItem.Identifier.parentOfRoot.rawValue))
         return item
     }()
     
@@ -111,7 +111,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     
     func reclaimItem(_ item: FSItem) async throws {
         logger.log("reclaimItem")
-        throw ExtensionError.notImplemented
+        return
     }
     
     func readSymbolicLink(_ item: FSItem) async throws -> FSFileName {

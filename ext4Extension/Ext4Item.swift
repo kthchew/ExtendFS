@@ -112,11 +112,15 @@ class Ext4Item: FSItem {
     
     let name: FSFileName
     
-    init(name: FSFileName, in volume: Ext4Volume, inodeNumber: UInt32, parentInodeNumber: UInt32) {
+    init(name: FSFileName, in volume: Ext4Volume, inodeNumber: UInt32, parentInodeNumber: UInt32) throws {
         self.name = name
         self.containingVolume = volume
         self.inodeNumber = inodeNumber
         self.parentInodeNumber = parentInodeNumber
+        
+        super.init()
+        
+        self.extentTreeRoot = try flags.contains(.usesExtents) ? FileExtentTreeLevel(volume: containingVolume, offset: inodeLocation + 0x28) : nil
     }
     
     var mode: Mode {
@@ -241,12 +245,7 @@ class Ext4Item: FSItem {
     
     // TODO: extra bits from extended fields, actual file contents, osd values
     
-    var extentTreeRoot: FileExtentTreeLevel? {
-        get throws {
-            guard try flags.contains(.usesExtents) else { return nil }
-            return try FileExtentTreeLevel(volume: containingVolume, offset: try inodeLocation + 0x28)
-        }
-    }
+    var extentTreeRoot: FileExtentTreeLevel?
     
     var directoryContents: [Ext4Item]? {
         get throws {
@@ -259,7 +258,7 @@ class Ext4Item: FSItem {
                 while currentOffset < Int(extent.lengthInBlocks!) * containingVolume.superblock.blockSize {
                     let directoryEntry = DirectoryEntry(volume: containingVolume, offset: byteOffset + Int64(currentOffset))
                     guard try directoryEntry.inodePointee != 0, try directoryEntry.nameLength != 0 else { break }
-                    contents.append(Ext4Item(name: FSFileName(string: try directoryEntry.name ?? ""), in: containingVolume, inodeNumber: try directoryEntry.inodePointee, parentInodeNumber: inodeNumber))
+                    contents.append(try Ext4Item(name: FSFileName(string: try directoryEntry.name ?? ""), in: containingVolume, inodeNumber: try directoryEntry.inodePointee, parentInodeNumber: inodeNumber))
                     currentOffset += Int(try directoryEntry.directoryEntryLength)
                 }
             }
@@ -370,7 +369,7 @@ class Ext4Item: FSItem {
     }
     
     func findExtentsCovering(_ fileBlock: Int64, with blockLength: Int) throws -> [FileExtentNode] {
-        if let extentTreeRoot = try extentTreeRoot {
+        if let extentTreeRoot {
             return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength)
         } else {
             let actualBlockLength = try min(blockLength, Int((Double(size) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
