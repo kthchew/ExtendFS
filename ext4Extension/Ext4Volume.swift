@@ -167,7 +167,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
     }
     
-    @MainActor var seenList = [FSDirectoryCookie.initial: Set<UInt32>()]
+    @MainActor var seenList = [FSDirectoryCookie.initial: Set<String>()]
     func enumerateDirectory(_ directory: FSItem, startingAt cookie: FSDirectoryCookie, verifier: FSDirectoryVerifier, attributes: FSItem.GetAttributesRequest?, packer: FSDirectoryEntryPacker) async throws -> FSDirectoryVerifier {
         logger.log("enumerateDirectory")
         guard let directory = directory as? Ext4Item else {
@@ -204,7 +204,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             if attributes != nil && (content.name == "." || content.name == "..") {
                 continue
             }
-            guard !currentCookieSeen.contains(content.inodePointee) else { continue }
+            guard !currentCookieSeen.contains(content.name) else { continue }
             let fileAttributes: FSItem.Attributes?
             if let attributes, attributes.wantedAttributes.isSubset(of: attributesAccessibleWithoutLoading) {
                 fileAttributes = FSItem.Attributes()
@@ -221,7 +221,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
                 stoppedEarly = true
                 break
             }
-            currentCookieSeen.insert(content.inodePointee)
+            currentCookieSeen.insert(content.name)
             
         }
         
