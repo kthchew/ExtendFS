@@ -53,6 +53,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         statistics.availableBlocks = UInt64(superblock.freeBlockCount)
         statistics.usedBlocks = statistics.totalBlocks - statistics.freeBlocks
         statistics.freeFiles = UInt64(superblock.freeInodeCount)
+        statistics.totalFiles = UInt64(superblock.inodeCount)
         statistics.ioSize = superblock.blockSize
         
         if superblock.featureIncompatibleFlags.contains(.extents) {
@@ -103,14 +104,8 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             throw fs_errorForPOSIXError(POSIXError.ENOENT.rawValue)
         }
         
-        guard let entries = try await directory.directoryContents else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
-        }
-        for entry in entries {
-            // strings need to be compared, not the names themselves apparently
-            if entry.name.string == name.string {
-                return (entry, name)
-            }
+        if let item = try await directory.findItemInDirectory(named: name) {
+            return (item, name)
         }
         
         throw fs_errorForPOSIXError(POSIXError.ENOENT.rawValue)
@@ -172,28 +167,68 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
     }
     
+    @MainActor var seenList = [FSDirectoryCookie.initial: Set<UInt32>()]
     func enumerateDirectory(_ directory: FSItem, startingAt cookie: FSDirectoryCookie, verifier: FSDirectoryVerifier, attributes: FSItem.GetAttributesRequest?, packer: FSDirectoryEntryPacker) async throws -> FSDirectoryVerifier {
         logger.log("enumerateDirectory")
         guard let directory = directory as? Ext4Item else {
             throw ExtensionError.notImplemented
         }
         
-        guard let contents = try await directory.directoryContents else {
+        guard let (contents, currentVerifier) = try await directory.directoryContents else {
             // TODO: throw or return?
-//            throw fs_errorForPOSIXError(POSIXError.ENOENT.rawValue)
+            //            throw fs_errorForPOSIXError(POSIXError.ENOENT.rawValue)
             return verifier
         }
+        if verifier == currentVerifier && cookie == .initial {
+            return currentVerifier
+        }
         
-        let start = cookie == .initial ? 0 : cookie.rawValue
-        for i in Int(start)..<contents.count {
-            if let nameString = contents[i].name.string, attributes != nil && (nameString == "." || nameString == "..") {
+        let currentCookie = await MainActor.run {
+            var tryCookie = cookie
+            let oldList = seenList[cookie]
+            
+            while seenList[tryCookie] != nil {
+                tryCookie = FSDirectoryCookie(rawValue: UInt64.random(in: 1..<UInt64.max))
+            }
+            if cookie != .initial {
+                seenList[cookie] = nil
+            }
+            seenList[tryCookie] = oldList
+            
+            return tryCookie
+        }
+        var currentCookieSeen = await seenList[currentCookie] ?? []
+        var stoppedEarly = false
+        let attributesAccessibleWithoutLoading: FSItem.Attribute = [.type, .fileID, .parentID]
+        for try await content in contents {
+            if attributes != nil && (content.name == "." || content.name == "..") {
                 continue
             }
-            guard packer.packEntry(name: contents[i].name, itemType: try contents[i].filetype, itemID: FSItem.Identifier(rawValue: UInt64(contents[i].inodeNumber)) ?? .invalid, nextCookie: FSDirectoryCookie(rawValue: UInt64(i+1)), attributes: attributes != nil ? contents[i].getAttributes(attributes!) : nil) else {
+            guard !currentCookieSeen.contains(content.inodePointee) else { continue }
+            let fileAttributes: FSItem.Attributes?
+            if let attributes, attributes.wantedAttributes.isSubset(of: attributesAccessibleWithoutLoading) {
+                fileAttributes = FSItem.Attributes()
+                fileAttributes?.type = content.fskitFileType ?? .unknown
+                fileAttributes?.fileID = FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid
+                fileAttributes?.parentID = FSItem.Identifier(rawValue: UInt64(content.inodeParent)) ?? .invalid
+            } else if let attributes {
+                let item = try await content.getItem()
+                fileAttributes = item.getAttributes(attributes)
+            } else {
+                fileAttributes = nil
+            }
+            guard packer.packEntry(name: FSFileName(string: content.name), itemType: content.fskitFileType ?? .unknown, itemID: FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid, nextCookie: currentCookie, attributes: fileAttributes) else {
+                stoppedEarly = true
                 break
             }
+            currentCookieSeen.insert(content.inodePointee)
+            
         }
-        return verifier
+        
+        await MainActor.run { [stoppedEarly, currentCookieSeen] in
+            seenList[currentCookie] = stoppedEarly ? currentCookieSeen : nil
+        }
+        return currentVerifier
     }
     
     func activate(options: FSTaskOptions) async throws -> FSItem {

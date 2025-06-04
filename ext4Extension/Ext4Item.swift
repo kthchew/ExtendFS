@@ -268,23 +268,65 @@ class Ext4Item: FSItem {
     
     var extentTreeRoot: FileExtentTreeLevel?
     
-    var directoryContents: [Ext4Item]? {
+    /// A map of file names to their directory entries.
+    private var _directoryContentsInodes: [String: DirectoryEntry]? = nil
+    /// A value that changes if the contents of the directory changes.
+    private var directoryVerifier: FSDirectoryVerifier? = nil
+    var directoryContents: (any AsyncSequence<DirectoryEntry, any Error>, FSDirectoryVerifier)? {
         get async throws {
             guard try filetype == .directory else { return nil }
-            let extents = try await findExtentsCovering(0, with: Int.max)
-            var contents = [Ext4Item]()
-            for extent in extents {
-                let byteOffset = extent.physicalBlock * Int64(containingVolume.superblock.blockSize)
-                var currentOffset = 0
-                while currentOffset < Int(extent.lengthInBlocks!) * containingVolume.superblock.blockSize {
-                    let directoryEntry = DirectoryEntry(volume: containingVolume, offset: byteOffset + Int64(currentOffset))
-                    guard try directoryEntry.inodePointee != 0, try directoryEntry.nameLength != 0 else { break }
-                    await contents.append(try Ext4Item(name: FSFileName(string: try directoryEntry.name ?? ""), in: containingVolume, inodeNumber: try directoryEntry.inodePointee, parentInodeNumber: inodeNumber))
-                    currentOffset += Int(try directoryEntry.directoryEntryLength)
-                }
+            if _directoryContentsInodes != nil, let group = await asyncGroupForCachedDirectoryContents(), let verifier = directoryVerifier {
+                return (group, verifier)
             }
             
-            return contents
+            try await loadDirectoryContentCache()
+            if let group = await asyncGroupForCachedDirectoryContents(), let verifier = directoryVerifier {
+                return (group, verifier)
+            }
+            return nil
+        }
+    }
+    
+    func findItemInDirectory(named name: FSFileName) async throws -> Ext4Item? {
+        if _directoryContentsInodes == nil {
+            try await loadDirectoryContentCache()
+        }
+        
+        if let _directoryContentsInodes, let nameStr = name.string, let dirEntry = _directoryContentsInodes[nameStr] {
+            return try await Ext4Item(name: FSFileName(string: dirEntry.name), in: containingVolume, inodeNumber: dirEntry.inodePointee, parentInodeNumber: self.inodeNumber)
+        }
+        return nil
+    }
+    
+    private func loadDirectoryContentCache() async throws {
+        guard try filetype == .directory else { return }
+        var cache: [String: DirectoryEntry] = [:]
+        
+        let extents = try await findExtentsCovering(0, with: Int.max)
+        for extent in extents {
+            let byteOffset = extent.physicalBlock * Int64(containingVolume.superblock.blockSize)
+            var currentOffset = 0
+            while currentOffset < Int(extent.lengthInBlocks!) * containingVolume.superblock.blockSize {
+                let directoryEntry = try DirectoryEntry(volume: containingVolume, offset: byteOffset + Int64(currentOffset), inodeParent: self.inodeNumber)
+                guard directoryEntry.inodePointee != 0, directoryEntry.nameLength != 0 else { break }
+                cache[directoryEntry.name] = directoryEntry
+                currentOffset += Int(directoryEntry.directoryEntryLength)
+            }
+        }
+        
+        _directoryContentsInodes = cache
+        directoryVerifier = FSDirectoryVerifier(UInt64.random(in: 1..<UInt64.max))
+    }
+    
+    private func asyncGroupForCachedDirectoryContents() async -> (any AsyncSequence<DirectoryEntry, any Error>)? {
+        guard let _directoryContentsInodes else { return nil }
+        return AsyncThrowingStream { continuation in
+            Task {
+                for item in _directoryContentsInodes {
+                    continuation.yield(item.value)
+                }
+                continuation.finish()
+            }
         }
     }
     
@@ -364,6 +406,10 @@ class Ext4Item: FSItem {
         }
         if request.isAttributeWanted(.birthTime) {
             attributes.birthTime = timespec(tv_sec: Int((try? storedCreationTime) ?? 0), tv_nsec: 0)
+        }
+        if request.isAttributeWanted(.addedTime) {
+            // TODO: proper implementation
+            attributes.addedTime = timespec()
         }
         if request.isAttributeWanted(.linkCount) {
             attributes.linkCount = UInt32((try? hardLinkCount) ?? 1)

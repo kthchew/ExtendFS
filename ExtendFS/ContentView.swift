@@ -18,7 +18,9 @@ struct ContentView: View {
                 Text($0.bundleIdentifier)
             }
             Button("Reload") {
+                Logger().log("fetching extensions")
                 FSClient.shared.fetchInstalledExtensions { modules, err in
+                    Logger().log("fetched extensions")
                     if let modules {
                         self.modules = modules
                     }
