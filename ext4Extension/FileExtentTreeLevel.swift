@@ -23,15 +23,25 @@ class FileExtentTreeLevel {
             offset % Int64(volume.superblock.blockSize)
         }
     }
+    var offsetInInode: Int64 {
+        get {
+            offsetInBlock % Int64(volume.superblock.inodeSize)
+        }
+    }
+    var inodeOffsetInBlock: Int64 {
+        get {
+            offsetInBlock - offsetInInode
+        }
+    }
     
     private var blockDevice: FSBlockDeviceResource {
         volume.resource
     }
     
-    var numberOfEntries: UInt16 { get { data.readLittleEndian(at: offsetInBlock + 0x2) } }
-    var maxNumberOfEntries: UInt16 { get { data.readLittleEndian(at: offsetInBlock + 0x4) } }
-    var depth: UInt16 { get { data.readLittleEndian(at: offsetInBlock + 0x6) } }
-    var generation: UInt32 { get { data.readLittleEndian(at: offsetInBlock + 0x8) } }
+    var numberOfEntries: UInt16 { get { data.readLittleEndian(at: offsetInInode + 0x2) } }
+    var maxNumberOfEntries: UInt16 { get { data.readLittleEndian(at: offsetInInode + 0x4) } }
+    var depth: UInt16 { get { data.readLittleEndian(at: offsetInInode + 0x6) } }
+    var generation: UInt32 { get { data.readLittleEndian(at: offsetInInode + 0x8) } }
     
     private var data: Data
     
@@ -40,9 +50,13 @@ class FileExtentTreeLevel {
         self.offset = offset
         self.data = Data() // get the compiler to stop complaining
         let pointer = UnsafeMutableRawBufferPointer.allocate(byteCount: volume.superblock.blockSize, alignment: MemoryLayout<UInt8>.alignment)
-        let actuallyRead = try await volume.resource.read(into: pointer, startingAt: blockNumber * Int64(volume.superblock.blockSize), length: volume.superblock.blockSize)
-        guard actuallyRead == volume.superblock.blockSize else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+        if BlockDeviceReader.useMetadataRead {
+            try volume.resource.metadataRead(into: pointer, startingAt: blockNumber * Int64(volume.superblock.blockSize), length: volume.superblock.blockSize)
+        } else {
+            let actuallyRead = try await volume.resource.read(into: pointer, startingAt: blockNumber * Int64(volume.superblock.blockSize), length: volume.superblock.blockSize)
+            guard actuallyRead == volume.superblock.blockSize else {
+                throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+            }
         }
         self.data = Data(bytesNoCopy: pointer.baseAddress!, count: volume.superblock.blockSize, deallocator: .free)
     }
@@ -99,7 +113,7 @@ class FileExtentTreeLevel {
                 return nil
             }
             
-            return FileExtentNode(data: data, offset: offsetInBlock + 12 + (12 * Int64(index)), isLeaf: depth == 0)
+            return FileExtentNode(data: data, offset: offsetInInode + 12 + (12 * Int64(index)), isLeaf: depth == 0)
         }
     }
 }

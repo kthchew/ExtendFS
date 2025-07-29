@@ -135,45 +135,47 @@ class Ext4Item: FSItem {
         
         // FIXME: this wastes quite a bit of memory because a lot of this block isn't the inode and other files may have inodes in the same block that are loaded again
         let pointer = UnsafeMutableRawBufferPointer.allocate(byteCount: volume.superblock.blockSize, alignment: MemoryLayout<UInt8>.alignment)
-        let actuallyRead = try await volume.resource.read(into: pointer, startingAt: inodeBlockLocation, length: volume.superblock.blockSize)
-        guard actuallyRead == volume.superblock.blockSize else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+        defer { pointer.deallocate() }
+        if BlockDeviceReader.useMetadataRead {
+            try volume.resource.metadataRead(into: pointer, startingAt: inodeBlockLocation, length: volume.superblock.blockSize)
+        } else {
+            try await volume.resource.read(into: pointer, startingAt: inodeBlockLocation, length: volume.superblock.blockSize)
         }
-        self.data = Data(bytesNoCopy: pointer.baseAddress!, count: volume.superblock.blockSize, deallocator: .free)
+        self.data = Data(bytes: pointer.baseAddress! + Int(try inodeBlockOffset), count: Int(volume.superblock.inodeSize))
         
         self.extentTreeRoot = try flags.contains(.usesExtents) ? FileExtentTreeLevel(volume: containingVolume, offset: inodeLocation + 0x28, data: data) : nil
     }
     
     var mode: Mode {
         get throws {
-            try Mode(rawValue: data.readLittleEndian(at: inodeBlockOffset + 0x0))
+            try Mode(rawValue: data.readLittleEndian(at: 0x0))
         }
     }
-    var lowerUID: UInt16? { get throws { try data.readLittleEndian(at: inodeBlockOffset + 0x2) } }
-    var lowerSize: UInt32 { get throws { try data.readLittleEndian(at: inodeBlockOffset + 0x4) } }
+    var lowerUID: UInt16? { get throws { try data.readLittleEndian(at: 0x2) } }
+    var lowerSize: UInt32 { get throws { try data.readLittleEndian(at: 0x4) } }
     /// Last access time in seconds since the epoch, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
-    var storedAccessTime: UInt32? { get throws { try data.readLittleEndian(at: inodeBlockOffset + 0x8) } }
+    var storedAccessTime: UInt32? { get throws { try data.readLittleEndian(at: 0x8) } }
     /// Last inode change time in seconds since the epoch, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
-    var storedChangeTime: UInt32? { get throws { try data.readLittleEndian(at: inodeBlockOffset + 0xC) } }
+    var storedChangeTime: UInt32? { get throws { try data.readLittleEndian(at: 0xC) } }
     /// Last data modification time in seconds since the epoch, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
-    var storedModificationTime: UInt32? { get throws { try data.readLittleEndian(at: inodeBlockOffset + 0x10) } }
-    var deletionTime: UInt32? { get throws { try data.readLittleEndian(at: inodeBlockOffset + 0x14) } }
-    var lowerGID: UInt16? { get throws { try data.readLittleEndian(at: inodeBlockOffset + 0x18) } }
+    var storedModificationTime: UInt32? { get throws { try data.readLittleEndian(at: 0x10) } }
+    var deletionTime: UInt32? { get throws { try data.readLittleEndian(at: 0x14) } }
+    var lowerGID: UInt16? { get throws { try data.readLittleEndian(at: 0x18) } }
     /// Hard link count.
     ///
     /// Normally, ext4 does not permit an inode to have more than 65,000 hard links. This applies to files as well as directories, which means that there cannot be more than 64,998 subdirectories in a directory (each subdirectory’s `..` entry counts as a hard link, as does the `.` entry in the directory itself). With the `DIR_NLINK` feature enabled, ext4 supports more than 64,998 subdirectories by setting this field to 1 to indicate that the number of hard links is not known.
-    var hardLinkCount: UInt16? { get throws { try data.readLittleEndian(at: inodeBlockOffset + 0x1A) } }
-    var lowerBlockCount: UInt32? { get throws { try data.readLittleEndian(at: inodeBlockOffset + 0x1C) } }
+    var hardLinkCount: UInt16? { get throws { try data.readLittleEndian(at: 0x1A) } }
+    var lowerBlockCount: UInt32? { get throws { try data.readLittleEndian(at: 0x1C) } }
     var flags: Flags {
         get throws {
-            Flags(rawValue: try data.readLittleEndian(at: inodeBlockOffset + 0x20))
+            Flags(rawValue: try data.readLittleEndian(at: 0x20))
         }
     }
-    var fileGenerationForNFS: UInt32? { get throws { try data.readLittleEndian(at: inodeBlockOffset + 0x64) } }
-    var lowerExtendedAttributeBlock: UInt32? { get throws { try data.readLittleEndian(at: inodeBlockOffset + 0x68) } }
+    var fileGenerationForNFS: UInt32? { get throws { try data.readLittleEndian(at: 0x64) } }
+    var lowerExtendedAttributeBlock: UInt32? { get throws { try data.readLittleEndian(at: 0x68) } }
     var upperSize: UInt32? {
         get throws {
-            return try data.readLittleEndian(at: inodeBlockOffset + 0x6C)
+            return try data.readLittleEndian(at: 0x6C)
         }
     }
     var size: UInt64 {
@@ -186,55 +188,55 @@ class Ext4Item: FSItem {
     var extraInodeSize: UInt16 {
         get throws {
             guard containingVolume.superblock.inodeSize >= 128 + 2 else { return 0 }
-            return try data.readLittleEndian(at: inodeBlockOffset + 0x80)
+            return try data.readLittleEndian(at: 0x80)
         }
     }
     var upperChecksum: UInt16? {
         get throws {
             guard try extraInodeSize >= 4 else { return nil }
-            return try data.readLittleEndian(at: inodeBlockOffset + 0x82)
+            return try data.readLittleEndian(at: 0x82)
         }
     }
     var extraChangeTimeBits: UInt32? {
         get throws {
             guard try extraInodeSize >= 8 else { return nil }
-            return try data.readLittleEndian(at: inodeBlockOffset + 0x84)
+            return try data.readLittleEndian(at: 0x84)
         }
     }
     var extraModificationTimeBits: UInt32? {
         get throws {
             guard try extraInodeSize >= 12 else { return nil }
-            return try data.readLittleEndian(at: inodeBlockOffset + 0x88)
+            return try data.readLittleEndian(at: 0x88)
         }
     }
     var extraAccessTimeBits: UInt32? {
         get throws {
             guard try extraInodeSize >= 16 else { return nil }
-            return try data.readLittleEndian(at: inodeBlockOffset + 0x8C)
+            return try data.readLittleEndian(at: 0x8C)
         }
     }
     var storedCreationTime: UInt32? {
         get throws {
             guard try extraInodeSize >= 20 else { return nil }
-            return try data.readLittleEndian(at: inodeBlockOffset + 0x90)
+            return try data.readLittleEndian(at: 0x90)
         }
     }
     var extraCreationTimeBits: UInt32? {
         get throws {
             guard try extraInodeSize >= 24 else { return nil }
-            return try data.readLittleEndian(at: inodeBlockOffset + 0x94)
+            return try data.readLittleEndian(at: 0x94)
         }
     }
     var upperVersion: UInt32? {
         get throws {
             guard try extraInodeSize >= 28 else { return nil }
-            return try data.readLittleEndian(at: inodeBlockOffset + 0x98)
+            return try data.readLittleEndian(at: 0x98)
         }
     }
     var projectId: UInt32? {
         get throws {
             guard try extraInodeSize >= 32 else { return nil }
-            return try data.readLittleEndian(at: inodeBlockOffset + 0x9C)
+            return try data.readLittleEndian(at: 0x9C)
         }
     }
     
@@ -247,12 +249,10 @@ class Ext4Item: FSItem {
             case let mode where mode.contains(.symbolicLinkType):
                 return .symlink
             case let mode where mode.contains(.regularFileType):
-                logger.log("is regular")
                 return .file
             case let mode where mode.contains(.blockDeviceType):
                 return .blockDevice
             case let mode where mode.contains(.directoryType):
-                logger.log("is directory")
                 return .directory
             case let mode where mode.contains(.characterDeviceType):
                 return .charDevice
@@ -334,7 +334,7 @@ class Ext4Item: FSItem {
         get async throws {
             guard try filetype == .symlink else { return nil }
             if try size < 60 {
-                return try data.readString(at: inodeBlockOffset + 0x28, maxLength: 60)
+                return try data.readString(at: 0x28, maxLength: 60)
             } else {
                 let extents = try await findExtentsCovering(0, with: Int.max)
                 var data = try Data(capacity: Int(size).roundUp(toMultipleOf: Int(containingVolume.resource.physicalBlockSize)))

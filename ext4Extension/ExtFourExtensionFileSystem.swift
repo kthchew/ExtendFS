@@ -18,7 +18,7 @@ enum ExtensionError: Error {
 class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperations {
     let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Ext4Extension")
     
-    func asyncProbeResource(resource: FSResource) async throws -> FSProbeResult {
+    func probeResource(resource: FSResource) async throws -> FSProbeResult {
         logger.log("Probing resource")
         guard let resource = resource as? FSBlockDeviceResource else {
             logger.log("Not block device")
@@ -29,32 +29,26 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
         if superblock.magic == 0xEF53 {
             let name = superblock.volumeName ?? ""
             let uuid = superblock.uuid ?? UUID()
-            guard superblock.featureIncompatibleFlags.isSubset(of: Superblock.IncompatibleFeatures.supportedFeatures) else {
-                return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
-            }
+            // seems like recognized and usableButLimited are treated like notRecognized as of macOS 15.6 (24G84)
+//            guard superblock.featureIncompatibleFlags.isSubset(of: Superblock.IncompatibleFeatures.supportedFeatures) else {
+//                logger.log("Recognized but not usable")
+//                return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+//            }
+//            guard superblock.readonlyFeatureCompatibilityFlags.isSubset(of: Superblock.ReadOnlyCompatibleFeatures.supportedFeatures) else {
+//                logger.log("Usable but limited")
+//                return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+//            }
             
             return .usable(name: name, containerID: FSContainerIdentifier(uuid: uuid))
         } else {
             return .notRecognized
         }
     }
-    
-    func probeResource(resource: FSResource, replyHandler: @escaping (FSProbeResult?, (any Error)?) -> Void) {
-        logger.log("Probing resource (sync)")
-        Task {
-            do {
-                let result = try await asyncProbeResource(resource: resource)
-                replyHandler(result, nil)
-            } catch {
-                replyHandler(nil, error)
-            }
-        }
-    }
 
-    func asyncLoadResource(resource: FSResource, options: FSTaskOptions) async throws -> FSVolume {
+    func loadResource(resource: FSResource, options: FSTaskOptions) async throws -> FSVolume {
         // FIXME: do I need to check probe result here?
         logger.log("Loading resource")
-        let probeResult = try await asyncProbeResource(resource: resource)
+        let probeResult = try await probeResource(resource: resource)
         var readOnly: Bool
         switch probeResult.result {
         case .notRecognized:
@@ -69,10 +63,6 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
             readOnly = true // write not supported atm
         @unknown default:
             logger.log("Unknown probe result")
-            throw ExtensionError.resourceUnsupported
-        }
-        guard probeResult != .notRecognized else {
-            logger.log("Invalid resource")
             throw ExtensionError.resourceUnsupported
         }
         
@@ -95,19 +85,8 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
         let volume = try await Ext4Volume(resource: resource, fileSystem: self, readOnly: readOnly)
         containerStatus = .ready
         logger.log("Container status ready")
+        BlockDeviceReader.useMetadataRead = true
         return volume
-    }
-    
-    func loadResource(resource: FSResource, options: FSTaskOptions, replyHandler: @escaping (FSVolume?, (any Error)?) -> Void) {
-        logger.log("Loading resource (sync)")
-        Task {
-            do {
-                let volume = try await asyncLoadResource(resource: resource, options: options)
-                replyHandler(volume, nil)
-            } catch {
-                replyHandler(nil, error)
-            }
-        }
     }
 
     func unloadResource(resource: FSResource, options: FSTaskOptions) async throws {

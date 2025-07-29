@@ -52,6 +52,8 @@ extension Data {
 }
 
 struct BlockDeviceReader {
+    static var useMetadataRead = false
+    
     static func readSmallSection<T>(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> T? {
         // FIXME: do this better (can the read be cached?)
         var item: T?
@@ -61,12 +63,14 @@ struct BlockDeviceReader {
         let targetContentEnd = Int(targetContentOffset) + MemoryLayout<T>.size
         let readLength = targetContentEnd < blockSize ? Int(blockSize) : Int(blockSize) * 2
         try withUnsafeTemporaryAllocation(byteCount: readLength, alignment: 1) { ptr in
-            let read = try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
-            if read >= targetContentEnd {
-                withUnsafeTemporaryAllocation(byteCount: MemoryLayout<T>.size, alignment: MemoryLayout<T>.alignment) { itemPtr in
-                    itemPtr.copyMemory(from: UnsafeRawBufferPointer(rebasing: ptr[targetContentOffset..<targetContentEnd]))
-                    item = itemPtr.load(as: T.self)
-                }
+            if useMetadataRead {
+                try blockDevice.metadataRead(into: ptr, startingAt: startReadAt, length: readLength)
+            } else {
+                try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
+            }
+            withUnsafeTemporaryAllocation(byteCount: MemoryLayout<T>.size, alignment: MemoryLayout<T>.alignment) { itemPtr in
+                itemPtr.copyMemory(from: UnsafeRawBufferPointer(rebasing: ptr[targetContentOffset..<targetContentEnd]))
+                item = itemPtr.load(as: T.self)
             }
         }
         guard let item else {
@@ -104,7 +108,11 @@ struct BlockDeviceReader {
         let readLength = targetContentEnd < blockDevice.physicalBlockSize ? Int(blockDevice.physicalBlockSize) : Int(blockDevice.physicalBlockSize) * 2
         var string: String?
         try withUnsafeTemporaryAllocation(byteCount: readLength, alignment: 1) { ptr in
-            let read = try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
+            if useMetadataRead {
+                try blockDevice.metadataRead(into: ptr, startingAt: startReadAt, length: readLength)
+            } else {
+                try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
+            }
             let stringStart = ptr.baseAddress!.assumingMemoryBound(to: CChar.self) + targetContentOffset
             var cString = [CChar]()
             for i in 0..<maxLength {
@@ -115,12 +123,8 @@ struct BlockDeviceReader {
                 cString.append(char)
             }
             cString.append(0)
-            if read >= targetContentEnd {
-                // FIXME: UTF8?
-                string = String(cString: cString, encoding: .utf8)
-            } else {
-                throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
-            }
+            // FIXME: UTF8?
+            string = String(cString: cString, encoding: .utf8)
         }
         guard let string else {
             throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)

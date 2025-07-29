@@ -53,6 +53,16 @@
 					<true/>
 				</dict>
 			</dict>
+			<key>Linux</key>
+			<dict>
+				<key>FSMediaProperties</key>
+				<dict>
+					<key>Content Hint</key>
+					<string>Linux</string>
+					<key>Leaf</key>
+					<true/>
+				</dict>
+			</dict>
 			<key>ext4</key>
 			<dict>
 				<key>FSMediaProperties</key>
@@ -105,6 +115,8 @@
 		<false/>
 		<key>FSShortName</key>
 		<string>ExtendFS</string>
+		<key>FSSupportsKernelOffloadedIO</key>
+		<true/>
 		<key>FSSupportsBlockResources</key>
 		<true/>
 		<key>FSSupportsGenericURLResources</key>
