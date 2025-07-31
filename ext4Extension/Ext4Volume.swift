@@ -46,7 +46,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     }
     
     var volumeStatistics: FSStatFSResult {
-        let statistics = FSStatFSResult(fileSystemTypeName: "Linux Filesystem")
+        let statistics = FSStatFSResult(fileSystemTypeName: "ExtendFS")
         statistics.blockSize = superblock.blockSize
         statistics.totalBlocks = UInt64(superblock.blockCount)
         statistics.freeBlocks = UInt64(superblock.freeBlockCount)
