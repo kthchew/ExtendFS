@@ -38,38 +38,19 @@ class FileExtentTreeLevel {
         volume.resource
     }
     
-    var numberOfEntries: UInt16 { get { data.readLittleEndian(at: offsetInInode + 0x2) } }
-    var maxNumberOfEntries: UInt16 { get { data.readLittleEndian(at: offsetInInode + 0x4) } }
-    var depth: UInt16 { get { data.readLittleEndian(at: offsetInInode + 0x6) } }
-    var generation: UInt32 { get { data.readLittleEndian(at: offsetInInode + 0x8) } }
-    
-    private var data: Data
+    var numberOfEntries: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x2) } }
+    var maxNumberOfEntries: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x4) } }
+    var depth: UInt16 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x6) } }
+    var generation: UInt32 { get throws { try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x8) } }
     
     init(volume: Ext4Volume, offset: Int64) async throws {
         self.volume = volume
         self.offset = offset
-        self.data = Data() // get the compiler to stop complaining
-        let pointer = UnsafeMutableRawBufferPointer.allocate(byteCount: volume.superblock.blockSize, alignment: MemoryLayout<UInt8>.alignment)
-        if BlockDeviceReader.useMetadataRead {
-            try volume.resource.metadataRead(into: pointer, startingAt: blockNumber * Int64(volume.superblock.blockSize), length: volume.superblock.blockSize)
-        } else {
-            let actuallyRead = try await volume.resource.read(into: pointer, startingAt: blockNumber * Int64(volume.superblock.blockSize), length: volume.superblock.blockSize)
-            guard actuallyRead == volume.superblock.blockSize else {
-                throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
-            }
-        }
-        self.data = Data(bytesNoCopy: pointer.baseAddress!, count: volume.superblock.blockSize, deallocator: .free)
-    }
-    
-    init(volume: Ext4Volume, offset: Int64, data: Data) {
-        self.volume = volume
-        self.offset = offset
-        self.data = data
     }
     
     var isLeaf: Bool {
-        get {
-            depth == 0
+        get throws {
+            try depth == 0
         }
     }
     
@@ -82,12 +63,12 @@ class FileExtentTreeLevel {
             element!.logicalBlock > firstBlock
         }
         
-        for node in self[lastPotentialChildIndex..<(Int(numberOfEntries))] {
+        for node in self[lastPotentialChildIndex..<(Int(try numberOfEntries))] {
             guard let node else {
                 break
             }
             
-            if isLeaf, let lengthInBlocks = node.lengthInBlocks {
+            if try isLeaf, let lengthInBlocks = node.lengthInBlocks {
                 let firstBlockCoveredByExtent = node.logicalBlock
                 let lastBlockCoveredByExtent = Int(node.logicalBlock) + Int(lengthInBlocks) - 1
                 if lastBlockCoveredByExtent < firstBlock || firstBlockCoveredByExtent > lastBlock {
@@ -109,11 +90,14 @@ class FileExtentTreeLevel {
     
     subscript(index: Int) -> FileExtentNode? {
         get {
+            guard let numberOfEntries = try? numberOfEntries else {
+                return nil
+            }
             guard index < numberOfEntries else {
                 return nil
             }
             
-            return FileExtentNode(data: data, offset: offsetInInode + 12 + (12 * Int64(index)), isLeaf: depth == 0)
+            return try? FileExtentNode(blockDevice: blockDevice, offset: offset + 12 + (12 * Int64(index)), isLeaf: depth == 0)
         }
     }
 }
@@ -123,6 +107,6 @@ extension FileExtentTreeLevel: Collection, RandomAccessCollection {
         0
     }
     var endIndex: Int {
-        Int(numberOfEntries)
+        Int((try? numberOfEntries) ?? 0)
     }
 }

@@ -52,10 +52,10 @@ extension Data {
 }
 
 struct BlockDeviceReader {
+    static private let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "BlockDeviceReader")
     static var useMetadataRead = false
     
     static func readSmallSection<T>(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> T? {
-        // FIXME: do this better (can the read be cached?)
         var item: T?
         let blockSize = off_t(blockDevice.physicalBlockSize)
         let startReadAt = (offset / blockSize) * blockSize
@@ -66,7 +66,11 @@ struct BlockDeviceReader {
             if useMetadataRead {
                 try blockDevice.metadataRead(into: ptr, startingAt: startReadAt, length: readLength)
             } else {
-                try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
+                let actuallyRead = try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
+                guard actuallyRead == readLength else {
+                    logger.error("Expected to read \(readLength) bytes, actually read \(actuallyRead)")
+                    throw POSIXError(.EIO)
+                }
             }
             withUnsafeTemporaryAllocation(byteCount: MemoryLayout<T>.size, alignment: MemoryLayout<T>.alignment) { itemPtr in
                 itemPtr.copyMemory(from: UnsafeRawBufferPointer(rebasing: ptr[targetContentOffset..<targetContentEnd]))
@@ -111,7 +115,11 @@ struct BlockDeviceReader {
             if useMetadataRead {
                 try blockDevice.metadataRead(into: ptr, startingAt: startReadAt, length: readLength)
             } else {
-                try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
+                let actuallyRead = try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
+                guard actuallyRead == readLength else {
+                    logger.error("Expected to read \(readLength) bytes, actually read \(actuallyRead)")
+                    throw POSIXError(.EIO)
+                }
             }
             let stringStart = ptr.baseAddress!.assumingMemoryBound(to: CChar.self) + targetContentOffset
             var cString = [CChar]()
