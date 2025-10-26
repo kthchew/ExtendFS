@@ -8,6 +8,31 @@
 import Foundation
 import FSKit
 
+actor VolumeCache {
+    /// The key is the block containing the relevant inode entries.
+    var usedItemsInInodeTable = [Int64: Set<UInt32>]()
+    func addInode(inodeNumber: UInt32, blockNumber: Int64) {
+        usedItemsInInodeTable[blockNumber, default: []].insert(inodeNumber)
+    }
+    func removeInode(inodeNumber: UInt32, blockNumber: Int64) {
+        usedItemsInInodeTable[blockNumber]?.remove(inodeNumber)
+        if let usedItems = usedItemsInInodeTable[blockNumber], usedItems.isEmpty {
+            usedItemsInInodeTable[blockNumber] = nil
+            inodeTableBlocks[blockNumber] = nil
+        }
+    }
+    /// The key is the block for the given inode table.
+    var inodeTableBlocks = [Int64: Data]()
+    func setInodeTableBlock(_ data: Data?, forBlock blockNumber: Int64) {
+        inodeTableBlocks[blockNumber] = data
+    }
+    
+    var seenList = [FSDirectoryCookie.initial: Set<String>()]
+    func setCookieValue(_ value: Set<String>?, forCookie cookie: FSDirectoryCookie) {
+        seenList[cookie] = value
+    }
+}
+
 class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Volume")
     
@@ -27,7 +52,8 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         self.blockGroupDescriptors = BlockGroupDescriptors(volume: self, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
         
         self.root = try await Ext4Item(name: FSFileName(string: "/"), in: self, inodeNumber: 2, parentInodeNumber: UInt32(FSItem.Identifier.parentOfRoot.rawValue))
-        self.usedItemsInInodeTable[try self.root.inodeBlockLocation] = [root]
+        
+        await cache.addInode(inodeNumber: 2, blockNumber: try self.root.inodeBlockLocation)
     }
     
     private var root: Ext4Item!
@@ -38,10 +64,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     var superblock: Superblock
     var blockGroupDescriptors: BlockGroupDescriptors!
     
-    /// The key is the block containing the relevant inode entries.
-    var usedItemsInInodeTable = [Int64: Set<Ext4Item>]()
-    /// The key is the block for the given inode table.
-    var inodeTableBlocks = [Int64: Data]()
+    let cache = VolumeCache()
     
     /// Returns the block number for the block containing the given inode on disk.
     /// - Parameter inodeNumber: The inode number.
@@ -57,28 +80,26 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         return (Int64(tableLocation) + blockOffset, offsetInBlock)
     }
     
-    func data(forInode inodeNumber: UInt32) throws -> Data {
+    func data(forInode inodeNumber: UInt32) async throws -> Data {
         let blockNumber = try self.blockNumber(forBlockContainingInode: inodeNumber)
-        if let cachedData = self.inodeTableBlocks[blockNumber.0] {
-            return cachedData
+        let blockSize = superblock.blockSize
+        var data = Data(count: blockSize)
+        if let cachedData = await cache.inodeTableBlocks[blockNumber.0] {
+            return cachedData.subdata(in: Int(blockNumber.1)..<Int((blockNumber.1 + Int64(superblock.inodeSize))))
         }
-        var data = Data(count: superblock.blockSize)
         try data.withUnsafeMutableBytes { ptr in
             try self.resource.metadataRead(into: ptr, startingAt: blockNumber.0 * Int64(superblock.blockSize), length: superblock.blockSize)
         }
-        self.inodeTableBlocks[blockNumber.0] = data
+        await cache.setInodeTableBlock(data, forBlock: blockNumber.0)
         return data.subdata(in: Int(blockNumber.1)..<Int((blockNumber.1 + Int64(superblock.inodeSize))))
     }
     
     func item(forInode inodeNumber: UInt32, withParentInode parentInode: UInt32, withName name: FSFileName) async throws -> Ext4Item {
         // TODO: use data fetching helpers
         let blockNumber = try blockNumber(forBlockContainingInode: inodeNumber)
-        if let cachedItem = usedItemsInInodeTable[blockNumber.0]?.first(where: { $0.inodeNumber == inodeNumber }) {
-            return cachedItem
-        }
         
-        let item = try await Ext4Item(name: name, in: self, inodeNumber: inodeNumber, parentInodeNumber: parentInode)
-        usedItemsInInodeTable[blockNumber.0, default: []].insert(item)
+        let item = try await Ext4Item(name: name, in: self, inodeNumber: inodeNumber, parentInodeNumber: parentInode, inodeData: data(forInode: inodeNumber))
+        await cache.addInode(inodeNumber: inodeNumber, blockNumber: blockNumber.0)
         return item
     }
     
@@ -162,14 +183,13 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             throw POSIXError(.ENOSYS)
         }
         let blockNumber = try blockNumber(forBlockContainingInode: item.inodeNumber)
-        usedItemsInInodeTable[blockNumber.0]?.remove(item)
-        if let usedItems = usedItemsInInodeTable[blockNumber.0], usedItems.isEmpty {
-            usedItemsInInodeTable[blockNumber.0] = nil
-            inodeTableBlocks[blockNumber.0] = nil
-        }
+        
+        let inodeNumber = item.inodeNumber
+        await cache.removeInode(inodeNumber: inodeNumber, blockNumber: blockNumber.0)
         
         return
     }
+    
     
     func readSymbolicLink(_ item: FSItem) async throws -> FSFileName {
         logger.log("readSymbolicLink")
@@ -222,7 +242,6 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
     }
     
-    @MainActor var seenList = [FSDirectoryCookie.initial: Set<String>()]
     func enumerateDirectory(_ directory: FSItem, startingAt cookie: FSDirectoryCookie, verifier: FSDirectoryVerifier, attributes: FSItem.GetAttributesRequest?, packer: FSDirectoryEntryPacker) async throws -> FSDirectoryVerifier {
         logger.log("enumerateDirectory")
         guard let directory = directory as? Ext4Item else {
@@ -238,21 +257,22 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             return currentVerifier
         }
         
-        let currentCookie = await MainActor.run {
-            var tryCookie = cookie
-            let oldList = seenList[cookie]
-            
-            while seenList[tryCookie] != nil {
-                tryCookie = FSDirectoryCookie(rawValue: UInt64.random(in: 1..<UInt64.max))
-            }
-            if cookie != .initial {
-                seenList[cookie] = nil
-            }
-            seenList[tryCookie] = oldList
-            
-            return tryCookie
+        var currentCookieSeen = Set<String>()
+        var tryCookie = cookie
+        let oldList = await cache.seenList[cookie]
+        
+        while await cache.seenList[tryCookie] != nil {
+            tryCookie = FSDirectoryCookie(rawValue: UInt64.random(in: 1..<UInt64.max))
         }
-        var currentCookieSeen = await seenList[currentCookie] ?? []
+        if cookie != .initial {
+            await cache.setCookieValue(nil, forCookie: cookie)
+        }
+        await cache.setCookieValue(oldList, forCookie: tryCookie)
+        
+        currentCookieSeen = await cache.seenList[tryCookie] ?? []
+        
+        let currentCookie = tryCookie
+        
         var stoppedEarly = false
         let attributesAccessibleWithoutLoading: FSItem.Attribute = [.type, .fileID, .parentID]
         for try await content in contents {
@@ -280,9 +300,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             
         }
         
-        await MainActor.run { [stoppedEarly, currentCookieSeen] in
-            seenList[currentCookie] = stoppedEarly ? currentCookieSeen : nil
-        }
+        await cache.setCookieValue(stoppedEarly ? currentCookieSeen : nil, forCookie: currentCookie)
         return currentVerifier
     }
     
@@ -329,7 +347,7 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
         // TODO: do read requests align to blocks? if not this offset is needed but that makes things more annoying
 //        let offsetWithinFirstBlock = offset % Int64(try superblock.blockSize)
         var amountRead = 0
-        let remainingLengthInFile = try off_t(item.size) - offset
+        let remainingLengthInFile = off_t(item.indexNode.size) - offset
         let actualLengthToRead = min(length, Int(remainingLengthInFile.roundUp(toMultipleOf: off_t(blockSize))))
         for extent in extents {
             guard amountRead < actualLengthToRead else {

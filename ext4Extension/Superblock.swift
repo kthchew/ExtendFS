@@ -53,7 +53,7 @@ extension Data {
 
 struct BlockDeviceReader {
     static private let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "BlockDeviceReader")
-    static var useMetadataRead = false
+    nonisolated(unsafe) static var useMetadataRead = false
     
     static func readSmallSection<T>(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> T? {
         var item: T?

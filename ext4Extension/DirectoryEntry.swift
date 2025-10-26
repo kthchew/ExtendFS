@@ -75,7 +75,6 @@ struct DirectoryEntry {
     var name: String
     
     func getItem() async throws -> Ext4Item {
-        // FIXME: won't be cached
-        return try await Ext4Item(name: FSFileName(string: self.name), in: volume, inodeNumber: self.inodePointee, parentInodeNumber: self.inodeParent)
+        return try await volume.item(forInode: self.inodePointee, withParentInode: self.inodeParent, withName: FSFileName(string: self.name))
     }
 }

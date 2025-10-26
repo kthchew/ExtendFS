@@ -111,11 +111,11 @@ extension ExtFourExtensionFileSystem: FSManageableResourceMaintenanceOperations 
     func startCheck(task: FSTask, options: FSTaskOptions) throws -> Progress {
         let progress = Progress(totalUnitCount: 100)
         containerStatus = .active
-        Task {
-            progress.completedUnitCount = 100
-            task.didComplete(error: nil)
-            containerStatus = .ready
-        }
+//        Task {
+//            progress.completedUnitCount = 100
+//            task.didComplete(error: nil)
+//            containerStatus = .ready
+//        }
         return progress
     }
     
