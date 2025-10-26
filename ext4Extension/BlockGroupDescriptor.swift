@@ -35,6 +35,14 @@ extension UInt64 {
         guard let upper else { return UInt64(lower) }
         return (UInt64(upper) << 32) | UInt64(lower)
     }
+    
+    var upperHalf: UInt32 {
+        UInt32(self >> 32)
+    }
+    
+    var lowerHalf: UInt32 {
+        UInt32(self & UInt64(UInt32.max))
+    }
 }
 
 extension UInt32 {
@@ -46,6 +54,14 @@ extension UInt32 {
         guard let lower else { return nil }
         guard let upper else { return UInt32(lower) }
         return (UInt32(upper) << 16) | UInt32(lower)
+    }
+    
+    var upperHalf: UInt16 {
+        UInt16(self >> 16)
+    }
+    
+    var lowerHalf: UInt16 {
+        UInt16(self & UInt32(UInt16.max))
     }
 }
 

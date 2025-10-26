@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		9F283FD22DED6F90005EF8BB /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 9F283FD12DED6F90005EF8BB /* Algorithms */; };
+		9F5787962E3C3EAE001224B5 /* DataKit in Frameworks */ = {isa = PBXBuildFile; productRef = 9F5787952E3C3EAE001224B5 /* DataKit */; };
 		9F57A64D2DD6841D00D7E52D /* ExtendFSExtension.appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = 9F57A6432DD6841D00D7E52D /* ExtendFSExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -119,12 +120,20 @@
 			buildActionMask = 2147483647;
 			files = (
 				9F283FD22DED6F90005EF8BB /* Algorithms in Frameworks */,
+				9F5787962E3C3EAE001224B5 /* DataKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		9F5787942E3C3EAE001224B5 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		9F57A60B2DD6835E00D7E52D = {
 			isa = PBXGroup;
 			children = (
@@ -132,6 +141,7 @@
 				9F57A6252DD6835F00D7E52D /* ExtendFSTests */,
 				9F57A62F2DD6835F00D7E52D /* ExtendFSUITests */,
 				9F57A6442DD6841D00D7E52D /* ext4Extension */,
+				9F5787942E3C3EAE001224B5 /* Frameworks */,
 				9F57A6152DD6835E00D7E52D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -238,6 +248,7 @@
 			name = ExtendFSExtension;
 			packageProductDependencies = (
 				9F283FD12DED6F90005EF8BB /* Algorithms */,
+				9F5787952E3C3EAE001224B5 /* DataKit */,
 			);
 			productName = ext4Extension;
 			productReference = 9F57A6432DD6841D00D7E52D /* ExtendFSExtension.appex */;
@@ -280,6 +291,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				9F283FD02DED6F90005EF8BB /* XCRemoteSwiftPackageReference "swift-algorithms" */,
+				9F5787932E3C3E5E001224B5 /* XCRemoteSwiftPackageReference "DataKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9F57A6152DD6835E00D7E52D /* Products */;
@@ -629,6 +641,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ext4Extension/ext4Extension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -643,10 +656,11 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/../../../../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kpchew.ExtendFS.ext4Extension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -657,6 +671,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ext4Extension/ext4Extension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -671,10 +686,11 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/../../../../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kpchew.ExtendFS.ext4Extension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -740,6 +756,14 @@
 				minimumVersion = 1.2.1;
 			};
 		};
+		9F5787932E3C3E5E001224B5 /* XCRemoteSwiftPackageReference "DataKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/QuickBirdEng/DataKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -747,6 +771,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9F283FD02DED6F90005EF8BB /* XCRemoteSwiftPackageReference "swift-algorithms" */;
 			productName = Algorithms;
+		};
+		9F5787952E3C3EAE001224B5 /* DataKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9F5787932E3C3E5E001224B5 /* XCRemoteSwiftPackageReference "DataKit" */;
+			productName = DataKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

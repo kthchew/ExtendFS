@@ -281,7 +281,7 @@ class Ext4Item: FSItem {
         }
         
         if let _directoryContentsInodes, let nameStr = name.string, let dirEntry = _directoryContentsInodes[nameStr] {
-            return try await Ext4Item(name: FSFileName(string: dirEntry.name), in: containingVolume, inodeNumber: dirEntry.inodePointee, parentInodeNumber: self.inodeNumber)
+            return try await containingVolume.item(forInode: dirEntry.inodePointee, withParentInode: self.inodeNumber, withName: FSFileName(string: dirEntry.name))
         }
         return nil
     }

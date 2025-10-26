@@ -18,6 +18,9 @@ enum ExtensionError: Error {
 class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperations {
     let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Ext4Extension")
     
+    var resource: FSBlockDeviceResource?
+    var volume: Ext4Volume?
+    
     func probeResource(resource: FSResource) async throws -> FSProbeResult {
         logger.log("Probing resource")
         guard let resource = resource as? FSBlockDeviceResource else {
@@ -83,6 +86,8 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
         }
         
         let volume = try await Ext4Volume(resource: resource, fileSystem: self, readOnly: readOnly)
+        self.resource = resource
+        self.volume = volume
         containerStatus = .ready
         logger.log("Container status ready")
         BlockDeviceReader.useMetadataRead = true
@@ -91,6 +96,8 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
 
     func unloadResource(resource: FSResource, options: FSTaskOptions) async throws {
         logger.log("Unloading resource")
+        self.resource = nil
+        self.volume = nil
         containerStatus = .notReady(status: ExtensionError.unloadedResource)
         return
     }

@@ -1,6 +1,24 @@
 {
-  "originHash" : "86635982bfc3fdf16c7186cd33e77b4dc10a24ff9127aaee5f4f0a3676ae2966",
+  "originHash" : "b1d9db209e8c2727a76823430daee245128a44fd6e8e5170aefc17220143caf1",
   "pins" : [
+    {
+      "identity" : "crc-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/QuickBirdEng/crc-swift.git",
+      "state" : {
+        "revision" : "0616be13dec7b6dc4b55e266cba39c1772902b08",
+        "version" : "0.1.1"
+      }
+    },
+    {
+      "identity" : "datakit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/QuickBirdEng/DataKit.git",
+      "state" : {
+        "revision" : "37d845d584c3d63917035c8e7597fc49bc6d15ff",
+        "version" : "0.1.1"
+      }
+    },
     {
       "identity" : "swift-algorithms",
       "kind" : "remoteSourceControl",

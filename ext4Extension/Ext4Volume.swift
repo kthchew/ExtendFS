@@ -27,15 +27,60 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         self.blockGroupDescriptors = BlockGroupDescriptors(volume: self, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
         
         self.root = try await Ext4Item(name: FSFileName(string: "/"), in: self, inodeNumber: 2, parentInodeNumber: UInt32(FSItem.Identifier.parentOfRoot.rawValue))
+        self.usedItemsInInodeTable[try self.root.inodeBlockLocation] = [root]
     }
     
-    private var root: FSItem!
+    private var root: Ext4Item!
     
-    let fileSystem: FSUnaryFileSystem
+    weak var fileSystem: FSUnaryFileSystem?
     let resource: FSBlockDeviceResource
     /// The superblock in block group 0.
     var superblock: Superblock
     var blockGroupDescriptors: BlockGroupDescriptors!
+    
+    /// The key is the block containing the relevant inode entries.
+    var usedItemsInInodeTable = [Int64: Set<Ext4Item>]()
+    /// The key is the block for the given inode table.
+    var inodeTableBlocks = [Int64: Data]()
+    
+    /// Returns the block number for the block containing the given inode on disk.
+    /// - Parameter inodeNumber: The inode number.
+    /// - Returns: The block number, and the byte offset into that block at which you'll find the inode.
+    func blockNumber(forBlockContainingInode inodeNumber: UInt32) throws -> (Int64, Int64) {
+        let blockGroup = Int((inodeNumber - 1) / superblock.inodesPerGroup)
+        guard let groupDescriptor = try blockGroupDescriptors[blockGroup], let tableLocation = try groupDescriptor.inodeTableLocation else {
+            throw POSIXError(.EIO)
+        }
+        let tableIndex = (inodeNumber - 1) % superblock.inodesPerGroup
+        let blockOffset = Int64(tableIndex) * Int64(superblock.inodeSize) / Int64(superblock.blockSize)
+        let offsetInBlock = Int64(tableIndex) * Int64(superblock.inodeSize) % Int64(superblock.blockSize)
+        return (Int64(tableLocation) + blockOffset, offsetInBlock)
+    }
+    
+    func data(forInode inodeNumber: UInt32) throws -> Data {
+        let blockNumber = try self.blockNumber(forBlockContainingInode: inodeNumber)
+        if let cachedData = self.inodeTableBlocks[blockNumber.0] {
+            return cachedData
+        }
+        var data = Data(count: superblock.blockSize)
+        try data.withUnsafeMutableBytes { ptr in
+            try self.resource.metadataRead(into: ptr, startingAt: blockNumber.0 * Int64(superblock.blockSize), length: superblock.blockSize)
+        }
+        self.inodeTableBlocks[blockNumber.0] = data
+        return data.subdata(in: Int(blockNumber.1)..<Int((blockNumber.1 + Int64(superblock.inodeSize))))
+    }
+    
+    func item(forInode inodeNumber: UInt32, withParentInode parentInode: UInt32, withName name: FSFileName) async throws -> Ext4Item {
+        // TODO: use data fetching helpers
+        let blockNumber = try blockNumber(forBlockContainingInode: inodeNumber)
+        if let cachedItem = usedItemsInInodeTable[blockNumber.0]?.first(where: { $0.inodeNumber == inodeNumber }) {
+            return cachedItem
+        }
+        
+        let item = try await Ext4Item(name: name, in: self, inodeNumber: inodeNumber, parentInodeNumber: parentInode)
+        usedItemsInInodeTable[blockNumber.0, default: []].insert(item)
+        return item
+    }
     
     let readOnly: Bool
     
@@ -113,6 +158,16 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     
     func reclaimItem(_ item: FSItem) async throws {
         logger.log("reclaimItem")
+        guard let item = item as? Ext4Item else {
+            throw POSIXError(.ENOSYS)
+        }
+        let blockNumber = try blockNumber(forBlockContainingInode: item.inodeNumber)
+        usedItemsInInodeTable[blockNumber.0]?.remove(item)
+        if let usedItems = usedItemsInInodeTable[blockNumber.0], usedItems.isEmpty {
+            usedItemsInInodeTable[blockNumber.0] = nil
+            inodeTableBlocks[blockNumber.0] = nil
+        }
+        
         return
     }
     
@@ -233,13 +288,13 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     
     func activate(options: FSTaskOptions) async throws -> FSItem {
         logger.log("activate")
-        fileSystem.containerStatus = .active
+        fileSystem?.containerStatus = .active
         return root
     }
     
     func deactivate(options: FSDeactivateOptions = []) async throws {
         logger.log("deactivate")
-        fileSystem.containerStatus = .ready
+        fileSystem?.containerStatus = .ready
         return
     }
     
