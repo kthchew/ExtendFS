@@ -58,6 +58,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		9F0005F62EB13C6400E9F266 /* Exceptions for "ext4Extension" folder in "ExtendFS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Extensions/Data+Readers.swift",
+			);
+			target = 9F57A6132DD6835E00D7E52D /* ExtendFS */;
+		};
 		9F57A64E2DD6841D00D7E52D /* Exceptions for "ext4Extension" folder in "ExtendFSExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -86,6 +93,7 @@
 		9F57A6442DD6841D00D7E52D /* ext4Extension */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				9F0005F62EB13C6400E9F266 /* Exceptions for "ext4Extension" folder in "ExtendFS" target */,
 				9F57A64E2DD6841D00D7E52D /* Exceptions for "ext4Extension" folder in "ExtendFSExtension" target */,
 			);
 			path = ext4Extension;
