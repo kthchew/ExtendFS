@@ -287,7 +287,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
                 fileAttributes?.parentID = FSItem.Identifier(rawValue: UInt64(directory.inodeNumber)) ?? .invalid
             } else if let attributes {
                 let inodeData = try await data(forInode: UInt32(content.inodePointee))
-                let inode = try IndexNode(inodeData)
+                guard let inode = IndexNode(from: inodeData) else { throw POSIXError(.EIO) }
                 fileAttributes = inode.getAttributes(attributes, superblock: superblock, readOnlySystem: readOnly)
                 
                 fileAttributes?.fileID = FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid

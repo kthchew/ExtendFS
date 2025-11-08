@@ -5,75 +5,80 @@
 //  Created by Kenneth Chew on 7/31/25.
 //
 
-import DataKit
 import Foundation
 import FSKit
 import os.log
 
-struct IndexNode: ReadWritable {
+struct IndexNode {
     static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "IndexNode")
     
-    static var format: Format {
-        Scope {
-            \.mode.rawValue
-            \.uid.lowerHalf
-            \.size.lowerHalf
-            \.lastAccessTime.lowerHalf
-            \.lastInodeChangeTime.lowerHalf
-            \.lastDataModifyTime.lowerHalf
-            \.deletionTime
-            \.gid.lowerHalf
-            \.hardLinkCount
-            \.blockCount.lowerHalf
-            \.flags.rawValue
-            \.osd
-            \.block
-            \.generation
-            \.xattrBlock.lowerHalf
-            \.size.upperHalf
-            \.fragmentAddress
-            \.osd2
-
-            \.extraINodeSize // FIXME: what if this isn't here?
-            Using(\.extraINodeSize) { size in
-                if size >= 4 { \.upperChecksum } // FIXME: real checksum
-                if size >= 8 { \.lastInodeChangeTime.upperHalf }
-                if size >= 12 { \.lastDataModifyTime.upperHalf }
-                if size >= 16 { \.lastAccessTime.upperHalf }
-                if size >= 20 { \.fileCreationTime?.lowerHalf }
-                if size >= 24 { \.fileCreationTime?.upperHalf }
-                if size >= 28 { \.version.upperHalf }
-                if size >= 32 { \.projectID }
-            }
-        }
-        .endianness(.little)
-    }
-    
-    init(from context: DataKit.ReadContext<IndexNode>) throws {
-        mode = Mode(rawValue: try context.read(for: \.mode.rawValue))
-        uid = try UInt32.combine(upper: context.readIfPresent(for: \.uid.upperHalf) ?? 0, lower: context.read(for: \.uid.lowerHalf))
-        size = try UInt64.combine(upper: context.readIfPresent(for: \.size.upperHalf) ?? 0, lower: context.read(for: \.size.lowerHalf))
-        // FIXME: in these cases, upper half only uses the lowest 2 bits, then uses the other 30 bits for nanosecond accuracy
-        lastAccessTime = try UInt64.combine(upper: (context.readIfPresent(for: \.lastAccessTime.upperHalf) ?? 0) & 0b11, lower: context.read(for: \.lastAccessTime.lowerHalf))
-        lastInodeChangeTime = try UInt64.combine(upper: (context.readIfPresent(for: \.lastInodeChangeTime.upperHalf) ?? 0) & 0b11, lower: context.read(for: \.lastInodeChangeTime.lowerHalf))
-        lastDataModifyTime = try UInt64.combine(upper: (context.readIfPresent(for: \.lastDataModifyTime.upperHalf) ?? 0) & 0b11, lower: context.read(for: \.lastDataModifyTime.lowerHalf))
-        deletionTime = try context.read(for: \.deletionTime)
-        gid = try UInt32.combine(upper: context.readIfPresent(for: \.gid.upperHalf) ?? 0, lower: context.read(for: \.gid.lowerHalf))
-        hardLinkCount = try context.read(for: \.hardLinkCount)
-        blockCount = try UInt64.combine(upper: context.readIfPresent(for: \.blockCount.upperHalf) ?? 0, lower: context.read(for: \.blockCount.lowerHalf))
-        flags = Flags(rawValue: try context.read(for: \.flags.rawValue))
-        osd = try context.read(for: \.osd)
-        block = try context.read(for: \.block)
-        generation = try context.read(for: \.generation)
-        xattrBlock = try UInt64.combine(upper: context.readIfPresent(for: \.xattrBlock.upperHalf) ?? 0, lower: context.read(for: \.xattrBlock.lowerHalf))
-        fragmentAddress = try context.read(for: \.fragmentAddress)
-        osd2 = try context.read(for: \.osd2)
-        extraINodeSize = try context.readIfPresent(for: \.extraINodeSize) ?? 0
-        upperChecksum = try context.readIfPresent(for: \.upperChecksum)
+    init?(from data: Data) {
+        var iterator = data.makeIterator()
         
-        fileCreationTime = try UInt64.combine(upper: (context.readIfPresent(for: \.fileCreationTime?.upperHalf) ?? 0) & 0b11, lower: context.readIfPresent(for: \.fileCreationTime?.lowerHalf))
-        version = try UInt64.combine(upper: context.readIfPresent(for: \.version.upperHalf) ?? 0, lower: context.readIfPresent(for: \.version.lowerHalf) ?? 0)
-        projectID = try context.readIfPresent(for: \.projectID)
+        guard let modeRaw: UInt16 = iterator.nextLittleEndian() else { return nil }
+        self.mode = Mode(rawValue: modeRaw)
+        guard let uidLower: UInt16 = iterator.nextLittleEndian() else { return nil }
+        self.uid = UInt32(uidLower)
+        guard let sizeLower: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let accessLower: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let changeLower: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let modifyLower: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let deletion: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.deletionTime = deletion
+        guard let gidLower: UInt16 = iterator.nextLittleEndian() else { return nil }
+        // FIXME: get upper
+        self.gid = UInt32(gidLower)
+        guard let hardLinks: UInt16 = iterator.nextLittleEndian() else { return nil }
+        self.hardLinkCount = hardLinks
+        guard let blockLower: UInt32 = iterator.nextLittleEndian() else { return nil }
+        // FIXME: get upper
+        self.blockCount = UInt64(blockLower)
+        guard let flags: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.flags = Flags(rawValue: flags)
+        guard let osd: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.osd = osd
+        
+        block = Data(capacity: 60)
+        for _ in 0..<60 {
+            guard let next = iterator.next() else { return nil }
+            block.append(next)
+        }
+        
+        guard let generation: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.generation = generation
+        guard let xattrLower: UInt32 = iterator.nextLittleEndian() else { return nil }
+        // FIXME: get upper
+        self.xattrBlock = UInt64(xattrLower)
+        guard let sizeUpper: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.size = UInt64.combine(upper: sizeUpper, lower: sizeLower)
+        guard let fragmentAddress: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.fragmentAddress = fragmentAddress
+        
+        osd2 = Data(capacity: 12)
+        for _ in 0..<12 {
+            guard let next = iterator.next() else { return nil }
+            osd2.append(next)
+        }
+        
+        self.extraINodeSize = iterator.nextLittleEndian() ?? 0
+        if extraINodeSize >= 4 {
+            upperChecksum = iterator.nextLittleEndian()
+        }
+        
+        // FIXME: in these cases, upper half only uses the lowest 2 bits, then uses the other 30 bits for nanosecond accuracy
+        let changeUpper: UInt32? = extraINodeSize >= 8 ? iterator.nextLittleEndian() : nil
+        self.lastInodeChangeTime = UInt64.combine(upper: (changeUpper ?? 0) & 0b11, lower: changeLower)
+        let modifyUpper: UInt32? = extraINodeSize >= 12 ? iterator.nextLittleEndian() : nil
+        self.lastDataModifyTime = UInt64.combine(upper: (modifyUpper ?? 0) & 0b11, lower: modifyLower)
+        let accessUpper: UInt32? = extraINodeSize >= 16 ? iterator.nextLittleEndian() : nil
+        self.lastAccessTime = UInt64.combine(upper: (accessUpper ?? 0) & 0b11, lower: accessLower)
+        let creationLower: UInt32? = extraINodeSize >= 20 ? iterator.nextLittleEndian() : nil
+        let creationUpper: UInt32? = extraINodeSize >= 24 ? iterator.nextLittleEndian() : nil
+        self.fileCreationTime = UInt64.combine(upper: (creationUpper ?? 0) & 0b11, lower: creationLower)
+        let versionUpper: UInt32? = extraINodeSize >= 32 ? iterator.nextLittleEndian() : nil
+        // FIXME: completely wrong
+        self.version = UInt64(versionUpper ?? 0)
+        self.projectID = extraINodeSize >= 32 ? iterator.nextLittleEndian() : nil
     }
     
     struct Mode: OptionSet {
@@ -155,12 +160,12 @@ struct IndexNode: ReadWritable {
     var blockCount: UInt64
     var flags: Flags
     var osd: UInt32
-    var block: InlineArray<15, UInt32>
+    var block: Data
     var generation: UInt32
     var xattrBlock: UInt64
     /// Obsolete.
     var fragmentAddress: UInt32
-    var osd2: InlineArray<6, UInt16>
+    var osd2: Data
     /// The amount of space, in bytes, that this inode occupies past the original ext2 inode size (128 bytes), including this field.
     var extraINodeSize: UInt16
     var upperChecksum: UInt16?

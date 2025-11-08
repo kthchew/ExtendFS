@@ -90,7 +90,10 @@ class Ext4Item: FSItem {
             fetchedData = try data.subdata(in: Int(inodeBlockOffset)..<Int(inodeBlockOffset)+Int(inodeSize))
         }
         
-        self._indexNode = try IndexNode(fetchedData)
+        guard let indexNode = IndexNode(from: fetchedData) else {
+            throw POSIXError(.EIO)
+        }
+        self._indexNode = indexNode
         
         self.extentTreeRoot = try await indexNode.flags.contains(.usesExtents) ? FileExtentTreeLevel(volume: containingVolume, offset: inodeLocation + 0x28) : nil
     }
@@ -122,7 +125,8 @@ class Ext4Item: FSItem {
         let inodeSize = containingVolume.superblock.inodeSize
         let fetchedData = try data.subdata(in: Int(inodeBlockOffset)..<Int(inodeBlockOffset)+Int(inodeSize))
         
-        self._indexNode = try IndexNode(fetchedData)
+        guard let inode = IndexNode(from: fetchedData) else { throw POSIXError(.EIO) }
+        self._indexNode = inode
     }
     
     var filetype: FSItem.ItemType {
@@ -233,9 +237,7 @@ class Ext4Item: FSItem {
             guard filetype == .symlink else { return nil }
             let indexNode = try indexNode
             if indexNode.size < 60 {
-                return indexNode.block.span.bytes.withUnsafeBytes { buffer in
-                    return String(bytes: buffer, encoding: .utf8)
-                }
+                return indexNode.block.readString(at: 0, maxLength: indexNode.block.count)
             } else {
                 let extents = try await findExtentsCovering(0, with: Int.max)
                 var data = Data(capacity: Int(indexNode.size).roundUp(toMultipleOf: Int(containingVolume.resource.physicalBlockSize)))
