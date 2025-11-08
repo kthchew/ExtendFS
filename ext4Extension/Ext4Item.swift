@@ -7,6 +7,7 @@
 
 import Foundation
 import FSKit
+import DataKit
 
 class Ext4Item: FSItem {
     let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item")
@@ -89,30 +90,62 @@ class Ext4Item: FSItem {
             fetchedData = try data.subdata(in: Int(inodeBlockOffset)..<Int(inodeBlockOffset)+Int(inodeSize))
         }
         
-        self.indexNode = try IndexNode(fetchedData)
+        self._indexNode = try IndexNode(fetchedData)
         
         self.extentTreeRoot = try await indexNode.flags.contains(.usesExtents) ? FileExtentTreeLevel(volume: containingVolume, offset: inodeLocation + 0x28) : nil
     }
     
-    var indexNode: IndexNode!
+    var _indexNode: IndexNode?
+    var indexNode: IndexNode {
+        get throws {
+            try fetchInode()
+            return _indexNode!
+        }
+    }
+    
+    private func fetchInode() throws {
+        if _indexNode != nil {
+            return
+        }
+        let blockSize = containingVolume.superblock.blockSize
+        var data = Data(count: Int(blockSize))
+        try data.withUnsafeMutableBytes { ptr in
+            if BlockDeviceReader.useMetadataRead {
+                try containingVolume.resource.metadataRead(into: ptr, startingAt: inodeBlockLocation, length: Int(blockSize))
+            } else {
+                let count = try containingVolume.resource.read(into: ptr, startingAt: inodeBlockLocation, length: Int(blockSize))
+                guard count == Int(blockSize) else {
+                    throw POSIXError(.EIO)
+                }
+            }
+        }
+        let inodeSize = containingVolume.superblock.inodeSize
+        let fetchedData = try data.subdata(in: Int(inodeBlockOffset)..<Int(inodeBlockOffset)+Int(inodeSize))
+        
+        self._indexNode = try IndexNode(fetchedData)
+    }
     
     var filetype: FSItem.ItemType {
-        get throws {
+        get {
             // cases must be in descending order of value because they are mutually exclusive but can still overlap
-            switch indexNode.mode {
-            case _ where indexNode.mode.contains(.socketType):
+            guard let mode = try? indexNode.mode else {
+                return .unknown
+            }
+            
+            switch mode {
+            case _ where mode.contains(.socketType):
                 return .socket
-            case _ where indexNode.mode.contains(.symbolicLinkType):
+            case _ where mode.contains(.symbolicLinkType):
                 return .symlink
-            case _ where indexNode.mode.contains(.regularFileType):
+            case _ where mode.contains(.regularFileType):
                 return .file
-            case _ where indexNode.mode.contains(.blockDeviceType):
+            case _ where mode.contains(.blockDeviceType):
                 return .blockDevice
-            case _ where indexNode.mode.contains(.directoryType):
+            case _ where mode.contains(.directoryType):
                 return .directory
-            case _ where indexNode.mode.contains(.characterDeviceType):
+            case _ where mode.contains(.characterDeviceType):
                 return .charDevice
-            case _ where indexNode.mode.contains(.fifoType):
+            case _ where mode.contains(.fifoType):
                 return .fifo
             default:
                 return .unknown
@@ -130,7 +163,7 @@ class Ext4Item: FSItem {
     private var directoryVerifier: FSDirectoryVerifier? = nil
     var directoryContents: (any AsyncSequence<DirectoryEntry, any Error>, FSDirectoryVerifier)? {
         get async throws {
-            guard try filetype == .directory else { return nil }
+            guard filetype == .directory else { return nil }
             if _directoryContentsInodes != nil, let group = await asyncGroupForCachedDirectoryContents(), let verifier = directoryVerifier {
                 return (group, verifier)
             }
@@ -155,18 +188,27 @@ class Ext4Item: FSItem {
     }
     
     private func loadDirectoryContentCache() async throws {
-        guard try filetype == .directory else { return }
+        guard filetype == .directory else { return }
+        logger.log("loadDirectoryContentCache")
         var cache: [String: DirectoryEntry] = [:]
         
         let extents = try await findExtentsCovering(0, with: Int.max)
         for extent in extents {
-            let byteOffset = extent.physicalBlock * Int64(containingVolume.superblock.blockSize)
-            var currentOffset = 0
-            while currentOffset < Int(extent.lengthInBlocks!) * containingVolume.superblock.blockSize {
-                let directoryEntry = try DirectoryEntry(volume: containingVolume, offset: byteOffset + Int64(currentOffset), inodeParent: self.inodeNumber)
-                guard directoryEntry.inodePointee != 0, directoryEntry.nameLength != 0 else { break }
-                cache[directoryEntry.name] = directoryEntry
-                currentOffset += Int(directoryEntry.directoryEntryLength)
+            logger.log("Fetching extent at block \(extent.physicalBlock)")
+            guard let lengthInBlocks = extent.lengthInBlocks else {
+                throw POSIXError(.EIO)
+            }
+            let data = try BlockDeviceReader.fetchExtent(from: containingVolume.resource, blockNumbers: extent.physicalBlock..<extent.physicalBlock+Int64(extent.lengthInBlocks ?? 0), blockSize: containingVolume.superblock.blockSize)
+            for block in 0..<lengthInBlocks {
+                let byteOffset = containingVolume.superblock.blockSize * Data.Index(block)
+                let blockData = data.subdata(in: byteOffset..<(byteOffset+containingVolume.superblock.blockSize))
+                logger.log("Trying to decode data of length \(blockData.count)")
+                let dirEntryBlock = try ClassicDirectoryEntryBlock(blockData)
+                logger.log("Block has \(dirEntryBlock.entries.count) entries")
+                for entry in dirEntryBlock.entries {
+                    guard entry.inodePointee != 0, entry.nameLength != 0 else { continue }
+                    cache[entry.name] = entry
+                }
             }
         }
         
@@ -188,7 +230,8 @@ class Ext4Item: FSItem {
     
     var symbolicLinkTarget: String? {
         get async throws {
-            guard try filetype == .symlink else { return nil }
+            guard filetype == .symlink else { return nil }
+            let indexNode = try indexNode
             if indexNode.size < 60 {
                 return indexNode.block.span.bytes.withUnsafeBytes { buffer in
                     return String(bytes: buffer, encoding: .utf8)
@@ -211,67 +254,11 @@ class Ext4Item: FSItem {
         }
     }
     
-    func getAttributes(_ request: GetAttributesRequest) -> FSItem.Attributes {
-        let attributes = FSItem.Attributes()
+    func getAttributes(_ request: GetAttributesRequest) throws -> FSItem.Attributes {
+        let attributes = try indexNode.getAttributes(request, superblock: containingVolume.superblock)
         
-        // FIXME: many of these need to properly handle the upper values
-        if request.isAttributeWanted(.uid) {
-            attributes.uid = UInt32(indexNode.uid)
-        }
-        if request.isAttributeWanted(.gid) {
-            attributes.gid = UInt32(indexNode.gid)
-        }
-        if request.isAttributeWanted(.mode) {
-            // FIXME: not correct way to enforce read-only file system but does FSKit currently have a better way?
-            let useMode = containingVolume.readOnly ? indexNode.mode.subtracting([.ownerWrite, .groupWrite, .otherWrite]) : indexNode.mode
-            attributes.mode = UInt32(useMode.rawValue)
-        }
-        if request.isAttributeWanted(.flags) {
-            let fileFlags = indexNode.flags
-            var flags: UInt32 = 0
-            if fileFlags.contains(.noDump) { flags |= UInt32(UF_NODUMP) }
-            if fileFlags.contains(.immutable) { flags |= UInt32(SF_IMMUTABLE | UF_IMMUTABLE) }
-            if fileFlags.contains(.appendOnly) { flags |= UInt32(SF_APPEND | UF_APPEND) }
-            // no OPAQUE
-            if fileFlags.contains(.compressed) { flags |= UInt32(UF_COMPRESSED) }
-            // no TRACKED
-            // no DATAVAULT
-            // no HIDDEN
-        }
         if request.isAttributeWanted(.fileID) {
             attributes.fileID = FSItem.Identifier(rawValue: UInt64(inodeNumber)) ?? .invalid
-        }
-        if request.isAttributeWanted(.type) {
-            attributes.type = (try? filetype) ?? .unknown
-        }
-        if request.isAttributeWanted(.size) {
-            attributes.size = UInt64(indexNode.size)
-        }
-        if request.isAttributeWanted(.allocSize) {
-            let usesHugeBlocks = containingVolume.superblock.readonlyFeatureCompatibilityFlags.contains(.hugeFile) && indexNode.flags.contains(.hugeFile)
-            attributes.allocSize = (UInt64(indexNode.blockCount) * UInt64(usesHugeBlocks ? containingVolume.superblock.blockSize : 512))
-        }
-        if request.isAttributeWanted(.inhibitKernelOffloadedIO) {
-            attributes.inhibitKernelOffloadedIO = false
-        }
-        if request.isAttributeWanted(.accessTime) {
-            attributes.accessTime = timespec(tv_sec: Int(indexNode.lastAccessTime), tv_nsec: 0)
-        }
-        if request.isAttributeWanted(.changeTime) {
-            attributes.changeTime = timespec(tv_sec: Int(indexNode.lastInodeChangeTime), tv_nsec: 0)
-        }
-        if request.isAttributeWanted(.modifyTime) {
-            attributes.modifyTime = timespec(tv_sec: Int(indexNode.lastDataModifyTime), tv_nsec: 0)
-        }
-        if request.isAttributeWanted(.birthTime) {
-            attributes.birthTime = timespec(tv_sec: Int(indexNode.fileCreationTime ?? 0), tv_nsec: 0)
-        }
-        if request.isAttributeWanted(.addedTime) {
-            // TODO: proper implementation
-            attributes.addedTime = timespec()
-        }
-        if request.isAttributeWanted(.linkCount) {
-            attributes.linkCount = UInt32(indexNode.hardLinkCount)
         }
         if request.isAttributeWanted(.parentID) {
             attributes.parentID = FSItem.Identifier(rawValue: UInt64(parentInodeNumber)) ?? .invalid
@@ -300,7 +287,7 @@ class Ext4Item: FSItem {
         if let extentTreeRoot {
             return try await extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength)
         } else {
-            let actualBlockLength = min(blockLength, Int((Double(indexNode.size) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
+            let actualBlockLength = try min(blockLength, Int((Double(indexNode.size) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
             Logger().log("findExtentsCovering fileBlock is \(fileBlock) actualBlockLength is \(actualBlockLength) name is \(self.name.string ?? "(unknown)", privacy: .public)")
             return try (fileBlock..<(fileBlock + Int64(actualBlockLength))).map { block in
                 let iBlockOffset = try inodeLocation + 0x28

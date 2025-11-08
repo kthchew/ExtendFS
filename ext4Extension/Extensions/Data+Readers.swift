@@ -43,8 +43,9 @@ extension Data {
                     return String(cString: cString, encoding: .utf8) ?? ""
                 }
             }
+            cString.append(0)
             
-            return ""
+            return String(cString: cString, encoding: .utf8) ?? ""
         }
     }
 }

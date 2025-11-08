@@ -90,7 +90,6 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         try data.withUnsafeMutableBytes { ptr in
             try self.resource.metadataRead(into: ptr, startingAt: blockNumber.0 * Int64(superblock.blockSize), length: superblock.blockSize)
         }
-        await cache.setInodeTableBlock(data, forBlock: blockNumber.0)
         return data.subdata(in: Int(blockNumber.1)..<Int((blockNumber.1 + Int64(superblock.inodeSize))))
     }
     
@@ -153,7 +152,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             throw fs_errorForPOSIXError(POSIXError.ENOENT.rawValue)
         }
         
-        return item.getAttributes(desiredAttributes)
+        return try item.getAttributes(desiredAttributes)
     }
     
     func setAttributes(_ newAttributes: FSItem.SetAttributesRequest, on item: FSItem) async throws -> FSItem.Attributes {
@@ -285,10 +284,14 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
                 fileAttributes = FSItem.Attributes()
                 fileAttributes?.type = content.fskitFileType ?? .unknown
                 fileAttributes?.fileID = FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid
-                fileAttributes?.parentID = FSItem.Identifier(rawValue: UInt64(content.inodeParent)) ?? .invalid
+                fileAttributes?.parentID = FSItem.Identifier(rawValue: UInt64(directory.inodeNumber)) ?? .invalid
             } else if let attributes {
-                let item = try await content.getItem()
-                fileAttributes = item.getAttributes(attributes)
+                let inodeData = try await data(forInode: UInt32(content.inodePointee))
+                let inode = try IndexNode(inodeData)
+                fileAttributes = inode.getAttributes(attributes, superblock: superblock, readOnlySystem: readOnly)
+                
+                fileAttributes?.fileID = FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid
+                fileAttributes?.parentID = FSItem.Identifier(rawValue: UInt64(directory.inodeNumber)) ?? .invalid
             } else {
                 fileAttributes = nil
             }
@@ -347,7 +350,7 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
         // TODO: do read requests align to blocks? if not this offset is needed but that makes things more annoying
 //        let offsetWithinFirstBlock = offset % Int64(try superblock.blockSize)
         var amountRead = 0
-        let remainingLengthInFile = off_t(item.indexNode.size) - offset
+        let remainingLengthInFile = off_t(try item.indexNode.size) - offset
         let actualLengthToRead = min(length, Int(remainingLengthInFile.roundUp(toMultipleOf: off_t(blockSize))))
         for extent in extents {
             guard amountRead < actualLengthToRead else {

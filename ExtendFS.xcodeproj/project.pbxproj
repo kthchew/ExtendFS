@@ -62,6 +62,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				"Extensions/Data+Readers.swift",
+				Extensions/StringFixedArray.swift,
 			);
 			target = 9F57A6132DD6835E00D7E52D /* ExtendFS */;
 		};

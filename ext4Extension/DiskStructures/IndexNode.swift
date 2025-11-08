@@ -7,6 +7,7 @@
 
 import DataKit
 import Foundation
+import FSKit
 import os.log
 
 struct IndexNode: ReadWritable {
@@ -33,12 +34,6 @@ struct IndexNode: ReadWritable {
             \.fragmentAddress
             \.osd2
 
-            ReadWriteFormat(read: ReadFormat { read, ctx in
-                
-                
-            }, write: WriteFormat(write: { write, root in
-                
-            }))
             \.extraINodeSize // FIXME: what if this isn't here?
             Using(\.extraINodeSize) { size in
                 if size >= 4 { \.upperChecksum } // FIXME: real checksum
@@ -172,4 +167,99 @@ struct IndexNode: ReadWritable {
     var fileCreationTime: UInt64?
     var version: UInt64
     var projectID: UInt32?
+    
+    var filetype: FSItem.ItemType {
+        get throws {
+            // cases must be in descending order of value because they are mutually exclusive but can still overlap
+            switch mode {
+            case _ where mode.contains(.socketType):
+                return .socket
+            case _ where mode.contains(.symbolicLinkType):
+                return .symlink
+            case _ where mode.contains(.regularFileType):
+                return .file
+            case _ where mode.contains(.blockDeviceType):
+                return .blockDevice
+            case _ where mode.contains(.directoryType):
+                return .directory
+            case _ where mode.contains(.characterDeviceType):
+                return .charDevice
+            case _ where mode.contains(.fifoType):
+                return .fifo
+            default:
+                return .unknown
+            }
+        }
+    }
+    
+    /// Get attributes for the file based on this index node.
+    /// 
+    /// The following attributes can't be found based purely on the index node: `fileID` and `parentID`.
+    /// - Parameter request: The attributes requested.
+    /// - Parameter superblock: The superblock of the filesystem.
+    /// - Parameter readOnlySystem: Whether the file system is mounted read-only.
+    /// - Returns: The requested attributes, minus those stated above.
+    func getAttributes(_ request: FSItem.GetAttributesRequest, superblock: Superblock, readOnlySystem: Bool = false) -> FSItem.Attributes {
+        let attributes = FSItem.Attributes()
+        
+        // FIXME: many of these need to properly handle the upper values
+        if request.isAttributeWanted(.uid) {
+            attributes.uid = UInt32(uid)
+        }
+        if request.isAttributeWanted(.gid) {
+            attributes.gid = UInt32(gid)
+        }
+        if request.isAttributeWanted(.mode) {
+            // FIXME: not correct way to enforce read-only file system but does FSKit currently have a better way?
+            let useMode = readOnlySystem ? mode.subtracting([.ownerWrite, .groupWrite, .otherWrite]) : mode
+            attributes.mode = UInt32(useMode.rawValue)
+        }
+        if request.isAttributeWanted(.flags) {
+            let fileFlags = flags
+            var flags: UInt32 = 0
+            if fileFlags.contains(.noDump) { flags |= UInt32(UF_NODUMP) }
+            if fileFlags.contains(.immutable) { flags |= UInt32(SF_IMMUTABLE | UF_IMMUTABLE) }
+            if fileFlags.contains(.appendOnly) { flags |= UInt32(SF_APPEND | UF_APPEND) }
+            // no OPAQUE
+            if fileFlags.contains(.compressed) { flags |= UInt32(UF_COMPRESSED) }
+            // no TRACKED
+            // no DATAVAULT
+            // no HIDDEN
+            attributes.flags = flags
+        }
+        if request.isAttributeWanted(.type) {
+            attributes.type = (try? filetype) ?? .unknown
+        }
+        if request.isAttributeWanted(.size) {
+            attributes.size = UInt64(size)
+        }
+        if request.isAttributeWanted(.allocSize) {
+            let usesHugeBlocks = superblock.readonlyFeatureCompatibilityFlags.contains(.hugeFile) && flags.contains(.hugeFile)
+            attributes.allocSize = (UInt64(blockCount) * UInt64(usesHugeBlocks ? superblock.blockSize : 512))
+        }
+        if request.isAttributeWanted(.inhibitKernelOffloadedIO) {
+            attributes.inhibitKernelOffloadedIO = false
+        }
+        if request.isAttributeWanted(.accessTime) {
+            attributes.accessTime = timespec(tv_sec: Int(lastAccessTime), tv_nsec: 0)
+        }
+        if request.isAttributeWanted(.changeTime) {
+            attributes.changeTime = timespec(tv_sec: Int(lastInodeChangeTime), tv_nsec: 0)
+        }
+        if request.isAttributeWanted(.modifyTime) {
+            attributes.modifyTime = timespec(tv_sec: Int(lastDataModifyTime), tv_nsec: 0)
+        }
+        if request.isAttributeWanted(.birthTime) {
+            attributes.birthTime = timespec(tv_sec: Int(fileCreationTime ?? 0), tv_nsec: 0)
+        }
+        if request.isAttributeWanted(.addedTime) {
+            // TODO: proper implementation
+            attributes.addedTime = timespec()
+        }
+        if request.isAttributeWanted(.linkCount) {
+            attributes.linkCount = UInt32(hardLinkCount)
+        }
+        
+        return attributes
+    }
 }
