@@ -57,16 +57,6 @@ struct DirectoryEntry: ReadWritable {
         self.name = try context.read(for: \.name)
     }
     
-//    init(volume: Ext4Volume, offset: Int64) throws {
-//        self.inodePointee = try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x0)
-//        self.directoryEntryLength = try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x4)
-//        self.nameLength = try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x6)
-//        self.fileType = volume.superblock.featureIncompatibleFlags.contains(.filetype) ? Filetype(rawValue: try BlockDeviceReader.readLittleEndian(blockDevice: volume.resource, at: offset + 0x7)) : nil
-//        
-//        let name = try BlockDeviceReader.readString(blockDevice: volume.resource, at: offset + 0x8, maxLength: Int(nameLength))
-//        self.nameArray = try name.inlineArray()
-//    }
-    
     var inodePointee: UInt32
     var directoryEntryLength: UInt16
     var nameLength: UInt8
