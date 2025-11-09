@@ -207,7 +207,7 @@ class Ext4Item: FSItem {
                 let byteOffset = containingVolume.superblock.blockSize * Data.Index(block)
                 let blockData = data.subdata(in: byteOffset..<(byteOffset+containingVolume.superblock.blockSize))
                 logger.log("Trying to decode data of length \(blockData.count)")
-                let dirEntryBlock = try ClassicDirectoryEntryBlock(blockData)
+                guard let dirEntryBlock = ClassicDirectoryEntryBlock(from: blockData) else { continue }
                 logger.log("Block has \(dirEntryBlock.entries.count) entries")
                 for entry in dirEntryBlock.entries {
                     guard entry.inodePointee != 0, entry.nameLength != 0 else { continue }

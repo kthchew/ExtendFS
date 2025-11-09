@@ -6,10 +6,9 @@
 //
 
 import Foundation
-import DataKit
 import FSKit
 
-struct DirectoryEntry: ReadWritable {
+struct DirectoryEntry {
     enum Filetype: UInt8 {
         case unknown = 0
         case regular
@@ -24,37 +23,21 @@ struct DirectoryEntry: ReadWritable {
         case checksum = 0xDE
     }
     
-    static var format: Format {
-        \.inodePointee
-        \.directoryEntryLength
-        \.nameLength
-        \.fileType?.rawValue
-        Using(\.directoryEntryLength) { len in
-            let prevLength = 8
-            let remainingLength = Int(len) - prevLength
-            Using(\.nameLength) { nameLen in
-                Custom(\.name) { read in
-                    guard let data = try? read.consume(remainingLength) else {
-                        return ""
-                    }
-                    return data.readString(at: 0, maxLength: Int(nameLen))
-                } write: { write, val in
-                    let data = val.data(using: .utf8)
-                    let size = data?.count ?? 0
-                    // FIXME: no check if string is too long
-                    write.append(data ?? Data())
-                    write.append(Data(count: remainingLength - size))
-                }
-            }
-        }
-    }
-    
-    init(from context: DataKit.ReadContext<DirectoryEntry>) throws {
-        self.inodePointee = try context.read(for: \.inodePointee)
-        self.directoryEntryLength = try context.read(for: \.directoryEntryLength)
-        self.nameLength = try context.read(for: \.nameLength)
-        self.fileType = Filetype(rawValue: try context.read(for: \.fileType?.rawValue) ?? Filetype.unknown.rawValue)
-        self.name = try context.read(for: \.name)
+    init?(from data: Data) {
+        var iterator = data.makeIterator()
+        
+        guard let inodePointee: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.inodePointee = inodePointee
+        guard let directoryEntryLength: UInt16 = iterator.nextLittleEndian() else { return nil }
+        self.directoryEntryLength = directoryEntryLength
+        guard let nameLength: UInt8 = iterator.nextLittleEndian() else { return nil }
+        self.nameLength = nameLength
+        // FIXME: may be part of the name length
+        guard let fileTypeRaw: UInt8 = iterator.nextLittleEndian() else { return nil }
+        self.fileType = Filetype(rawValue: fileTypeRaw)
+        
+        guard let name = iterator.nextString(ofMaximumLength: Int(nameLength)) else { return nil }
+        self.name = name
     }
     
     var inodePointee: UInt32

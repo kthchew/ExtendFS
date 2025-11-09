@@ -33,14 +33,14 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
             let name = superblock.volumeName ?? ""
             let uuid = superblock.uuid ?? UUID()
             // seems like recognized and usableButLimited are treated like notRecognized as of macOS 15.6 (24G84)
-//            guard superblock.featureIncompatibleFlags.isSubset(of: Superblock.IncompatibleFeatures.supportedFeatures) else {
-//                logger.log("Recognized but not usable")
-//                return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
-//            }
-//            guard superblock.readonlyFeatureCompatibilityFlags.isSubset(of: Superblock.ReadOnlyCompatibleFeatures.supportedFeatures) else {
-//                logger.log("Usable but limited")
-//                return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
-//            }
+            guard superblock.featureIncompatibleFlags.isSubset(of: Superblock.IncompatibleFeatures.supportedFeatures) else {
+                logger.log("Recognized but not usable")
+                return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+            }
+            guard superblock.readonlyFeatureCompatibilityFlags.isSubset(of: Superblock.ReadOnlyCompatibleFeatures.supportedFeatures) else {
+                logger.log("Usable but limited")
+                return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+            }
             
             return .usable(name: name, containerID: FSContainerIdentifier(uuid: uuid))
         } else {
@@ -74,12 +74,14 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
             throw ExtensionError.resourceUnsupported
         }
         
+        logger.log("options: \(options.taskOptions, privacy: .public)")
         for option in options.taskOptions {
             switch option {
             case "-f":
                 continue
             case "--rdonly":
-                readOnly = false
+                logger.log("Read only option provided")
+                readOnly = true
             default:
                 continue
             }

@@ -6,23 +6,21 @@
 //
 
 import Foundation
-import DataKit
 
-struct ClassicDirectoryEntryBlock: ReadWritable {
+struct ClassicDirectoryEntryBlock {
     var entries: [DirectoryEntry]
     var checksum: UInt32 {
         // TODO: actual checksum
         return 0
     }
     
-    static var format: Format {
-        Convert(\.entries) {
-            $0.dynamicCount
+    init?(from data: Data) {
+        self.entries = []
+        var data = data
+        while data.count > 0 {
+            guard let entry = DirectoryEntry(from: data) else { break }
+            self.entries.append(entry)
+            data = data.advanced(by: Int(entry.directoryEntryLength))
         }
-        .suffix(nil)
-    }
-    
-    init(from context: ReadContext<Self>) throws {
-        self.entries = try context.read(for: \.entries)
     }
 }

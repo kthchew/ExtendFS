@@ -132,7 +132,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     }
     
     func mount(options: FSTaskOptions) async throws {
-        logger.log("mount")
+        logger.log("mount options: \(options.taskOptions, privacy: .public)")
         return
     }
     
