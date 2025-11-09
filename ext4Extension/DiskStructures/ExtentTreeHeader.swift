@@ -5,23 +5,22 @@
 //  Created by Kenneth Chew on 7/31/25.
 //
 
-import DataKit
 import Foundation
 
-struct ExtentTreeHeader: ReadWritable {
-    static var format: Format {
-        UInt16(0xF30A)
-        \.numberOfEntries
-        \.maximumEntries
-        \.depth
-        \.generation
-    }
+struct ExtentTreeHeader {
     
-    init(from context: DataKit.ReadContext<ExtentTreeHeader>) throws {
-        numberOfEntries = try context.read(for: \.numberOfEntries)
-        maximumEntries = try context.read(for: \.maximumEntries)
-        depth = try context.read(for: \.depth)
-        generation = try context.read(for: \.generation)
+    init?(from data: Data) {
+        var iterator = data.makeIterator()
+        
+        guard let magic: UInt16 = iterator.nextLittleEndian(), magic == 0xF30A else { return nil }
+        guard let numEntries: UInt16 = iterator.nextLittleEndian() else { return nil }
+        self.numberOfEntries = numEntries
+        guard let maxEntries: UInt16 = iterator.nextLittleEndian() else { return nil }
+        self.maximumEntries = maxEntries
+        guard let depth: UInt16 = iterator.nextLittleEndian() else { return nil }
+        self.depth = depth
+        guard let gen: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.generation = gen
     }
     
     var numberOfEntries: UInt16

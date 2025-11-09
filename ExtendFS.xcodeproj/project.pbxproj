@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		9F283FD22DED6F90005EF8BB /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 9F283FD12DED6F90005EF8BB /* Algorithms */; };
-		9F5787962E3C3EAE001224B5 /* DataKit in Frameworks */ = {isa = PBXBuildFile; productRef = 9F5787952E3C3EAE001224B5 /* DataKit */; };
 		9F57A64D2DD6841D00D7E52D /* ExtendFSExtension.appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = 9F57A6432DD6841D00D7E52D /* ExtendFSExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -128,7 +127,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				9F283FD22DED6F90005EF8BB /* Algorithms in Frameworks */,
-				9F5787962E3C3EAE001224B5 /* DataKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -256,7 +254,6 @@
 			name = ExtendFSExtension;
 			packageProductDependencies = (
 				9F283FD12DED6F90005EF8BB /* Algorithms */,
-				9F5787952E3C3EAE001224B5 /* DataKit */,
 			);
 			productName = ext4Extension;
 			productReference = 9F57A6432DD6841D00D7E52D /* ExtendFSExtension.appex */;
@@ -299,7 +296,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				9F283FD02DED6F90005EF8BB /* XCRemoteSwiftPackageReference "swift-algorithms" */,
-				9F5787932E3C3E5E001224B5 /* XCRemoteSwiftPackageReference "DataKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9F57A6152DD6835E00D7E52D /* Products */;
@@ -772,14 +768,6 @@
 				minimumVersion = 1.2.1;
 			};
 		};
-		9F5787932E3C3E5E001224B5 /* XCRemoteSwiftPackageReference "DataKit" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/QuickBirdEng/DataKit.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.1.1;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -787,11 +775,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9F283FD02DED6F90005EF8BB /* XCRemoteSwiftPackageReference "swift-algorithms" */;
 			productName = Algorithms;
-		};
-		9F5787952E3C3EAE001224B5 /* DataKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9F5787932E3C3E5E001224B5 /* XCRemoteSwiftPackageReference "DataKit" */;
-			productName = DataKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

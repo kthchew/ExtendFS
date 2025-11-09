@@ -6,22 +6,16 @@
 //
 
 import Foundation
-import DataKit
 
-struct ExtentInternalNode: ReadWritable {
-    static var format: Format {
-        \.firstBlock
-        \.nextLevelBlock.lowerHalf
-//        Convert(\.nextLevelBlock.upperHalf) {
-//            
-//
-//        }
-        UInt16(0)
-    }
-    
-    init(from context: DataKit.ReadContext<ExtentInternalNode>) throws {
-        firstBlock = try context.read(for: \.firstBlock)
-        nextLevelBlock = try UInt64.combine(upper: context.read(for: \.nextLevelBlock.upperHalf), lower: context.read(for: \.nextLevelBlock.lowerHalf))
+struct ExtentInternalNode {
+    init?(from data: Data) {
+        var iterator = data.makeIterator()
+        
+        guard let block: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.firstBlock = block
+        guard let leafLower: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let leafUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+        self.nextLevelBlock = UInt64.combine(upper: leafUpper, lower: leafLower)
     }
     
     var firstBlock: UInt32

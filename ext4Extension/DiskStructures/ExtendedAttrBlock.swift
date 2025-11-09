@@ -7,54 +7,44 @@
 
 import Foundation
 import FSKit
-import DataKit
 
-struct ExtendedAttrBlock: ReadWritable {
+struct ExtendedAttrBlock {
     var header: ExtendedAttrHeader
     var entries: [ExtendedAttrEntry]
     var remainingData: Data
-    /// The offset in the block at which ``remainingData`` starts.
+    /// The offset in the block at which ``remainingData`` starts, in bytes.
     var remainingDataOffset: UInt32
     
-    var blockNumber: UInt32
-    
-    static var format: Format {
-        \.header
+    init?(from data: Data) {
+        guard let header = ExtendedAttrHeader(from: data) else { return nil }
+        self.header = header
         
-        Convert(\.entries) {
-            $0.dynamicCount
+        var data = data.advanced(by: 32)
+        var offset = 32
+        self.entries = []
+        while !data.isEmpty {
+            guard let entry = ExtendedAttrEntry(from: data) else { break }
+            guard entry.nameLength != 0 || entry.namePrefix.rawValue != 0 || entry.valueOffset != 0 || entry.valueInodeNumber != 0 else {
+                break
+            }
+            
+            entries.append(entry)
+            // FIXME: does this need to be aligned to 4 bytes?
+            let advance = 16 + Int(entry.nameLength)
+            data = data.advanced(by: advance)
+            offset += advance
         }
-        .suffix(0 as UInt64)
-        
-        Custom(\.remainingDataOffset) { read in
-            return UInt32(read.index)
-        } write: { write, val in
-            try val.write(to: &write)
-        }
-        
-        Custom(\.remainingData) { read in
-            return read.remainingData
-        } write: { write, val in
-            write.append(val)
-        }
+        self.remainingData = data
+        self.remainingDataOffset = UInt32(offset)
     }
     
-    init(from context: ReadContext<ExtendedAttrBlock>) throws {
-        self.header = try context.read(for: \.header)
-        self.entries = try context.read(for: \.entries)
-        self.remainingData = try context.read(for: \.remainingData)
-        self.remainingDataOffset = try context.read(for: \.remainingDataOffset)
-        
-        self.blockNumber = try context.readIfPresent(for: \.blockNumber) ?? 0
-    }
-    
-    init(blockAt blockNumber: UInt32, in volume: Ext4Volume) throws {
+    init?(blockAt blockNumber: UInt32, in volume: Ext4Volume) throws {
         let blockSize = volume.superblock.blockSize
         var blockData = Data(count: blockSize)
         try blockData.withUnsafeMutableBytes { ptr in
             try volume.resource.metadataRead(into: ptr, startingAt: off_t(blockNumber) * off_t(blockSize), length: blockSize)
         }
-        let header = try ExtendedAttrHeader(blockData[0..<32])
+        guard let header = ExtendedAttrHeader(from: blockData[0..<32]) else { throw POSIXError(.EIO) }
         
         let additionalBlocks = Int(header.diskBlockCount) - 1
         if additionalBlocks > 0 {
@@ -65,8 +55,6 @@ struct ExtendedAttrBlock: ReadWritable {
             blockData += additionalBlockData
         }
         
-        try self.init(blockData)
-        
-        self.blockNumber = blockNumber
+        self.init(from: blockData)
     }
 }

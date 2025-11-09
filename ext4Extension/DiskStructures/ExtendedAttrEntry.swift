@@ -6,42 +6,26 @@
 //
 
 import Foundation
-import DataKit
 import CommonCrypto
 
-struct ExtendedAttrEntry: ReadWritable {
-    static var format: Format {
-        \.nameLength
-        \.namePrefix.rawValue
-        \.valueOffset
-        \.valueInodeNumber
-        \.valueLength
-        \.hash
-        Using(\.nameLength) { length in
-            Custom(\.storedName) { read in
-                // TODO: throwing?
-                let cString = try! read.consume(Int(length)) + [0]
-                guard let str = String(data: cString, encoding: .utf8) else {
-                    return ""
-                }
-                return str
-            } write: { write, value in
-                var data = value.data(using: .utf8)!
-                data.removeLast()
-                write.append(data)
-            }
-
-        }
-    }
-    
-    init(from context: ReadContext<ExtendedAttrEntry>) throws {
-        nameLength = try context.read(for: \.nameLength)
-        namePrefix = NamePrefix(rawValue: try context.read(for: \.namePrefix.rawValue)) ?? .none
-        valueOffset = try context.read(for: \.valueOffset)
-        valueInodeNumber = try context.read(for: \.valueInodeNumber)
-        valueLength = try context.read(for: \.valueLength)
-        hash = try context.read(for: \.hash)
-        storedName = try context.read(for: \.storedName)
+struct ExtendedAttrEntry {
+    init?(from data: Data) {
+        var iterator = data.makeIterator()
+        
+        guard let nameLen: UInt8 = iterator.nextLittleEndian() else { return nil }
+        self.nameLength = nameLen
+        guard let namePrefixRaw: UInt8 = iterator.nextLittleEndian() else { return nil }
+        self.namePrefix = NamePrefix(rawValue: namePrefixRaw) ?? .none
+        guard let valueOffset: UInt16 = iterator.nextLittleEndian() else { return nil }
+        self.valueOffset = valueOffset
+        guard let valueInodeNumber: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.valueInodeNumber = valueInodeNumber
+        guard let valueLength: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.valueLength = valueLength
+        guard let hash: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.hash = hash
+        guard let storedName = iterator.nextString(ofMaximumLength: Int(nameLen)) else { return nil }
+        self.storedName = storedName
     }
     
     var nameLength: UInt8

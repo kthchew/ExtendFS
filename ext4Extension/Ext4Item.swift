@@ -7,7 +7,6 @@
 
 import Foundation
 import FSKit
-import DataKit
 
 class Ext4Item: FSItem {
     let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item")

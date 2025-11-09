@@ -6,25 +6,20 @@
 //
 
 import Foundation
-import DataKit
 
-struct ExtendedAttrHeader: ReadWritable {
-    static var format: Format {
-        UInt32(0xEA020000)
-        \.referenceCount
-        \.diskBlockCount
-        \.hash
-        \.checksum
-        UInt32(0x0)
-        UInt32(0x0)
-        UInt32(0x0)
-    }
-    
-    init(from context: ReadContext<ExtendedAttrHeader>) throws {
-        referenceCount = try context.read(for: \.referenceCount)
-        diskBlockCount = try context.read(for: \.diskBlockCount)
-        hash = try context.read(for: \.hash)
-        checksum = try context.read(for: \.checksum)
+struct ExtendedAttrHeader {
+    init?(from data: Data) {
+        var iterator = data.makeIterator()
+        
+        guard let magic: UInt32 = iterator.nextLittleEndian(), magic == 0xEA020000 else { return nil }
+        guard let refCount: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.referenceCount = refCount
+        guard let diskBlockCount: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.diskBlockCount = diskBlockCount
+        guard let hash: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.hash = hash
+        guard let checksum: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.checksum = checksum
     }
     
     var referenceCount: UInt32
