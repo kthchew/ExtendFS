@@ -444,3 +444,50 @@ extension Ext4Volume: FSVolume.AccessCheckOperations {
         return true
     }
 }
+
+extension Ext4Volume: FSVolume.XattrOperations {
+    func xattr(named name: FSFileName, of item: FSItem) async throws -> Data {
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        guard let toFind = name.string else { throw POSIXError(.EINVAL) }
+        
+        if let embeddedEntries = try item.indexNode.embeddedExtendedAttributes {
+            let found = embeddedEntries.filter { entry in
+                entry.name == toFind
+            }
+            if let first = found.first {
+                return try item.getValueForEmbeddedAttribute(first) ?? Data()
+            }
+        }
+        
+        if let block = try item.extendedAttributeBlock {
+            let found = block.entries.filter { entry in
+                entry.name == toFind
+            }
+            if let first = found.first {
+                return try block.value(for: first)
+            }
+        }
+        
+        throw POSIXError(.ENOATTR)
+    }
+    
+    func setXattr(named name: FSFileName, to value: Data?, on item: FSItem, policy: FSVolume.SetXattrPolicy) async throws {
+        throw POSIXError(.ENOSYS)
+    }
+    
+    func xattrs(of item: FSItem) async throws -> [FSFileName] {
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        
+        var attrs: [String] = []
+        if let embeddedEntries = try item.indexNode.embeddedExtendedAttributes {
+            let names = embeddedEntries.map { $0.name }
+            attrs.append(contentsOf: names)
+        }
+        
+        if let block = try item.extendedAttributeBlock {
+            attrs.append(contentsOf: try block.extendedAttributes.keys)
+        }
+        
+        return attrs.map { FSFileName(string: $0) }
+    }
+}

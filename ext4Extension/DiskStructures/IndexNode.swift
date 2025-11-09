@@ -79,6 +79,28 @@ struct IndexNode {
         // FIXME: completely wrong
         self.version = UInt64(versionUpper ?? 0)
         self.projectID = extraINodeSize >= 32 ? iterator.nextLittleEndian() : nil
+        
+        var possibleExtAttr = data.advanced(by: 128 + Int(extraINodeSize))
+        guard possibleExtAttr.count >= 4 else { return }
+        let magic: UInt32 = possibleExtAttr.readLittleEndian(at: 0)
+        guard magic == 0xEA020000 else { return }
+        
+        possibleExtAttr = possibleExtAttr.advanced(by: 4)
+        self.embeddedExtendedAttributes = []
+        var totalAdvance = 0
+        while !possibleExtAttr.isEmpty {
+            guard let entry = ExtendedAttrEntry(from: possibleExtAttr) else { break }
+            guard entry.nameLength != 0 || entry.namePrefix.rawValue != 0 || entry.valueOffset != 0 || entry.valueInodeNumber != 0 else {
+                break
+            }
+            
+            embeddedExtendedAttributes?.append(entry)
+            let advance = (16 + Int(entry.nameLength)).roundUp(toMultipleOf: 4)
+            totalAdvance += advance
+            possibleExtAttr = possibleExtAttr.advanced(by: advance)
+        }
+        self.embeddedXattrEntryBytes = UInt16(totalAdvance)
+        self.remainingData = possibleExtAttr
     }
     
     struct Mode: OptionSet {
@@ -172,6 +194,10 @@ struct IndexNode {
     var fileCreationTime: UInt64?
     var version: UInt64
     var projectID: UInt32?
+    
+    var embeddedExtendedAttributes: [ExtendedAttrEntry]?
+    var embeddedXattrEntryBytes: UInt16 = 0
+    var remainingData: Data = Data()
     
     var filetype: FSItem.ItemType {
         get throws {

@@ -29,8 +29,7 @@ struct ExtendedAttrBlock {
             }
             
             entries.append(entry)
-            // FIXME: does this need to be aligned to 4 bytes?
-            let advance = 16 + Int(entry.nameLength)
+            let advance = (16 + Int(entry.nameLength)).roundUp(toMultipleOf: 4)
             data = data.advanced(by: advance)
             offset += advance
         }
@@ -56,5 +55,25 @@ struct ExtendedAttrBlock {
         }
         
         self.init(from: blockData)
+    }
+    
+    var extendedAttributes: [String: Data] {
+        get throws {
+            var attrs: [String: Data] = [:]
+            for entry in entries {
+                let offset = Int(entry.valueOffset) - Int(remainingDataOffset)
+                guard offset >= 0 else { throw POSIXError(.EIO) }
+                
+                attrs[entry.name] = remainingData.subdata(in: offset..<(offset+Int(entry.valueLength)))
+            }
+            return attrs
+        }
+    }
+    
+    func value(for entry: ExtendedAttrEntry) throws -> Data {
+        let offset = Int(entry.valueOffset) - Int(remainingDataOffset)
+        guard offset >= 0 else { throw POSIXError(.EIO) }
+        
+        return remainingData.subdata(in: offset..<(offset+Int(entry.valueLength)))
     }
 }

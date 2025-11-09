@@ -255,6 +255,23 @@ class Ext4Item: FSItem {
         }
     }
     
+    var extendedAttributeBlock: ExtendedAttrBlock? {
+        get throws {
+            guard try indexNode.xattrBlock != 0 else { return nil }
+            let data = try BlockDeviceReader.fetchExtent(from: containingVolume.resource, blockNumbers: off_t(indexNode.xattrBlock)..<(Int64(indexNode.xattrBlock) + 1), blockSize: containingVolume.superblock.blockSize)
+            return ExtendedAttrBlock(from: data)
+        }
+    }
+    
+    func getValueForEmbeddedAttribute(_ entry: ExtendedAttrEntry) throws -> Data? {
+        guard let embeddedAttrs = try indexNode.embeddedExtendedAttributes else { return nil }
+        let offset = Data.Index(try entry.valueOffset - indexNode.embeddedXattrEntryBytes)
+        let length = Data.Index(entry.valueLength)
+        let data = try indexNode.remainingData.subdata(in: offset..<offset+length)
+        guard data.count == length else { throw POSIXError(.EIO) }
+        return data
+    }
+    
     func getAttributes(_ request: GetAttributesRequest) throws -> FSItem.Attributes {
         let attributes = try indexNode.getAttributes(request, superblock: containingVolume.superblock)
         
