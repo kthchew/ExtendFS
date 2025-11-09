@@ -59,10 +59,7 @@ class Ext4Item: FSItem {
         }
     }
     
-    let name: FSFileName
-    
-    init(name: FSFileName, in volume: Ext4Volume, inodeNumber: UInt32, parentInodeNumber: UInt32, inodeData: Data? = nil) async throws {
-        self.name = name
+    init(volume: Ext4Volume, inodeNumber: UInt32, parentInodeNumber: UInt32, inodeData: Data? = nil) async throws {
         self.containingVolume = volume
         self.inodeNumber = inodeNumber
         self.parentInodeNumber = parentInodeNumber
@@ -264,7 +261,7 @@ class Ext4Item: FSItem {
     }
     
     func getValueForEmbeddedAttribute(_ entry: ExtendedAttrEntry) throws -> Data? {
-        guard let embeddedAttrs = try indexNode.embeddedExtendedAttributes else { return nil }
+        guard (try indexNode.embeddedExtendedAttributes) != nil else { return nil }
         let offset = Data.Index(try entry.valueOffset - indexNode.embeddedXattrEntryBytes)
         let length = Data.Index(entry.valueLength)
         let data = try indexNode.remainingData.subdata(in: offset..<offset+length)
@@ -306,7 +303,6 @@ class Ext4Item: FSItem {
             return try await extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength)
         } else {
             let actualBlockLength = try min(blockLength, Int((Double(indexNode.size) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
-            Logger().log("findExtentsCovering fileBlock is \(fileBlock) actualBlockLength is \(actualBlockLength) name is \(self.name.string ?? "(unknown)", privacy: .public)")
             return try (fileBlock..<(fileBlock + Int64(actualBlockLength))).map { block in
                 let iBlockOffset = try inodeLocation + 0x28
                 let pointerSize = Int64(MemoryLayout<UInt32>.size)

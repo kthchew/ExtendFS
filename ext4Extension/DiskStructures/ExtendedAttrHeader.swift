@@ -14,6 +14,7 @@ struct ExtendedAttrHeader {
         guard let magic: UInt32 = iterator.nextLittleEndian(), magic == 0xEA020000 else { return nil }
         guard let refCount: UInt32 = iterator.nextLittleEndian() else { return nil }
         self.referenceCount = refCount
+        // FIXME: currently nothing cares about the actual disk block count, it just assumes 1 block
         guard let diskBlockCount: UInt32 = iterator.nextLittleEndian() else { return nil }
         self.diskBlockCount = diskBlockCount
         guard let hash: UInt32 = iterator.nextLittleEndian() else { return nil }

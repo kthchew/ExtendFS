@@ -7,7 +7,6 @@
 
 import Foundation
 import FSKit
-import zlib
 
 struct BlockDeviceReader {
     static private let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "BlockDeviceReader")

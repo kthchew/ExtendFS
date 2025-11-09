@@ -5,6 +5,7 @@
 //  Created by Kenneth Chew on 5/28/25.
 //
 
+import Algorithms
 import Foundation
 import FSKit
 
@@ -16,6 +17,7 @@ actor VolumeCache {
     }
     func removeInode(inodeNumber: UInt32, blockNumber: Int64) {
         usedItemsInInodeTable[blockNumber]?.remove(inodeNumber)
+        items[inodeNumber] = nil
         if let usedItems = usedItemsInInodeTable[blockNumber], usedItems.isEmpty {
             usedItemsInInodeTable[blockNumber] = nil
             inodeTableBlocks[blockNumber] = nil
@@ -25,6 +27,12 @@ actor VolumeCache {
     var inodeTableBlocks = [Int64: Data]()
     func setInodeTableBlock(_ data: Data?, forBlock blockNumber: Int64) {
         inodeTableBlocks[blockNumber] = data
+    }
+    
+    /// The key is the inode number.
+    var items = [UInt32: Ext4Item]()
+    func setItem(_ item: Ext4Item?, forInodeNumber inodeNumber: UInt32) {
+        items[inodeNumber] = item
     }
     
     var seenList = [FSDirectoryCookie.initial: Set<String>()]
@@ -51,9 +59,10 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         logger.log("first block after superblock: \(firstBlockAfterSuperblockOffset, privacy: .public) \(endOfSuperblock) \(blockSize)")
         self.blockGroupDescriptors = BlockGroupDescriptors(volume: self, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
         
-        self.root = try await Ext4Item(name: FSFileName(string: "/"), in: self, inodeNumber: 2, parentInodeNumber: UInt32(FSItem.Identifier.parentOfRoot.rawValue))
+        self.root = try await Ext4Item(volume: self, inodeNumber: 2, parentInodeNumber: UInt32(FSItem.Identifier.parentOfRoot.rawValue))
         
         await cache.addInode(inodeNumber: 2, blockNumber: try self.root.inodeBlockLocation)
+        await cache.setItem(self.root, forInodeNumber: 2)
     }
     
     private var root: Ext4Item!
@@ -90,6 +99,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         try data.withUnsafeMutableBytes { ptr in
             try self.resource.metadataRead(into: ptr, startingAt: blockNumber.0 * Int64(superblock.blockSize), length: superblock.blockSize)
         }
+        await cache.setInodeTableBlock(data, forBlock: blockNumber.0)
         return data.subdata(in: Int(blockNumber.1)..<Int((blockNumber.1 + Int64(superblock.inodeSize))))
     }
     
@@ -97,8 +107,13 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         // TODO: use data fetching helpers
         let blockNumber = try blockNumber(forBlockContainingInode: inodeNumber)
         
-        let item = try await Ext4Item(name: name, in: self, inodeNumber: inodeNumber, parentInodeNumber: parentInode, inodeData: data(forInode: inodeNumber))
+        if let item = await cache.items[inodeNumber] {
+            return item
+        }
+        
+        let item = try await Ext4Item(volume: self, inodeNumber: inodeNumber, parentInodeNumber: parentInode, inodeData: data(forInode: inodeNumber))
         await cache.addInode(inodeNumber: inodeNumber, blockNumber: blockNumber.0)
+        await cache.setItem(item, forInodeNumber: inodeNumber)
         return item
     }
     
@@ -460,11 +475,11 @@ extension Ext4Volume: FSVolume.XattrOperations {
         }
         
         if let block = try item.extendedAttributeBlock {
-            let found = block.entries.filter { entry in
-                entry.name == toFind
+            let index = block.entries.partitioningIndex { entry in
+                entry.name >= toFind
             }
-            if let first = found.first {
-                return try block.value(for: first)
+            if index != block.entries.endIndex && block.entries[index].name == toFind {
+                return try block.value(for: block.entries[index])
             }
         }
         
