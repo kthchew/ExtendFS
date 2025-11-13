@@ -60,7 +60,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         let blockSize = superblock.blockSize
         let firstBlockAfterSuperblockOffset = Int64(ceil(Double(endOfSuperblock) / Double(blockSize))) * Int64(blockSize)
         logger.log("first block after superblock: \(firstBlockAfterSuperblockOffset, privacy: .public) \(endOfSuperblock) \(blockSize)")
-        self.blockGroupDescriptors = BlockGroupDescriptors(volume: self, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
+        self.blockGroupDescriptors = try BlockGroupDescriptors(volume: self, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
         
         let root = try await Ext4Item(volume: self, inodeNumber: 2, parentInodeNumber: UInt32(FSItem.Identifier.parentOfRoot.rawValue))
         self.root = root
@@ -84,7 +84,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     /// - Returns: The block number, and the byte offset into that block at which you'll find the inode.
     func blockNumber(forBlockContainingInode inodeNumber: UInt32) throws -> (Int64, Int64) {
         let blockGroup = Int((inodeNumber - 1) / superblock.inodesPerGroup)
-        guard let groupDescriptor = try blockGroupDescriptors[blockGroup], let tableLocation = try groupDescriptor.inodeTableLocation else {
+        guard let groupDescriptor = try blockGroupDescriptors[blockGroup], let tableLocation = groupDescriptor.inodeTableLocation else {
             throw POSIXError(.EIO)
         }
         let tableIndex = (inodeNumber - 1) % superblock.inodesPerGroup

@@ -30,6 +30,28 @@ extension Data.Iterator {
         return value
     }
     
+    mutating func nextLittleEndian<T: FixedWidthInteger>(as: T.Type) -> T? {
+        let size = MemoryLayout<T>.size
+        var value: T = 0
+        for i in 0..<size {
+            guard let nextVal = self.next() else { return nil }
+            let next = T(nextVal) << (i*8)
+            value |= next
+        }
+        return value
+    }
+    
+    mutating func nextBigEndian<T: FixedWidthInteger>(as: T.Type) -> T? {
+        let size = MemoryLayout<T>.size
+        var value: T = 0
+        for i in 0..<size {
+            guard let nextVal = self.next() else { return nil }
+            let next = T(nextVal) << ((size-i-1)*8)
+            value |= next
+        }
+        return value
+    }
+    
     mutating func nextString<Encoding>(ofMaximumLength length: Int, as encoding: Encoding.Type = UTF8.self) -> String? where Encoding : _UnicodeEncoding, UInt8 == Encoding.CodeUnit {
         guard length > 0 else { return "" }
         var chars: [UInt8] = []
