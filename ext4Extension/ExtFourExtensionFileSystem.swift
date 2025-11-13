@@ -115,13 +115,13 @@ extension ExtFourExtensionFileSystem: FSManageableResourceMaintenanceOperations 
         containerStatus = .active
         Task {
             progress.completedUnitCount = 100
-            task.didComplete(error: nil)
             containerStatus = .ready
+            task.didComplete(error: nil)
         }
         return progress
     }
     
     func startFormat(task: FSTask, options: FSTaskOptions) throws -> Progress {
-        throw ExtensionError.notImplemented
+        throw POSIXError(.ENOSYS)
     }
 }

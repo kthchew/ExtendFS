@@ -34,6 +34,9 @@ actor VolumeCache {
     func setItem(_ item: Ext4Item?, forInodeNumber inodeNumber: UInt32) {
         items[inodeNumber] = item
     }
+    func fetchItem(forInodeNumber inodeNumber: UInt32) -> Ext4Item? {
+        return items[inodeNumber]
+    }
     
     var seenList = [FSDirectoryCookie.initial: Set<String>()]
     func setCookieValue(_ value: Set<String>?, forCookie cookie: FSDirectoryCookie) {
@@ -59,10 +62,11 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         logger.log("first block after superblock: \(firstBlockAfterSuperblockOffset, privacy: .public) \(endOfSuperblock) \(blockSize)")
         self.blockGroupDescriptors = BlockGroupDescriptors(volume: self, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
         
-        self.root = try await Ext4Item(volume: self, inodeNumber: 2, parentInodeNumber: UInt32(FSItem.Identifier.parentOfRoot.rawValue))
+        let root = try await Ext4Item(volume: self, inodeNumber: 2, parentInodeNumber: UInt32(FSItem.Identifier.parentOfRoot.rawValue))
+        self.root = root
         
         await cache.addInode(inodeNumber: 2, blockNumber: try self.root.inodeBlockLocation)
-        await cache.setItem(self.root, forInodeNumber: 2)
+        await cache.setItem(root, forInodeNumber: 2)
     }
     
     private var root: Ext4Item!
@@ -107,7 +111,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         // TODO: use data fetching helpers
         let blockNumber = try blockNumber(forBlockContainingInode: inodeNumber)
         
-        if let item = await cache.items[inodeNumber] {
+        if let item = await cache.fetchItem(forInodeNumber: inodeNumber) {
             return item
         }
         
