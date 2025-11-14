@@ -37,11 +37,6 @@ actor VolumeCache {
     func fetchItem(forInodeNumber inodeNumber: UInt32) -> Ext4Item? {
         return items[inodeNumber]
     }
-    
-    var seenList = [FSDirectoryCookie.initial: Set<String>()]
-    func setCookieValue(_ value: Set<String>?, forCookie cookie: FSDirectoryCookie) {
-        seenList[cookie] = value
-    }
 }
 
 class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
@@ -62,7 +57,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         logger.log("first block after superblock: \(firstBlockAfterSuperblockOffset, privacy: .public) \(endOfSuperblock) \(blockSize)")
         self.blockGroupDescriptors = try BlockGroupDescriptors(volume: self, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
         
-        let root = try await Ext4Item(volume: self, inodeNumber: 2, parentInodeNumber: UInt32(FSItem.Identifier.parentOfRoot.rawValue))
+        let root = try await Ext4Item(volume: self, inodeNumber: 2)
         self.root = root
         
         await cache.addInode(inodeNumber: 2, blockNumber: try self.root.inodeBlockLocation)
@@ -115,7 +110,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             return item
         }
         
-        let item = try await Ext4Item(volume: self, inodeNumber: inodeNumber, parentInodeNumber: parentInode, inodeData: data(forInode: inodeNumber))
+        let item = try await Ext4Item(volume: self, inodeNumber: inodeNumber, inodeData: data(forInode: inodeNumber))
         await cache.addInode(inodeNumber: inodeNumber, blockNumber: blockNumber.0)
         await cache.setItem(item, forInodeNumber: inodeNumber)
         return item
@@ -126,6 +121,13 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     var supportedVolumeCapabilities: FSVolume.SupportedCapabilities {
         let capabilities = SupportedCapabilities()
         capabilities.caseFormat = .sensitive
+        capabilities.supportsHardLinks = true
+        capabilities.supportsSymbolicLinks = true
+        capabilities.supportsPersistentObjectIDs = true
+        capabilities.supportsZeroRuns = true
+        capabilities.supports2TBFiles = true
+        capabilities.supportsHiddenFiles = false
+        capabilities.supportsFastStatFS = true
         return capabilities
     }
     
@@ -168,10 +170,14 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     func attributes(_ desiredAttributes: FSItem.GetAttributesRequest, of item: FSItem) async throws -> FSItem.Attributes {
         logger.log("attributes")
         guard let item = item as? Ext4Item else {
-            throw fs_errorForPOSIXError(POSIXError.ENOENT.rawValue)
+            throw POSIXError(.ENOENT)
         }
         
-        return try item.getAttributes(desiredAttributes)
+        let attrs = try item.getAttributes(desiredAttributes)
+        if desiredAttributes.isAttributeWanted(.parentID) {
+            attrs.parentID = .invalid
+        }
+        return attrs
     }
     
     func setAttributes(_ newAttributes: FSItem.SetAttributesRequest, on item: FSItem) async throws -> FSItem.Attributes {

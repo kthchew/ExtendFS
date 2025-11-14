@@ -14,7 +14,6 @@ class Ext4Item: FSItem {
     let containingVolume: Ext4Volume
     /// The number of the index node for this item.
     let inodeNumber: UInt32
-    var parentInodeNumber: UInt32
     
     var blockGroupNumber: UInt32 {
         get throws {
@@ -59,10 +58,9 @@ class Ext4Item: FSItem {
         }
     }
     
-    init(volume: Ext4Volume, inodeNumber: UInt32, parentInodeNumber: UInt32, inodeData: Data? = nil) async throws {
+    init(volume: Ext4Volume, inodeNumber: UInt32, inodeData: Data? = nil) async throws {
         self.containingVolume = volume
         self.inodeNumber = inodeNumber
-        self.parentInodeNumber = parentInodeNumber
         
         super.init()
         
@@ -260,9 +258,6 @@ class Ext4Item: FSItem {
         
         if request.isAttributeWanted(.fileID) {
             attributes.fileID = FSItem.Identifier(rawValue: UInt64(inodeNumber)) ?? .invalid
-        }
-        if request.isAttributeWanted(.parentID) {
-            attributes.parentID = FSItem.Identifier(rawValue: UInt64(parentInodeNumber)) ?? .invalid
         }
         
         return attributes
