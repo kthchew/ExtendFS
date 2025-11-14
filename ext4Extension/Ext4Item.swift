@@ -153,24 +153,22 @@ class Ext4Item: FSItem {
         }
     }
     
-    // TODO: extra bits from extended fields, actual file contents, osd values
-    
     var extentTreeRoot: FileExtentTreeLevel?
     
     /// A map of file names to their directory entries.
     private var _directoryContentsInodes: [String: DirectoryEntry]? = nil
     /// A value that changes if the contents of the directory changes.
     private var directoryVerifier: FSDirectoryVerifier? = nil
-    var directoryContents: (any AsyncSequence<DirectoryEntry, any Error>, FSDirectoryVerifier)? {
+    var directoryContents: ([DirectoryEntry], FSDirectoryVerifier)? {
         get async throws {
             guard filetype == .directory else { return nil }
-            if _directoryContentsInodes != nil, let group = await asyncGroupForCachedDirectoryContents(), let verifier = directoryVerifier {
-                return (group, verifier)
+            if _directoryContentsInodes != nil, let group = _directoryContentsInodes, let verifier = directoryVerifier {
+                return (Array(group.values), verifier)
             }
             
             try await loadDirectoryContentCache()
-            if let group = await asyncGroupForCachedDirectoryContents(), let verifier = directoryVerifier {
-                return (group, verifier)
+            if let group = _directoryContentsInodes, let verifier = directoryVerifier {
+                return (Array(group.values), verifier)
             }
             return nil
         }
@@ -214,18 +212,6 @@ class Ext4Item: FSItem {
         
         _directoryContentsInodes = cache
         directoryVerifier = FSDirectoryVerifier(UInt64.random(in: 1..<UInt64.max))
-    }
-    
-    private func asyncGroupForCachedDirectoryContents() async -> (any AsyncSequence<DirectoryEntry, any Error>)? {
-        guard let _directoryContentsInodes else { return nil }
-        return AsyncThrowingStream { continuation in
-            Task {
-                for item in _directoryContentsInodes {
-                    continuation.yield(item.value)
-                }
-                continuation.finish()
-            }
-        }
     }
     
     var symbolicLinkTarget: String? {

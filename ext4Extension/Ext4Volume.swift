@@ -262,8 +262,9 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     
     func enumerateDirectory(_ directory: FSItem, startingAt cookie: FSDirectoryCookie, verifier: FSDirectoryVerifier, attributes: FSItem.GetAttributesRequest?, packer: FSDirectoryEntryPacker) async throws -> FSDirectoryVerifier {
         logger.log("enumerateDirectory")
+        // the cookie refers to the index of the directory content array
         guard let directory = directory as? Ext4Item else {
-            throw ExtensionError.notImplemented
+            throw POSIXError(.ENOSYS)
         }
         
         guard let (contents, currentVerifier) = try await directory.directoryContents else {
@@ -271,33 +272,14 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             //            throw fs_errorForPOSIXError(POSIXError.ENOENT.rawValue)
             return verifier
         }
-        if verifier == currentVerifier && cookie == .initial {
-            return currentVerifier
-        }
         
-        var currentCookieSeen = Set<String>()
-        var tryCookie = cookie
-        let oldList = await cache.seenList[cookie]
-        
-        while await cache.seenList[tryCookie] != nil {
-            tryCookie = FSDirectoryCookie(rawValue: UInt64.random(in: 1..<UInt64.max))
-        }
-        if cookie != .initial {
-            await cache.setCookieValue(nil, forCookie: cookie)
-        }
-        await cache.setCookieValue(oldList, forCookie: tryCookie)
-        
-        currentCookieSeen = await cache.seenList[tryCookie] ?? []
-        
-        let currentCookie = tryCookie
-        
-        var stoppedEarly = false
         let attributesAccessibleWithoutLoading: FSItem.Attribute = [.type, .fileID, .parentID]
-        for try await content in contents {
+        let startIndex = cookie == .initial ? contents.startIndex : Int(cookie.rawValue)
+        for i in startIndex..<contents.endIndex {
+            let content = contents[i]
             if attributes != nil && (content.name == "." || content.name == "..") {
                 continue
             }
-            guard !currentCookieSeen.contains(content.name) else { continue }
             let fileAttributes: FSItem.Attributes?
             if let attributes, attributes.wantedAttributes.isSubset(of: attributesAccessibleWithoutLoading) {
                 fileAttributes = FSItem.Attributes()
@@ -314,15 +296,12 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             } else {
                 fileAttributes = nil
             }
-            guard packer.packEntry(name: FSFileName(string: content.name), itemType: content.fskitFileType ?? .unknown, itemID: FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid, nextCookie: currentCookie, attributes: fileAttributes) else {
-                stoppedEarly = true
+            guard packer.packEntry(name: FSFileName(string: content.name), itemType: content.fskitFileType ?? .unknown, itemID: FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid, nextCookie: FSDirectoryCookie(rawValue: UInt64(i + 1)), attributes: fileAttributes) else {
                 break
             }
-            currentCookieSeen.insert(content.name)
             
         }
         
-        await cache.setCookieValue(stoppedEarly ? currentCookieSeen : nil, forCookie: currentCookie)
         return currentVerifier
     }
     
