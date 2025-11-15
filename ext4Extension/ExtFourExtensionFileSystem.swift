@@ -42,6 +42,25 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
 //                return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
 //            }
             
+            if superblock.state.contains(.errorsDetected) {
+                logger.log("Errors detected on volume.")
+                let errorPolicy = try superblock.errors
+                switch errorPolicy {
+                case .continue:
+                    logger.log("Error policy set to continue, continuing as normal.")
+                    break
+                case .remountReadOnly:
+                    logger.log("Error policy set to remount as read-only, indicating usable but limited.")
+                    return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+                case .panic:
+                    logger.log("Error policy set to panic, indicating recognized but not usable.")
+                    return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+                case .unknown:
+                    logger.log("Error policy is not recognized.")
+                    return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+                }
+            }
+            
             return .usable(name: name, containerID: FSContainerIdentifier(uuid: uuid))
         } else {
             return .notRecognized
@@ -110,13 +129,56 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
 }
 
 extension ExtFourExtensionFileSystem: FSManageableResourceMaintenanceOperations {
+    private func quickCheck(volume: Ext4Volume, task: FSTask) throws {
+        let superblock = volume.superblock
+        guard superblock.magic == 0xEF53 else {
+            task.logMessage("Magic value in superblock did not match expectation. Is this an ext volume?")
+            throw POSIXError(.EDEVERR)
+        }
+        
+        if superblock.state.contains(.errorsDetected) {
+            switch try superblock.errors {
+            case .continue:
+                break
+            case .remountReadOnly:
+                break
+            case .panic:
+                throw POSIXError(.EDEVERR)
+            case .unknown:
+                throw POSIXError(.EDEVERR)
+            }
+        }
+        
+        // TODO: should probably calculate a checksum
+    }
+    
     func startCheck(task: FSTask, options: FSTaskOptions) throws -> Progress {
+        guard let volume else { throw POSIXError(.ENOTSUP) }
+        
+        let quick = options.taskOptions.contains("-q")
+        let yes = options.taskOptions.contains("-y")
+        
+        if yes {
+            task.logMessage("-y option provided, but ExtendFS is read-only. Ignoring option.")
+        }
+        if !quick {
+            task.logMessage("Full check requested, but ExtendFS only supports simple quick checks. A quick check will be run.")
+        }
+        
         let progress = Progress(totalUnitCount: 100)
         containerStatus = .active
         Task {
-            progress.completedUnitCount = 100
-            containerStatus = .ready
-            task.didComplete(error: nil)
+            defer {
+                progress.completedUnitCount = 100
+                containerStatus = .ready
+            }
+            
+            do {
+                try quickCheck(volume: volume, task: task)
+                task.didComplete(error: nil)
+            } catch {
+                task.didComplete(error: error)
+            }
         }
         return progress
     }
