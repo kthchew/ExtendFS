@@ -84,7 +84,7 @@ class Ext4Item: FSItem {
             fetchedData = try data.subdata(in: Int(inodeBlockOffset)..<Int(inodeBlockOffset)+Int(inodeSize))
         }
         
-        guard let indexNode = IndexNode(from: fetchedData) else {
+        guard let indexNode = IndexNode(from: fetchedData, creator: volume.superblock.creatorOS) else {
             throw POSIXError(.EIO)
         }
         self._indexNode = indexNode
@@ -119,7 +119,7 @@ class Ext4Item: FSItem {
         let inodeSize = containingVolume.superblock.inodeSize
         let fetchedData = try data.subdata(in: Int(inodeBlockOffset)..<Int(inodeBlockOffset)+Int(inodeSize))
         
-        guard let inode = IndexNode(from: fetchedData) else { throw POSIXError(.EIO) }
+        guard let inode = IndexNode(from: fetchedData, creator: containingVolume.superblock.creatorOS) else { throw POSIXError(.EIO) }
         self._indexNode = inode
     }
     

@@ -85,7 +85,6 @@ struct BlockGroupDescriptor {
     var checksum: UInt16
     
     // MARK: - 64-bit only
-    // FIXME: these are not valid if 32-bit is not enabled
     var upperBlockBitmapLocation: UInt32? = nil
     var upperInodeBitmapLocation: UInt32? = nil
     var upperInodeTableLocation: UInt32? = nil

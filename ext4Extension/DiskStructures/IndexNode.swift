@@ -12,13 +12,59 @@ import os.log
 struct IndexNode {
     static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "IndexNode")
     
-    init?(from data: Data) {
+    struct Osd2 {
+        var blockCountUpper: UInt16 = 0
+        var extAttrBlockUpper: UInt16 = 0
+        var uidUpper: UInt16 = 0
+        var gidUpper: UInt16 = 0
+        var checksumLower: UInt16 = 0
+        var modeUpper: UInt16 = 0
+        var author: UInt32 = 0
+        
+        init?(from data: Data, creator: Superblock.FilesystemCreator) {
+            var iterator = data.makeIterator()
+            
+            switch creator {
+            case .linux:
+                guard let blockCountUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                self.blockCountUpper = blockCountUpper
+                guard let extAttrBlockUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                self.extAttrBlockUpper = extAttrBlockUpper
+                guard let uidUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                self.uidUpper = uidUpper
+                guard let gidUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                self.gidUpper = gidUpper
+                guard let checksumLower: UInt16 = iterator.nextLittleEndian() else { return nil }
+                self.checksumLower = checksumLower
+            case .hurd:
+                guard let _: UInt16 = iterator.nextLittleEndian() else { return nil }
+                guard let modeUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                self.modeUpper = modeUpper
+                guard let uidUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                self.uidUpper = uidUpper
+                guard let gidUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                self.gidUpper = gidUpper
+                guard let author: UInt32 = iterator.nextLittleEndian() else { return nil }
+                self.author = author
+            case .masix:
+                guard let _: UInt16 = iterator.nextLittleEndian() else { return nil }
+                guard let extAttrBlockUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                self.extAttrBlockUpper = extAttrBlockUpper
+            case .freeBSD:
+                return nil
+            case .lites:
+                return nil
+            case .unknown:
+                return nil
+            }
+        }
+    }
+    
+    init?(from data: Data, creator: Superblock.FilesystemCreator) {
         var iterator = data.makeIterator()
         
         guard let modeRaw: UInt16 = iterator.nextLittleEndian() else { return nil }
-        self.mode = Mode(rawValue: modeRaw)
         guard let uidLower: UInt16 = iterator.nextLittleEndian() else { return nil }
-        self.uid = UInt32(uidLower)
         guard let sizeLower: UInt32 = iterator.nextLittleEndian() else { return nil }
         guard let accessLower: UInt32 = iterator.nextLittleEndian() else { return nil }
         guard let changeLower: UInt32 = iterator.nextLittleEndian() else { return nil }
@@ -26,13 +72,9 @@ struct IndexNode {
         guard let deletion: UInt32 = iterator.nextLittleEndian() else { return nil }
         self.deletionTime = deletion
         guard let gidLower: UInt16 = iterator.nextLittleEndian() else { return nil }
-        // FIXME: get upper
-        self.gid = UInt32(gidLower)
         guard let hardLinks: UInt16 = iterator.nextLittleEndian() else { return nil }
         self.hardLinkCount = hardLinks
-        guard let blockLower: UInt32 = iterator.nextLittleEndian() else { return nil }
-        // FIXME: get upper
-        self.blockCount = UInt64(blockLower)
+        guard let blockCountLower: UInt32 = iterator.nextLittleEndian() else { return nil }
         guard let flags: UInt32 = iterator.nextLittleEndian() else { return nil }
         self.flags = Flags(rawValue: flags)
         guard let osd: UInt32 = iterator.nextLittleEndian() else { return nil }
@@ -47,18 +89,24 @@ struct IndexNode {
         guard let generation: UInt32 = iterator.nextLittleEndian() else { return nil }
         self.generation = generation
         guard let xattrLower: UInt32 = iterator.nextLittleEndian() else { return nil }
-        // FIXME: get upper
-        self.xattrBlock = UInt64(xattrLower)
         guard let sizeUpper: UInt32 = iterator.nextLittleEndian() else { return nil }
         self.size = UInt64.combine(upper: sizeUpper, lower: sizeLower)
         guard let fragmentAddress: UInt32 = iterator.nextLittleEndian() else { return nil }
         self.fragmentAddress = fragmentAddress
         
-        osd2 = Data(capacity: 12)
+        var osd2Data = Data(capacity: 12)
         for _ in 0..<12 {
             guard let next = iterator.next() else { return nil }
-            osd2.append(next)
+            osd2Data.append(next)
         }
+        if let osd2 = Osd2(from: osd2Data, creator: creator) {
+            self.osd2 = osd2
+        }
+        self.blockCount = UInt64.combine(upper: osd2?.blockCountUpper ?? 0, lower: blockCountLower)
+        self.uid = UInt32.combine(upper: osd2?.uidUpper ?? 0, lower: uidLower)
+        self.gid = UInt32.combine(upper: osd2?.gidUpper ?? 0, lower: gidLower)
+        self.xattrBlock = UInt64.combine(upper: osd2?.extAttrBlockUpper ?? 0, lower: xattrLower)
+        self.mode = Mode(rawValue: UInt32.combine(upper: osd2?.modeUpper ?? 0, lower: modeRaw))
         
         self.extraINodeSize = iterator.nextLittleEndian() ?? 0
         if extraINodeSize >= 4 {
@@ -104,7 +152,7 @@ struct IndexNode {
     }
     
     struct Mode: OptionSet {
-        let rawValue: UInt16
+        let rawValue: UInt32
         
         static let otherExecute = Mode(rawValue: 1 << 0)
         static let otherWrite = Mode(rawValue: 1 << 1)
@@ -187,7 +235,7 @@ struct IndexNode {
     var xattrBlock: UInt64
     /// Obsolete.
     var fragmentAddress: UInt32
-    var osd2: Data
+    var osd2: Osd2?
     /// The amount of space, in bytes, that this inode occupies past the original ext2 inode size (128 bytes), including this field.
     var extraINodeSize: UInt16
     var upperChecksum: UInt16?
@@ -233,7 +281,6 @@ struct IndexNode {
     func getAttributes(_ request: FSItem.GetAttributesRequest, superblock: Superblock, readOnlySystem: Bool = false) -> FSItem.Attributes {
         let attributes = FSItem.Attributes()
         
-        // FIXME: many of these need to properly handle the upper values
         if request.isAttributeWanted(.uid) {
             attributes.uid = UInt32(uid)
         }
