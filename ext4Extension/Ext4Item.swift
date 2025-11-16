@@ -41,7 +41,7 @@ class Ext4Item: FSItem {
     var inodeLocation: Int64 {
         get throws {
             guard let inodeTableLocation = try blockGroupDescriptor?.inodeTableLocation else {
-                throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+                throw POSIXError(.EIO)
             }
             return try Int64((Int64(inodeTableLocation) * Int64(containingVolume.superblock.blockSize)) + inodeTableOffset)
         }
@@ -303,7 +303,7 @@ class Ext4Item: FSItem {
                 case (level3End + 1)...(level4End):
                     return try indirectAddressing(for: block, currentDepth: 3, currentLevelDiskPosition: UInt64(iBlockOffset) + UInt64(pointerSize * 14), currentLevelStartsAtBlock: level3End + 1)
                 default:
-                    throw fs_errorForPOSIXError(POSIXError.EFBIG.rawValue)
+                    throw POSIXError(.EFBIG)
                 }
             }
         }

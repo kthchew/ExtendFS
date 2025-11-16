@@ -54,27 +54,27 @@ struct BlockDeviceReader {
             }
         }
         guard let item else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+            throw POSIXError(.EIO)
         }
         return item
     }
     static func readLittleEndian<T: FixedWidthInteger>(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> T {
         guard let item: T = try readSmallSection(blockDevice: blockDevice, at: offset) else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+            throw POSIXError(.EIO)
         }
         return item.littleEndian
     }
     
     static func readBigEndian<T: FixedWidthInteger>(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> T {
         guard let item: T = try readSmallSection(blockDevice: blockDevice, at: offset) else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+            throw POSIXError(.EIO)
         }
         return item.bigEndian
     }
     
     static func readUUID(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> UUID {
         guard let uuid: uuid_t = try readSmallSection(blockDevice: blockDevice, at: offset) else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+            throw POSIXError(.EIO)
         }
         
         return UUID(uuid: uuid)
@@ -111,7 +111,7 @@ struct BlockDeviceReader {
             string = String(cString: cString, encoding: .utf8)
         }
         guard let string else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+            throw POSIXError(.EIO)
         }
         return string
     }
@@ -134,7 +134,7 @@ struct Superblock {
             return try blockDevice.read(into: ptr, startingAt: offset, length: 1024)
         }
         guard actuallyRead == superblockSize else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+            throw POSIXError(.EIO)
         }
     }
     

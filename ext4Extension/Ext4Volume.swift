@@ -184,22 +184,22 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     func setAttributes(_ newAttributes: FSItem.SetAttributesRequest, on item: FSItem) async throws -> FSItem.Attributes {
         logger.debug("setAttributes")
         if readOnly {
-            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+            throw POSIXError(.EROFS)
         }
-        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
+        throw POSIXError(.ENOSYS)
     }
     
     func lookupItem(named name: FSFileName, inDirectory directory: FSItem) async throws -> (FSItem, FSFileName) {
         logger.debug("lookupItem with name \(name.string ?? "(unknown)")")
         guard let directory = directory as? Ext4Item else {
-            throw fs_errorForPOSIXError(POSIXError.ENOENT.rawValue)
+            throw POSIXError(.ENOENT)
         }
         
         if let item = try await directory.findItemInDirectory(named: name) {
             return (item, name)
         }
         
-        throw fs_errorForPOSIXError(POSIXError.ENOENT.rawValue)
+        throw POSIXError(.ENOENT)
     }
     
     func reclaimItem(_ item: FSItem) async throws {
@@ -218,10 +218,10 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     func readSymbolicLink(_ item: FSItem) async throws -> FSFileName {
         logger.debug("readSymbolicLink")
         guard let item = item as? Ext4Item else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+            throw POSIXError(.EIO)
         }
         guard let target = try await item.symbolicLinkTarget else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+            throw POSIXError(.EIO)
         }
         return FSFileName(string: target)
     }
@@ -229,41 +229,41 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     func createItem(named name: FSFileName, type: FSItem.ItemType, inDirectory directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest) async throws -> (FSItem, FSFileName) {
         logger.debug("createItem")
         if readOnly {
-            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+            throw POSIXError(.EROFS)
         }
-        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
+        throw POSIXError(.ENOSYS)
     }
     
     func createSymbolicLink(named name: FSFileName, inDirectory directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest, linkContents contents: FSFileName) async throws -> (FSItem, FSFileName) {
         logger.debug("createSymbolicLink")
         if readOnly {
-            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+            throw POSIXError(.EROFS)
         }
-        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
+        throw POSIXError(.ENOSYS)
     }
     
     func createLink(to item: FSItem, named name: FSFileName, inDirectory directory: FSItem) async throws -> FSFileName {
         logger.debug("createLink")
         if readOnly {
-            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+            throw POSIXError(.EROFS)
         }
-        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
+        throw POSIXError(.ENOSYS)
     }
     
     func removeItem(_ item: FSItem, named name: FSFileName, fromDirectory directory: FSItem) async throws {
         logger.debug("removeItem(_:named:fromDirectory:)")
         if readOnly {
-            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+            throw POSIXError(.EROFS)
         }
-        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
+        throw POSIXError(.ENOSYS)
     }
     
     func renameItem(_ item: FSItem, inDirectory sourceDirectory: FSItem, named sourceName: FSFileName, to destinationName: FSFileName, inDirectory destinationDirectory: FSItem, overItem: FSItem?) async throws -> FSFileName {
         logger.debug("renameItem")
         if readOnly {
-            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+            throw POSIXError(.EROFS)
         }
-        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
+        throw POSIXError(.ENOSYS)
     }
     
     func enumerateDirectory(_ directory: FSItem, startingAt cookie: FSDirectoryCookie, verifier: FSDirectoryVerifier, attributes: FSItem.GetAttributesRequest?, packer: FSDirectoryEntryPacker) async throws -> FSDirectoryVerifier {
@@ -274,9 +274,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         }
         
         guard let (contents, currentVerifier) = try await directory.directoryContents else {
-            // TODO: throw or return?
-            //            throw fs_errorForPOSIXError(POSIXError.ENOENT.rawValue)
-            return verifier
+            throw POSIXError(.EIO)
         }
         
         let attributesAccessibleWithoutLoading: FSItem.Attribute = [.type, .fileID, .parentID]
@@ -346,7 +344,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
 extension Ext4Volume: FSVolume.ReadWriteOperations {
     func read(from item: FSItem, at offset: off_t, length: Int, into buffer: FSMutableFileDataBuffer) async throws -> Int {
         guard let item = item as? Ext4Item else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+            throw POSIXError(.EIO)
         }
         
         let blockSize = superblock.blockSize
@@ -382,9 +380,9 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
     
     func write(contents: Data, to item: FSItem, at offset: off_t) async throws -> Int {
         if readOnly {
-            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+            throw POSIXError(.EROFS)
         }
-        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
+        throw POSIXError(.ENOSYS)
     }
 }
 
@@ -392,10 +390,10 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
     func blockmapFile(_ file: FSItem, offset: off_t, length: Int, flags: FSBlockmapFlags, operationID: FSOperationID, packer: FSExtentPacker) async throws {
         logger.debug("blockmapFile")
         guard let file = file as? Ext4Item else {
-            throw fs_errorForPOSIXError(POSIXError.EIO.rawValue)
+            throw POSIXError(.EIO)
         }
         if flags.contains(.write) {
-            throw fs_errorForPOSIXError(POSIXError.EPERM.rawValue)
+            throw POSIXError(.EPERM)
         }
         
         let blockSize = superblock.blockSize
@@ -416,9 +414,9 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
     
     func createFile(name: FSFileName, in directory: FSItem, attributes: FSItem.SetAttributesRequest, packer: FSExtentPacker) async throws -> (FSItem, FSFileName) {
         if readOnly {
-            throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+            throw POSIXError(.EROFS)
         }
-        throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
+        throw POSIXError(.ENOSYS)
     }
     
     func lookupItem(name: FSFileName, in directory: FSItem, packer: FSExtentPacker) async throws -> (FSItem, FSFileName) {
@@ -430,9 +428,9 @@ extension Ext4Volume: FSVolume.OpenCloseOperations {
     func openItem(_ item: FSItem, modes: FSVolume.OpenModes) async throws {
         if modes.contains(.write) {
             if readOnly {
-                throw fs_errorForPOSIXError(POSIXError.EROFS.rawValue)
+                throw POSIXError(.EROFS)
             }
-            throw fs_errorForPOSIXError(POSIXError.ENOSYS.rawValue)
+            throw POSIXError(.ENOSYS)
         }
     }
     
