@@ -338,6 +338,9 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     var truncatesLongNames: Bool {
         false
     }
+    
+    var isVolumeRenameInhibited: Bool = false
+    var isPreallocateInhibited: Bool = false
 }
 
 extension Ext4Volume: FSVolume.ReadWriteOperations {
@@ -493,5 +496,27 @@ extension Ext4Volume: FSVolume.XattrOperations {
         }
         
         return attrs.map { FSFileName(string: $0) }
+    }
+}
+
+extension Ext4Volume: FSVolume.RenameOperations {
+    func setVolumeName(_ name: FSFileName) async throws -> FSFileName {
+        throw POSIXError(.ENOSYS)
+    }
+}
+
+extension Ext4Volume: FSVolume.PreallocateOperations {
+    func preallocateSpace(for item: FSItem, at offset: off_t, length: Int, flags: FSVolume.PreallocateFlags) async throws -> Int {
+        throw POSIXError(.ENOSYS)
+    }
+}
+
+extension Ext4Volume: FSVolume.ItemDeactivation {
+    var itemDeactivationPolicy: FSVolume.ItemDeactivationOptions {
+        []
+    }
+    
+    func deactivateItem(_ item: FSItem) async throws {
+        throw POSIXError(.ENOSYS)
     }
 }
