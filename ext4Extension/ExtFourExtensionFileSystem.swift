@@ -93,7 +93,7 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
             throw ExtensionError.resourceUnsupported
         }
         
-        logger.log("options: \(options.taskOptions, privacy: .public)")
+        logger.log("load options: \(options.taskOptions, privacy: .public)")
         for option in options.taskOptions {
             switch option {
             case "-f":

@@ -185,12 +185,12 @@ class Ext4Item: FSItem {
     
     private func loadDirectoryContentCache() async throws {
         guard filetype == .directory else { return }
-        logger.log("loadDirectoryContentCache")
+        logger.debug("loadDirectoryContentCache")
         var cache: [String: DirectoryEntry] = [:]
         
         let extents = try await findExtentsCovering(0, with: Int.max)
         for extent in extents {
-            logger.log("Fetching extent at block \(extent.physicalBlock)")
+            logger.debug("Fetching extent at block \(extent.physicalBlock)")
             guard let lengthInBlocks = extent.lengthInBlocks else {
                 throw POSIXError(.EIO)
             }
@@ -198,9 +198,9 @@ class Ext4Item: FSItem {
             for block in 0..<lengthInBlocks {
                 let byteOffset = containingVolume.superblock.blockSize * Data.Index(block)
                 let blockData = data.subdata(in: byteOffset..<(byteOffset+containingVolume.superblock.blockSize))
-                logger.log("Trying to decode data of length \(blockData.count)")
+                logger.debug("Trying to decode data of length \(blockData.count)")
                 guard let dirEntryBlock = ClassicDirectoryEntryBlock(from: blockData) else { continue }
-                logger.log("Block has \(dirEntryBlock.entries.count) entries")
+                logger.debug("Block has \(dirEntryBlock.entries.count) entries")
                 for entry in dirEntryBlock.entries {
                     guard entry.inodePointee != 0, entry.nameLength != 0 else { continue }
                     cache[entry.name] = entry
