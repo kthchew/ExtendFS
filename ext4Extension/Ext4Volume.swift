@@ -105,7 +105,6 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     }
     
     func item(forInode inodeNumber: UInt32, withParentInode parentInode: UInt32, withName name: FSFileName) async throws -> Ext4Item {
-        // TODO: use data fetching helpers
         let blockNumber = try blockNumber(forBlockContainingInode: inodeNumber)
         
         if let item = await cache.fetchItem(forInodeNumber: inodeNumber) {

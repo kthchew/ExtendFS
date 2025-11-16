@@ -71,50 +71,6 @@ struct BlockDeviceReader {
         }
         return item.bigEndian
     }
-    
-    static func readUUID(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> UUID {
-        guard let uuid: uuid_t = try readSmallSection(blockDevice: blockDevice, at: offset) else {
-            throw POSIXError(.EIO)
-        }
-        
-        return UUID(uuid: uuid)
-    }
-    
-    static func readString(blockDevice: FSBlockDeviceResource, at offset: off_t, maxLength: Int) throws -> String {
-        // FIXME: do this better
-        let startReadAt = (offset / off_t(blockDevice.physicalBlockSize)) * off_t(blockDevice.physicalBlockSize)
-        let targetContentOffset = Int(offset - startReadAt)
-        let targetContentEnd = Int(targetContentOffset) + maxLength
-        let readLength = targetContentEnd < blockDevice.physicalBlockSize ? Int(blockDevice.physicalBlockSize) : Int(blockDevice.physicalBlockSize) * 2
-        var string: String?
-        try withUnsafeTemporaryAllocation(byteCount: readLength, alignment: 1) { ptr in
-            if useMetadataRead {
-                try blockDevice.metadataRead(into: ptr, startingAt: startReadAt, length: readLength)
-            } else {
-                let actuallyRead = try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
-                guard actuallyRead == readLength else {
-                    logger.error("Expected to read \(readLength) bytes, actually read \(actuallyRead)")
-                    throw POSIXError(.EIO)
-                }
-            }
-            let stringStart = ptr.baseAddress!.assumingMemoryBound(to: CChar.self) + targetContentOffset
-            var cString = [CChar]()
-            for i in 0..<maxLength {
-                let char = (stringStart + i).pointee
-                if char == 0 {
-                    break
-                }
-                cString.append(char)
-            }
-            cString.append(0)
-            // FIXME: UTF8?
-            string = String(cString: cString, encoding: .utf8)
-        }
-        guard let string else {
-            throw POSIXError(.EIO)
-        }
-        return string
-    }
 }
 
 struct Superblock {

@@ -32,8 +32,6 @@ class Ext4Item: FSItem {
     }
     var inodeTableOffset: Int64 {
         get throws {
-            // FIXME: not all inode entries are necessarily the same size - see https://www.kernel.org/doc/html/v4.19/filesystems/ext4/ondisk/index.html#inode-size
-            // this might be correct though since the records should be the correct size?
             Int64(groupInodeTableIndex) * Int64(containingVolume.superblock.inodeSize)
         }
     }
