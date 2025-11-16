@@ -70,7 +70,8 @@ struct IndexNode {
         guard let changeLower: UInt32 = iterator.nextLittleEndian() else { return nil }
         guard let modifyLower: UInt32 = iterator.nextLittleEndian() else { return nil }
         guard let deletion: UInt32 = iterator.nextLittleEndian() else { return nil }
-        self.deletionTime = deletion
+        // unlike the other times, deletion time is not widened to 64 bits
+        self.deletionTime = timespec(tv_sec: __darwin_time_t(deletion), tv_nsec: 0)
         guard let gidLower: UInt16 = iterator.nextLittleEndian() else { return nil }
         guard let hardLinks: UInt16 = iterator.nextLittleEndian() else { return nil }
         self.hardLinkCount = hardLinks
@@ -113,16 +114,18 @@ struct IndexNode {
             upperChecksum = iterator.nextLittleEndian()
         }
         
-        // FIXME: in these cases, upper half only uses the lowest 2 bits, then uses the other 30 bits for nanosecond accuracy
+        // in these cases, upper half only uses the lowest 2 bits, then uses the other 30 bits for nanosecond accuracy
         let changeUpper: UInt32? = extraINodeSize >= 8 ? iterator.nextLittleEndian() : nil
-        self.lastInodeChangeTime = UInt64.combine(upper: (changeUpper ?? 0) & 0b11, lower: changeLower)
+        self.lastInodeChangeTime = timespec(tv_sec: __darwin_time_t(UInt64.combine(upper: (changeUpper ?? 0) & 0b11, lower: changeLower)), tv_nsec: Int(changeUpper ?? 0) >> 2)
         let modifyUpper: UInt32? = extraINodeSize >= 12 ? iterator.nextLittleEndian() : nil
-        self.lastDataModifyTime = UInt64.combine(upper: (modifyUpper ?? 0) & 0b11, lower: modifyLower)
+        self.lastDataModifyTime = timespec(tv_sec: __darwin_time_t(UInt64.combine(upper: (modifyUpper ?? 0) & 0b11, lower: modifyLower)), tv_nsec: Int(modifyUpper ?? 0) >> 2)
         let accessUpper: UInt32? = extraINodeSize >= 16 ? iterator.nextLittleEndian() : nil
-        self.lastAccessTime = UInt64.combine(upper: (accessUpper ?? 0) & 0b11, lower: accessLower)
+        self.lastAccessTime = timespec(tv_sec: __darwin_time_t(UInt64.combine(upper: (accessUpper ?? 0) & 0b11, lower: accessLower)), tv_nsec: Int(accessUpper ?? 0) >> 2)
         let creationLower: UInt32? = extraINodeSize >= 20 ? iterator.nextLittleEndian() : nil
         let creationUpper: UInt32? = extraINodeSize >= 24 ? iterator.nextLittleEndian() : nil
-        self.fileCreationTime = UInt64.combine(upper: (creationUpper ?? 0) & 0b11, lower: creationLower)
+        if let creationLower {
+            self.fileCreationTime = timespec(tv_sec: __darwin_time_t(UInt64.combine(upper: (creationUpper ?? 0) & 0b11, lower: creationLower)), tv_nsec: Int(creationUpper ?? 0) >> 2)
+        }
         let versionUpper: UInt32? = extraINodeSize >= 32 ? iterator.nextLittleEndian() : nil
         // FIXME: completely wrong
         self.version = UInt64(versionUpper ?? 0)
@@ -215,13 +218,13 @@ struct IndexNode {
     var mode: Mode
     var uid: UInt32
     var size: UInt64
-    /// Last access time in seconds since the epoch, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
-    var lastAccessTime: UInt64
-    /// Last inode change time in seconds since the epoch, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
-    var lastInodeChangeTime: UInt64
-    /// Last data modification time in seconds since the epoch, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
-    var lastDataModifyTime: UInt64
-    var deletionTime: UInt32
+    /// Last access time, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
+    var lastAccessTime: timespec
+    /// Last inode change time, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
+    var lastInodeChangeTime: timespec
+    /// Last data modification time, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
+    var lastDataModifyTime: timespec
+    var deletionTime: timespec
     var gid: UInt32
     /// Hard link count.
     ///
@@ -239,7 +242,7 @@ struct IndexNode {
     /// The amount of space, in bytes, that this inode occupies past the original ext2 inode size (128 bytes), including this field.
     var extraINodeSize: UInt16
     var upperChecksum: UInt16?
-    var fileCreationTime: UInt64?
+    var fileCreationTime: timespec?
     var version: UInt64
     var projectID: UInt32?
     
@@ -319,16 +322,16 @@ struct IndexNode {
             attributes.inhibitKernelOffloadedIO = false
         }
         if request.isAttributeWanted(.accessTime) {
-            attributes.accessTime = timespec(tv_sec: Int(lastAccessTime), tv_nsec: 0)
+            attributes.accessTime = lastAccessTime
         }
         if request.isAttributeWanted(.changeTime) {
-            attributes.changeTime = timespec(tv_sec: Int(lastInodeChangeTime), tv_nsec: 0)
+            attributes.changeTime = lastInodeChangeTime
         }
         if request.isAttributeWanted(.modifyTime) {
-            attributes.modifyTime = timespec(tv_sec: Int(lastDataModifyTime), tv_nsec: 0)
+            attributes.modifyTime = lastDataModifyTime
         }
         if request.isAttributeWanted(.birthTime) {
-            attributes.birthTime = timespec(tv_sec: Int(fileCreationTime ?? 0), tv_nsec: 0)
+            attributes.birthTime = fileCreationTime ?? timespec(tv_sec: 0, tv_nsec: 0)
         }
         if request.isAttributeWanted(.addedTime) {
             // TODO: proper implementation
