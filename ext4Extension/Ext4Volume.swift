@@ -443,7 +443,7 @@ extension Ext4Volume: FSVolume.OpenCloseOperations {
 
 extension Ext4Volume: FSVolume.AccessCheckOperations {
     func checkAccess(to theItem: FSItem, requestedAccess access: FSVolume.AccessMask) async throws -> Bool {
-        let writeAccess: FSVolume.AccessMask = [.addFile, .addSubdirectory, .appendData, .delete, .deleteChild, .takeOwnership, .writeAttributes, .writeData, .writeSecurity, .writeAttributes]
+        let writeAccess: FSVolume.AccessMask = [.addFile, .addSubdirectory, .appendData, .delete, .deleteChild, .takeOwnership, .writeAttributes, .writeData, .writeSecurity, .writeXattr]
         if readOnly && !access.isDisjoint(with: writeAccess) {
             return false
         }

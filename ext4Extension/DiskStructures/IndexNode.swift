@@ -321,6 +321,9 @@ struct IndexNode {
         if request.isAttributeWanted(.inhibitKernelOffloadedIO) {
             attributes.inhibitKernelOffloadedIO = false
         }
+        if request.isAttributeWanted(.supportsLimitedXAttrs) {
+            attributes.supportsLimitedXAttrs = false
+        }
         if request.isAttributeWanted(.accessTime) {
             attributes.accessTime = lastAccessTime
         }
@@ -334,8 +337,8 @@ struct IndexNode {
             attributes.birthTime = fileCreationTime ?? timespec(tv_sec: 0, tv_nsec: 0)
         }
         if request.isAttributeWanted(.addedTime) {
-            // TODO: proper implementation
-            attributes.addedTime = timespec()
+            // not supported by ext
+            attributes.addedTime = timespec(tv_sec: 0, tv_nsec: 0)
         }
         if request.isAttributeWanted(.linkCount) {
             attributes.linkCount = UInt32(hardLinkCount)

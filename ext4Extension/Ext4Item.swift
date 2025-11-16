@@ -254,7 +254,7 @@ class Ext4Item: FSItem {
     }
     
     func getAttributes(_ request: GetAttributesRequest) throws -> FSItem.Attributes {
-        let attributes = try indexNode.getAttributes(request, superblock: containingVolume.superblock)
+        let attributes = try indexNode.getAttributes(request, superblock: containingVolume.superblock, readOnlySystem: containingVolume.readOnly)
         
         if request.isAttributeWanted(.fileID) {
             attributes.fileID = FSItem.Identifier(rawValue: UInt64(inodeNumber)) ?? .invalid
