@@ -87,7 +87,7 @@ class Ext4Item: FSItem {
         }
         self._indexNode = indexNode
         
-        self.extentTreeRoot = try await indexNode.flags.contains(.usesExtents) ? FileExtentTreeLevel(volume: containingVolume, offset: inodeLocation + 0x28) : nil
+        self.extentTreeRoot = indexNode.flags.contains(.usesExtents) ? FileExtentTreeLevel(from: indexNode.block) : nil
     }
     
     var _indexNode: IndexNode?
@@ -261,7 +261,7 @@ class Ext4Item: FSItem {
         return attributes
     }
     
-    func indirectAddressing(for block: Int64, currentDepth: Int, currentLevelDiskPosition: UInt64, currentLevelStartsAtBlock: Int64) throws -> FileExtentNode {
+    private func indirectAddressing(for block: Int64, currentDepth: Int, currentLevelDiskPosition: UInt64, currentLevelStartsAtBlock: Int64) throws -> FileExtentNode {
         let blockOffset = block - currentLevelStartsAtBlock
         let pointerSize = Int64(MemoryLayout<UInt32>.size)
         let coveredPerLevelOfIndirection = containingVolume.superblock.blockSize / 4
@@ -279,7 +279,7 @@ class Ext4Item: FSItem {
     
     func findExtentsCovering(_ fileBlock: Int64, with blockLength: Int) async throws -> [FileExtentNode] {
         if let extentTreeRoot {
-            return try await extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength)
+            return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength, in: containingVolume)
         } else {
             let actualBlockLength = try min(blockLength, Int((Double(indexNode.size) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
             return try (fileBlock..<(fileBlock + Int64(actualBlockLength))).map { block in

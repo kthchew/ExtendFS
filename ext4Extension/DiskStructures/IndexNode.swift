@@ -81,10 +81,10 @@ struct IndexNode {
         guard let osd: UInt32 = iterator.nextLittleEndian() else { return nil }
         self.osd = osd
         
-        block = Data(capacity: 60)
+        self.block = Data(capacity: 60)
         for _ in 0..<60 {
             guard let next = iterator.next() else { return nil }
-            block.append(next)
+            self.block.append(next)
         }
         
         guard let generation: UInt32 = iterator.nextLittleEndian() else { return nil }
