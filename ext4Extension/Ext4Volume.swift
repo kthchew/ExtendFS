@@ -426,9 +426,11 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
                 if flags.contains(.write) {
                     throw POSIXError(.EIO)
                 } else {
-                    guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: Int(extentStartInBytes - current)) else {
+                    let zeros = Int(extentStartInBytes - current)
+                    guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: zeros) else {
                         return
                     }
+                    current += Int64(zeros)
                 }
             }
             
