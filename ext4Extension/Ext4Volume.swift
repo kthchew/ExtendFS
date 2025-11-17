@@ -125,6 +125,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         capabilities.supportsHardLinks = true
         capabilities.supportsSymbolicLinks = true
         capabilities.supportsPersistentObjectIDs = true
+        capabilities.supportsSparseFiles = true
         capabilities.supportsZeroRuns = true
         capabilities.supports2TBFiles = true
         capabilities.supportsHiddenFiles = false
@@ -391,8 +392,8 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
         guard let file = file as? Ext4Item else {
             throw POSIXError(.EIO)
         }
-        if flags.contains(.write) {
-            throw POSIXError(.EPERM)
+        if flags.contains(.write) && readOnly {
+            throw POSIXError(.EROFS)
         }
         
         let blockSize = superblock.blockSize
@@ -400,9 +401,35 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
         let blockOffset = Int(offset) / blockSize
         let blockLength = (Int(offset) + length) / blockSize - blockOffset + 1
         let extents = try await file.findExtentsCovering(Int64(blockOffset), with: blockLength)
+        
+        let end = Int(offset) + length
+        var current = offset
         for extent in extents {
-            guard packer.packExtent(resource: resource, type: extent.type!, logicalOffset: extent.logicalBlock * Int64(blockSize), physicalOffset: extent.physicalBlock * Int64(blockSize), length: Int(extent.lengthInBlocks ?? 1) * Int(blockSize)) else {
+            let extentStartInBytes = extent.logicalBlock * Int64(blockSize)
+            let extentLengthInBytes = Int(extent.lengthInBlocks ?? 1) * Int(blockSize)
+            if current < extentStartInBytes {
+                if flags.contains(.write) {
+                    throw POSIXError(.EIO)
+                } else {
+                    guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: Int(extentStartInBytes - current)) else {
+                        return
+                    }
+                }
+            }
+            
+            guard packer.packExtent(resource: resource, type: extent.type!, logicalOffset: extentStartInBytes, physicalOffset: extent.physicalBlock * Int64(blockSize), length: extentLengthInBytes) else {
                 return
+            }
+            
+            current += Int64(extentLengthInBytes)
+        }
+        if current < end {
+            if flags.contains(.write) {
+                throw POSIXError(.EIO)
+            } else {
+                guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: end - Int(current)) else {
+                    return
+                }
             }
         }
     }
