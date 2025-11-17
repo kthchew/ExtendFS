@@ -352,17 +352,24 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
         let blockLength = Int((Double(length) / Double(blockSize)).rounded(.up))
         let extents = try await item.findExtentsCovering(Int64(blockOffset), with: blockLength)
         let firstLogicalBlock = offset / Int64(blockSize)
-        // TODO: do read requests align to blocks? if not this offset is needed but that makes things more annoying
-//        let offsetWithinFirstBlock = offset % Int64(try superblock.blockSize)
         var amountRead = 0
         let remainingLengthInFile = off_t(try item.indexNode.size) - offset
         let actualLengthToRead = min(length, Int(remainingLengthInFile.roundUp(toMultipleOf: off_t(blockSize))))
         for extent in extents {
+            let startingAtLogicalBlock = min(max(firstLogicalBlock, extent.logicalBlock), Int64(actualLengthToRead - amountRead))
+            if amountRead + Int(offset) < Int(extent.logicalBlock) * blockSize {
+                let zerosCount = (Int(extent.logicalBlock) * blockSize) - (amountRead + Int(offset))
+                let data = Data(count: zerosCount)
+                buffer.withUnsafeMutableBytes { buf in
+                    (buf[amountRead...]).copyBytes(from: data)
+                }
+                amountRead += zerosCount
+            }
+            
             guard amountRead < actualLengthToRead else {
                 break
             }
             
-            let startingAtLogicalBlock = amountRead == 0 ? firstLogicalBlock : extent.logicalBlock
             let startingAtPhysicalBlock = extent.physicalBlock + (startingAtLogicalBlock - extent.logicalBlock)
             let startingAtPhysicalByte = startingAtPhysicalBlock * Int64(superblock.blockSize)
             let blockLengthConsidered = Int(extent.lengthInBlocks ?? 1) - Int(startingAtLogicalBlock - extent.logicalBlock)
@@ -374,6 +381,14 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
             amountRead += try buffer.withUnsafeMutableBytes { ptr in
                 return try resource.read(into: UnsafeMutableRawBufferPointer(rebasing: ptr[amountRead...]), startingAt: startingAtPhysicalByte, length: readFromThisExtent)
             }
+        }
+        if amountRead < actualLengthToRead {
+            let zerosCount = actualLengthToRead - amountRead
+            let data = Data(count: zerosCount)
+            buffer.withUnsafeMutableBytes { buf in
+                (buf[amountRead...]).copyBytes(from: data)
+            }
+            amountRead += zerosCount
         }
         return min(amountRead, Int(remainingLengthInFile))
     }
