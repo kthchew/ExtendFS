@@ -136,9 +136,9 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     var volumeStatistics: FSStatFSResult {
         let statistics = FSStatFSResult(fileSystemTypeName: "ExtendFS")
         statistics.blockSize = superblock.blockSize
-        statistics.totalBlocks = UInt64(superblock.blockCount)
-        statistics.freeBlocks = UInt64(superblock.freeBlockCount)
-        statistics.availableBlocks = UInt64(superblock.freeBlockCount)
+        statistics.totalBlocks = UInt64.combine(upper: superblock.blocksCountHigh ?? 0, lower: superblock.blockCount)
+        statistics.freeBlocks = UInt64.combine(upper: superblock.freeBlocksCountHigh ?? 0, lower: superblock.freeBlockCount)
+        statistics.availableBlocks = UInt64.combine(upper: superblock.freeBlocksCountHigh ?? 0, lower: superblock.freeBlockCount)
         statistics.usedBlocks = statistics.totalBlocks - statistics.freeBlocks
         statistics.freeFiles = UInt64(superblock.freeInodeCount)
         statistics.totalFiles = UInt64(superblock.inodeCount)

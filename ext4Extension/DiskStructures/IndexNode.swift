@@ -312,11 +312,11 @@ struct IndexNode {
             attributes.type = (try? filetype) ?? .unknown
         }
         if request.isAttributeWanted(.size) {
-            attributes.size = UInt64(size)
+            attributes.size = size
         }
         if request.isAttributeWanted(.allocSize) {
             let usesHugeBlocks = superblock.readonlyFeatureCompatibilityFlags.contains(.hugeFile) && flags.contains(.hugeFile)
-            attributes.allocSize = (UInt64(blockCount) * UInt64(usesHugeBlocks ? superblock.blockSize : 512))
+            attributes.allocSize = (blockCount * UInt64(usesHugeBlocks ? superblock.blockSize : 512))
         }
         if request.isAttributeWanted(.inhibitKernelOffloadedIO) {
             attributes.inhibitKernelOffloadedIO = false
