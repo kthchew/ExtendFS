@@ -15,7 +15,7 @@ enum ExtensionError: Error {
 }
 
 @objc
-class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperations {
+class Ext4ExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperations {
     let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Ext4Extension")
     
     var resource: FSBlockDeviceResource?
@@ -128,7 +128,7 @@ class ExtFourExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperatio
     }
 }
 
-extension ExtFourExtensionFileSystem: FSManageableResourceMaintenanceOperations {
+extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
     private func quickCheck(volume: Ext4Volume, task: FSTask) throws {
         let superblock = volume.superblock
         guard superblock.magic == 0xEF53 else {

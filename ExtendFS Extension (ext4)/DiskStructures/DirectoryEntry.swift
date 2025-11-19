@@ -6,7 +6,9 @@
 //
 
 import Foundation
+#if canImport(FSKit)
 import FSKit
+#endif
 
 struct DirectoryEntry {
     enum Filetype: UInt8 {
@@ -44,6 +46,7 @@ struct DirectoryEntry {
     var directoryEntryLength: UInt16
     var nameLength: UInt8
     var fileType: Filetype?
+    #if canImport(FSKit)
     var fskitFileType: FSItem.ItemType? {
         guard let fileType else { return nil }
         switch fileType {
@@ -67,6 +70,7 @@ struct DirectoryEntry {
             return .unknown
         }
     }
+    #endif
     var name: String
     
     var checksum: UInt32?

@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import CommonCrypto
 
 struct ExtendedAttrEntry {
     init?(from data: Data) {

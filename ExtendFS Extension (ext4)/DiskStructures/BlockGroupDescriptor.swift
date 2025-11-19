@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FSKit
 
 /// A structure that describes a block group.
 ///

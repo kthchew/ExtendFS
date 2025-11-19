@@ -17,8 +17,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9F57A6422DD6841D00D7E52D"
-               BuildableName = "ExtendFSExtension.appex"
-               BlueprintName = "ExtendFSExtension"
+               BuildableName = "ExtendFS Extension (ext4).appex"
+               BlueprintName = "ExtendFS Extension (ext4)"
                ReferencedContainer = "container:ExtendFS.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>

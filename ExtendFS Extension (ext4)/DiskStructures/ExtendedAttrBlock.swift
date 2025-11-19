@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FSKit
 
 struct ExtendedAttrBlock {
     var header: ExtendedAttrHeader

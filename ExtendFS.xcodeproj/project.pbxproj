@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		9F283FD22DED6F90005EF8BB /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 9F283FD12DED6F90005EF8BB /* Algorithms */; };
-		9F57A64D2DD6841D00D7E52D /* ExtendFSExtension.appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = 9F57A6432DD6841D00D7E52D /* ExtendFSExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		9F57A64D2DD6841D00D7E52D /* ExtendFS Extension (ext4).appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = 9F57A6432DD6841D00D7E52D /* ExtendFS Extension (ext4).appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -42,7 +42,7 @@
 			dstPath = "$(EXTENSIONS_FOLDER_PATH)";
 			dstSubfolderSpec = 16;
 			files = (
-				9F57A64D2DD6841D00D7E52D /* ExtendFSExtension.appex in Embed ExtensionKit Extensions */,
+				9F57A64D2DD6841D00D7E52D /* ExtendFS Extension (ext4).appex in Embed ExtensionKit Extensions */,
 			);
 			name = "Embed ExtensionKit Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -53,23 +53,23 @@
 		9F57A6142DD6835E00D7E52D /* ExtendFS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ExtendFS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F57A6222DD6835F00D7E52D /* ExtendFSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ExtendFSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F57A62C2DD6835F00D7E52D /* ExtendFSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ExtendFSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		9F57A6432DD6841D00D7E52D /* ExtendFSExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = ExtendFSExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		9F57A6432DD6841D00D7E52D /* ExtendFS Extension (ext4).appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = "ExtendFS Extension (ext4).appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		9F0005F62EB13C6400E9F266 /* Exceptions for "ext4Extension" folder in "ExtendFS" target */ = {
+		9F0005F62EB13C6400E9F266 /* Exceptions for "ExtendFS Extension (ext4)" folder in "ExtendFS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				"Extensions/Data+Readers.swift",
 			);
 			target = 9F57A6132DD6835E00D7E52D /* ExtendFS */;
 		};
-		9F57A64E2DD6841D00D7E52D /* Exceptions for "ext4Extension" folder in "ExtendFSExtension" target */ = {
+		9F57A64E2DD6841D00D7E52D /* Exceptions for "ExtendFS Extension (ext4)" folder in "ExtendFS Extension (ext4)" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 9F57A6422DD6841D00D7E52D /* ExtendFSExtension */;
+			target = 9F57A6422DD6841D00D7E52D /* ExtendFS Extension (ext4) */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -89,13 +89,13 @@
 			path = ExtendFSUITests;
 			sourceTree = "<group>";
 		};
-		9F57A6442DD6841D00D7E52D /* ext4Extension */ = {
+		9F57A6442DD6841D00D7E52D /* ExtendFS Extension (ext4) */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				9F0005F62EB13C6400E9F266 /* Exceptions for "ext4Extension" folder in "ExtendFS" target */,
-				9F57A64E2DD6841D00D7E52D /* Exceptions for "ext4Extension" folder in "ExtendFSExtension" target */,
+				9F0005F62EB13C6400E9F266 /* Exceptions for "ExtendFS Extension (ext4)" folder in "ExtendFS" target */,
+				9F57A64E2DD6841D00D7E52D /* Exceptions for "ExtendFS Extension (ext4)" folder in "ExtendFS Extension (ext4)" target */,
 			);
-			path = ext4Extension;
+			path = "ExtendFS Extension (ext4)";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -146,7 +146,7 @@
 				9F57A6162DD6835E00D7E52D /* ExtendFS */,
 				9F57A6252DD6835F00D7E52D /* ExtendFSTests */,
 				9F57A62F2DD6835F00D7E52D /* ExtendFSUITests */,
-				9F57A6442DD6841D00D7E52D /* ext4Extension */,
+				9F57A6442DD6841D00D7E52D /* ExtendFS Extension (ext4) */,
 				9F5787942E3C3EAE001224B5 /* Frameworks */,
 				9F57A6152DD6835E00D7E52D /* Products */,
 			);
@@ -158,7 +158,7 @@
 				9F57A6142DD6835E00D7E52D /* ExtendFS.app */,
 				9F57A6222DD6835F00D7E52D /* ExtendFSTests.xctest */,
 				9F57A62C2DD6835F00D7E52D /* ExtendFSUITests.xctest */,
-				9F57A6432DD6841D00D7E52D /* ExtendFSExtension.appex */,
+				9F57A6432DD6841D00D7E52D /* ExtendFS Extension (ext4).appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -236,9 +236,9 @@
 			productReference = 9F57A62C2DD6835F00D7E52D /* ExtendFSUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		9F57A6422DD6841D00D7E52D /* ExtendFSExtension */ = {
+		9F57A6422DD6841D00D7E52D /* ExtendFS Extension (ext4) */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9F57A64F2DD6841D00D7E52D /* Build configuration list for PBXNativeTarget "ExtendFSExtension" */;
+			buildConfigurationList = 9F57A64F2DD6841D00D7E52D /* Build configuration list for PBXNativeTarget "ExtendFS Extension (ext4)" */;
 			buildPhases = (
 				9F57A63F2DD6841D00D7E52D /* Sources */,
 				9F57A6402DD6841D00D7E52D /* Frameworks */,
@@ -249,14 +249,14 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				9F57A6442DD6841D00D7E52D /* ext4Extension */,
+				9F57A6442DD6841D00D7E52D /* ExtendFS Extension (ext4) */,
 			);
-			name = ExtendFSExtension;
+			name = "ExtendFS Extension (ext4)";
 			packageProductDependencies = (
 				9F283FD12DED6F90005EF8BB /* Algorithms */,
 			);
 			productName = ext4Extension;
-			productReference = 9F57A6432DD6841D00D7E52D /* ExtendFSExtension.appex */;
+			productReference = 9F57A6432DD6841D00D7E52D /* ExtendFS Extension (ext4).appex */;
 			productType = "com.apple.product-type.extensionkit-extension";
 		};
 /* End PBXNativeTarget section */
@@ -305,7 +305,7 @@
 				9F57A6132DD6835E00D7E52D /* ExtendFS */,
 				9F57A6212DD6835F00D7E52D /* ExtendFSTests */,
 				9F57A62B2DD6835F00D7E52D /* ExtendFSUITests */,
-				9F57A6422DD6841D00D7E52D /* ExtendFSExtension */,
+				9F57A6422DD6841D00D7E52D /* ExtendFS Extension (ext4) */,
 			);
 		};
 /* End PBXProject section */
@@ -385,7 +385,7 @@
 		};
 		9F57A64C2DD6841D00D7E52D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 9F57A6422DD6841D00D7E52D /* ExtendFSExtension */;
+			target = 9F57A6422DD6841D00D7E52D /* ExtendFS Extension (ext4) */;
 			targetProxy = 9F57A64B2DD6841D00D7E52D /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -652,7 +652,7 @@
 		9F57A6502DD6841D00D7E52D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = ext4Extension/ext4Extension.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "ExtendFS Extension (ext4)/ExtendFSExtension.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -660,8 +660,8 @@
 				DEVELOPMENT_TEAM = YN43D87323;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = ext4Extension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "ExtendFS Linux Filesystem Support";
+				INFOPLIST_FILE = "ExtendFS Extension (ext4)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "ExtendFS (ext2/3/4)";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -682,7 +682,7 @@
 		9F57A6512DD6841D00D7E52D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = ext4Extension/ext4Extension.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "ExtendFS Extension (ext4)/ExtendFSExtension.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -690,8 +690,8 @@
 				DEVELOPMENT_TEAM = YN43D87323;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = ext4Extension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "ExtendFS Linux Filesystem Support";
+				INFOPLIST_FILE = "ExtendFS Extension (ext4)/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "ExtendFS (ext2/3/4)";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -748,7 +748,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		9F57A64F2DD6841D00D7E52D /* Build configuration list for PBXNativeTarget "ExtendFSExtension" */ = {
+		9F57A64F2DD6841D00D7E52D /* Build configuration list for PBXNativeTarget "ExtendFS Extension (ext4)" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9F57A6502DD6841D00D7E52D /* Debug */,

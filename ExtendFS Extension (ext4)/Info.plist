@@ -23,6 +23,26 @@
 		</dict>
 		<key>FSMediaTypes</key>
 		<dict>
+			<key>3B8F8425-20E0-4F3B-907F-1A25A76F98E8</key>
+			<dict>
+				<key>FSMediaProperties</key>
+				<dict>
+					<key>Content Hint</key>
+					<string>3B8F8425-20E0-4F3B-907F-1A25A76F98E8</string>
+					<key>Leaf</key>
+					<true/>
+				</dict>
+			</dict>
+			<key>933AC7E1-2EB4-4F13-B844-0E14E2AEF915</key>
+			<dict>
+				<key>FSMediaProperties</key>
+				<dict>
+					<key>Content Hint</key>
+					<string>933AC7E1-2EB4-4F13-B844-0E14E2AEF915</string>
+					<key>Leaf</key>
+					<true/>
+				</dict>
+			</dict>
 			<key>0FC63DAF-8483-4772-8E79-3D69D8477DE4</key>
 			<dict>
 				<key>FSMediaProperties</key>
@@ -60,16 +80,6 @@
 					<key>Leaf</key>
 					<true/>
 					<key>Whole</key>
-					<true/>
-				</dict>
-			</dict>
-			<key>ext4</key>
-			<dict>
-				<key>FSMediaProperties</key>
-				<dict>
-					<key>Content Hint</key>
-					<string>ext4</string>
-					<key>Leaf</key>
 					<true/>
 				</dict>
 			</dict>
