@@ -86,8 +86,6 @@ class Ext4Item: FSItem {
             throw POSIXError(.EIO)
         }
         self._indexNode = indexNode
-        
-        self.extentTreeRoot = indexNode.flags.contains(.usesExtents) ? FileExtentTreeLevel(from: indexNode.block) : nil
     }
     
     var _indexNode: IndexNode?
@@ -149,7 +147,22 @@ class Ext4Item: FSItem {
         }
     }
     
-    var extentTreeRoot: FileExtentTreeLevel?
+    /// The root of an indirect block map used on ext2 and ext3.
+    ///
+    /// If this is used repeatedly, call this once and save the result. The instance can save some cached data.
+    private var indirectBlockMap: IndirectBlockMap? {
+        get throws {
+            try indexNode.flags.contains(.usesExtents) ? nil : IndirectBlockMap(from: indexNode.block)
+        }
+    }
+    /// The root of an extent tree used on ext4.
+    ///
+    /// If this is used repeatedly, call this once and save the result. The instance can save some cached data.
+    private var extentTreeRoot: FileExtentTreeLevel? {
+        get throws {
+            try indexNode.flags.contains(.usesExtents) ? FileExtentTreeLevel(from: indexNode.block) : nil
+        }
+    }
     
     /// A map of file names to their directory entries.
     private var _directoryContentsInodes: [String: DirectoryEntry]? = nil
@@ -261,47 +274,23 @@ class Ext4Item: FSItem {
         return attributes
     }
     
-    private func indirectAddressing(for block: Int64, currentDepth: Int, currentLevelDiskPosition: UInt64, currentLevelStartsAtBlock: Int64) throws -> FileExtentNode {
-        let blockOffset = block - currentLevelStartsAtBlock
-        let pointerSize = Int64(MemoryLayout<UInt32>.size)
-        let coveredPerLevelOfIndirection = containingVolume.superblock.blockSize / 4
-        
-        if currentDepth == 0 {
-            let address: UInt32 = try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: Int64(currentLevelDiskPosition) + (blockOffset * pointerSize))
-            return FileExtentNode(physicalBlock: off_t(address), logicalBlock: block, lengthInBlocks: 1, type: .data)
-        } else {
-            let blocksCoveredPerItem = Int(pow(Double(coveredPerLevelOfIndirection), Double(currentDepth)))
-            let index = Int(blockOffset) / blocksCoveredPerItem
-            let address: UInt32 = try BlockDeviceReader.readLittleEndian(blockDevice: containingVolume.resource, at: Int64(currentLevelDiskPosition) + (Int64(index) * pointerSize))
-            return try indirectAddressing(for: block, currentDepth: currentDepth - 1, currentLevelDiskPosition: UInt64(address) * UInt64(containingVolume.superblock.blockSize), currentLevelStartsAtBlock: currentLevelStartsAtBlock + Int64((index * blocksCoveredPerItem)))
-        }
-    }
-    
-    func findExtentsCovering(_ fileBlock: Int64, with blockLength: Int) async throws -> [FileExtentNode] {
-        if let extentTreeRoot {
+    func findExtentsCovering(_ fileBlock: UInt64, with blockLength: Int) async throws -> [FileExtentNode] {
+        if let extentTreeRoot = try extentTreeRoot {
             return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength, in: containingVolume)
         } else {
             let actualBlockLength = try min(blockLength, Int((Double(indexNode.size) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
-            return try (fileBlock..<(fileBlock + Int64(actualBlockLength))).map { block in
-                let iBlockOffset = try inodeLocation + 0x28
-                let pointerSize = Int64(MemoryLayout<UInt32>.size)
-                let coveredPerLevelOfIndirection = Int64(containingVolume.superblock.blockSize / 4)
+            guard var indirectBlockMap = try indirectBlockMap else {
+                throw POSIXError(.EIO)
+            }
+            return try (fileBlock..<(fileBlock + UInt64(actualBlockLength))).reduce(into: []) { extents, block in
+                let answer = try indirectBlockMap.getPhysicalBlockLocations(for: block, blockDevice: containingVolume.resource, blockSize: containingVolume.superblock.blockSize)
                 
-                let level1End: Int64 = 11
-                let level2End = level1End + coveredPerLevelOfIndirection
-                let level3End = level2End + Int64(pow(Double(coveredPerLevelOfIndirection), 2))
-                let level4End = level3End + Int64(pow(Double(coveredPerLevelOfIndirection), 3)) + 1
-                switch block {
-                case 0...level1End:
-                    return try indirectAddressing(for: block, currentDepth: 0, currentLevelDiskPosition: UInt64(iBlockOffset), currentLevelStartsAtBlock: 0)
-                case (level1End + 1)...(level2End):
-                    return try indirectAddressing(for: block, currentDepth: 1, currentLevelDiskPosition: UInt64(iBlockOffset) + UInt64(pointerSize * 12), currentLevelStartsAtBlock: level1End + 1)
-                case (level2End + 1)...(level3End):
-                    return try indirectAddressing(for: block, currentDepth: 2, currentLevelDiskPosition: UInt64(iBlockOffset) + UInt64(pointerSize * 13), currentLevelStartsAtBlock: level2End + 1)
-                case (level3End + 1)...(level4End):
-                    return try indirectAddressing(for: block, currentDepth: 3, currentLevelDiskPosition: UInt64(iBlockOffset) + UInt64(pointerSize * 14), currentLevelStartsAtBlock: level3End + 1)
-                default:
-                    throw POSIXError(.EFBIG)
+                if var last = extents.last, (last.physicalBlock + off_t(last.lengthInBlocks ?? 1) == answer) {
+                    last.lengthInBlocks? += 1
+                    extents[extents.count - 1] = last
+                } else {
+                    let extent = FileExtentNode(physicalBlock: off_t(answer), logicalBlock: off_t(block), lengthInBlocks: 1, type: .data)
+                    extents.append(extent)
                 }
             }
         }

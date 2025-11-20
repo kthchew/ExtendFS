@@ -54,7 +54,7 @@ class FileExtentTreeLevel {
         depth == 0
     }
     
-    func findExtentsCovering(_ fileBlock: Int64, with blockLength: Int, in volume: Ext4Volume) throws -> [FileExtentNode] {
+    func findExtentsCovering(_ fileBlock: UInt64, with blockLength: Int, in volume: Ext4Volume) throws -> [FileExtentNode] {
         let firstBlock = fileBlock
         let lastBlock = Int(fileBlock) + blockLength - 1
         

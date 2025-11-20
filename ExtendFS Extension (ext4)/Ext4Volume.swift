@@ -350,7 +350,7 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
         let blockSize = superblock.blockSize
         let blockOffset = Int(offset) / blockSize
         let blockLength = Int((Double(length) / Double(blockSize)).rounded(.up))
-        let extents = try await item.findExtentsCovering(Int64(blockOffset), with: blockLength)
+        let extents = try await item.findExtentsCovering(UInt64(blockOffset), with: blockLength)
         let firstLogicalBlock = offset / Int64(blockSize)
         var amountRead = 0
         let remainingLengthInFile = off_t(try item.indexNode.size) - offset
@@ -415,7 +415,7 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
         
         let blockOffset = Int(offset) / blockSize
         let blockLength = (Int(offset) + length) / blockSize - blockOffset + 1
-        let extents = try await file.findExtentsCovering(Int64(blockOffset), with: blockLength)
+        let extents = try await file.findExtentsCovering(UInt64(blockOffset), with: blockLength)
         
         let end = Int(offset) + length
         var current = offset
