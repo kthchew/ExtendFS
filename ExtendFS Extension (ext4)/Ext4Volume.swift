@@ -13,23 +13,27 @@ actor VolumeCache {
     static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Volume")
     
     /// The key is the block containing the relevant inode entries.
-    var usedItemsInInodeTable = [Int64: Set<UInt32>]()
-    func addInode(inodeNumber: UInt32, blockNumber: Int64) {
+    var usedItemsInInodeTable = [UInt64: Set<UInt32>]()
+    func addInode(inodeNumber: UInt32, blockNumber: UInt64) {
         usedItemsInInodeTable[blockNumber, default: []].insert(inodeNumber)
     }
-    func removeInode(inodeNumber: UInt32, blockNumber: Int64) {
+    func removeInode(inodeNumber: UInt32, blockNumber: UInt64) {
         usedItemsInInodeTable[blockNumber]?.remove(inodeNumber)
-        items[inodeNumber] = nil
         if let usedItems = usedItemsInInodeTable[blockNumber], usedItems.isEmpty {
             Self.logger.debug("Last inode in block \(blockNumber, privacy: .public) freed")
+            if let firstInode = inodeTableBlocks[blockNumber]?.first?.inodeNumber, let lastInode = inodeTableBlocks[blockNumber]?.first?.inodeNumber {
+                for inode in firstInode...lastInode {
+                    items[inode] = nil
+                }
+            }
             usedItemsInInodeTable[blockNumber] = nil
             inodeTableBlocks[blockNumber] = nil
         }
     }
     /// The key is the block for the given inode table.
-    var inodeTableBlocks = [Int64: Data]()
-    func setInodeTableBlock(_ data: Data?, forBlock blockNumber: Int64) {
-        inodeTableBlocks[blockNumber] = data
+    var inodeTableBlocks = [UInt64: [Ext4Item]]()
+    func setInodeTableBlock(_ items: [Ext4Item]?, forBlock blockNumber: UInt64) {
+        inodeTableBlocks[blockNumber] = items
     }
     
     /// The key is the inode number.
@@ -39,6 +43,12 @@ actor VolumeCache {
     }
     func fetchItem(forInodeNumber inodeNumber: UInt32) -> Ext4Item? {
         return items[inodeNumber]
+    }
+    
+    func clearAllCaches() {
+        usedItemsInInodeTable = [:]
+        inodeTableBlocks = [:]
+        items = [:]
     }
 }
 
@@ -78,43 +88,53 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     
     /// Returns the block number for the block containing the given inode on disk.
     /// - Parameter inodeNumber: The inode number.
-    /// - Returns: The block number, and the byte offset into that block at which you'll find the inode.
-    func blockNumber(forBlockContainingInode inodeNumber: UInt32) throws -> (Int64, Int64) {
+    /// - Returns: The block number, and the index into that block at which you'll find the inode.
+    func blockNumber(forBlockContainingInode inodeNumber: UInt32) throws -> (UInt64, UInt32) {
         let blockGroup = Int((inodeNumber - 1) / superblock.inodesPerGroup)
         guard let groupDescriptor = try blockGroupDescriptors[blockGroup], let tableLocation = groupDescriptor.inodeTableLocation else {
             throw POSIXError(.EIO)
         }
         let tableIndex = (inodeNumber - 1) % superblock.inodesPerGroup
-        let blockOffset = Int64(tableIndex) * Int64(superblock.inodeSize) / Int64(superblock.blockSize)
-        let offsetInBlock = Int64(tableIndex) * Int64(superblock.inodeSize) % Int64(superblock.blockSize)
-        return (Int64(tableLocation) + blockOffset, offsetInBlock)
+        let blockOffset = UInt64(tableIndex) * UInt64(superblock.inodeSize) / UInt64(superblock.blockSize)
+        return (tableLocation + blockOffset, tableIndex - (UInt32(blockOffset) * UInt32(superblock.blockSize) / UInt32(superblock.inodeSize)))
     }
     
-    func data(forInode inodeNumber: UInt32) async throws -> Data {
-        let blockNumber = try self.blockNumber(forBlockContainingInode: inodeNumber)
-        let blockSize = superblock.blockSize
-        var data = Data(count: blockSize)
-        if let cachedData = await cache.inodeTableBlocks[blockNumber.0] {
-            return cachedData.subdata(in: Int(blockNumber.1)..<Int((blockNumber.1 + Int64(superblock.inodeSize))))
+    /// Loads all items associated with the inodes located at the given block number.
+    /// - Parameter blockNumber: The block number of part of the inode table to load.
+    func loadItems(from blockNumber: UInt64) async throws -> [Ext4Item] {
+        if let items = await cache.inodeTableBlocks[blockNumber] {
+            return items
         }
-        try data.withUnsafeMutableBytes { ptr in
-            try self.resource.metadataRead(into: ptr, startingAt: blockNumber.0 * Int64(superblock.blockSize), length: superblock.blockSize)
+        let blockGroup = blockNumber / UInt64(superblock.blocksPerGroup)
+        guard let groupDescriptor = try blockGroupDescriptors[Int(blockGroup)], let tableLocation = groupDescriptor.inodeTableLocation else {
+            throw POSIXError(.EIO)
         }
-        await cache.setInodeTableBlock(data, forBlock: blockNumber.0)
-        return data.subdata(in: Int(blockNumber.1)..<Int((blockNumber.1 + Int64(superblock.inodeSize))))
+        let blockOffset = blockNumber - tableLocation
+        let firstInodeOfGroup = UInt32(blockGroup) * superblock.inodesPerGroup + 1
+        let inodesPerBlock = Int(superblock.blockSize) / Int(superblock.inodeSize)
+        let firstInodeInBlock = firstInodeOfGroup + (UInt32(blockOffset) * UInt32(inodesPerBlock))
+        let lastInodeInBlock = firstInodeInBlock + UInt32(inodesPerBlock) - 1
+        
+        var data = try BlockDeviceReader.fetchExtent(from: resource, blockNumbers: off_t(blockNumber)..<Int64(blockNumber)+1, blockSize: superblock.blockSize)
+        var items: [Ext4Item] = []
+        for inode in firstInodeInBlock...lastInodeInBlock {
+            let inodeData = data.subdata(in: 0..<Int(superblock.inodeSize))
+            let item = try await Ext4Item(volume: self, inodeNumber: inode, inodeData: inodeData)
+            
+            items.append(item)
+            await cache.setItem(item, forInodeNumber: UInt32(inode))
+            data = data.advanced(by: Int(superblock.inodeSize))
+        }
+        await cache.setInodeTableBlock(items, forBlock: blockNumber)
+        
+        return items
     }
     
-    func item(forInode inodeNumber: UInt32, withParentInode parentInode: UInt32, withName name: FSFileName) async throws -> Ext4Item {
+    func item(forInode inodeNumber: UInt32) async throws -> Ext4Item {
         let blockNumber = try blockNumber(forBlockContainingInode: inodeNumber)
-        
-        if let item = await cache.fetchItem(forInodeNumber: inodeNumber) {
-            return item
-        }
-        
-        let item = try await Ext4Item(volume: self, inodeNumber: inodeNumber, inodeData: data(forInode: inodeNumber))
         await cache.addInode(inodeNumber: inodeNumber, blockNumber: blockNumber.0)
-        await cache.setItem(item, forInodeNumber: inodeNumber)
-        return item
+        let items = try await loadItems(from: UInt64(blockNumber.0))
+        return items[Int(blockNumber.1)]
     }
     
     let readOnly: Bool
@@ -160,7 +180,8 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     }
     
     func unmount() async {
-        logger.log("unmount")
+        logger.log("unmounting")
+        await cache.clearAllCaches()
         return
     }
     
@@ -291,9 +312,10 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
                 fileAttributes?.fileID = FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid
                 fileAttributes?.parentID = FSItem.Identifier(rawValue: UInt64(directory.inodeNumber)) ?? .invalid
             } else if let attributes {
-                let inodeData = try await data(forInode: UInt32(content.inodePointee))
-                guard let inode = IndexNode(from: inodeData, creator: superblock.creatorOS) else { throw POSIXError(.EIO) }
-                fileAttributes = inode.getAttributes(attributes, superblock: superblock, readOnlySystem: readOnly)
+                let blockNumber = try self.blockNumber(forBlockContainingInode: content.inodePointee)
+                let items = try await loadItems(from: UInt64(blockNumber.0))
+                let item = items[Int(blockNumber.1)]
+                fileAttributes = try item.getAttributes(attributes)
                 
                 fileAttributes?.fileID = FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid
                 fileAttributes?.parentID = FSItem.Identifier(rawValue: UInt64(directory.inodeNumber)) ?? .invalid
@@ -516,6 +538,7 @@ extension Ext4Volume: FSVolume.XattrOperations {
             }
         }
         
+        logger.log("No xattr named \(toFind, privacy: .public)")
         throw POSIXError(.ENOATTR)
     }
     

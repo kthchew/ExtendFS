@@ -30,29 +30,29 @@ class Ext4Item: FSItem {
             (inodeNumber - 1) % (containingVolume.superblock.inodesPerGroup)
         }
     }
-    var inodeTableOffset: Int64 {
+    var inodeTableOffset: UInt64 {
         get throws {
-            Int64(groupInodeTableIndex) * Int64(containingVolume.superblock.inodeSize)
+            UInt64(groupInodeTableIndex) * UInt64(containingVolume.superblock.inodeSize)
         }
     }
     /// The offset of the inode table entry on the disk.
-    var inodeLocation: Int64 {
+    var inodeLocation: UInt64 {
         get throws {
             guard let inodeTableLocation = try blockGroupDescriptor?.inodeTableLocation else {
                 throw POSIXError(.EIO)
             }
-            return try Int64((Int64(inodeTableLocation) * Int64(containingVolume.superblock.blockSize)) + inodeTableOffset)
+            return try (inodeTableLocation * UInt64(containingVolume.superblock.blockSize)) + inodeTableOffset
         }
     }
     /// The byte offset of the block containing the inode table entry on disk.
-    var inodeBlockLocation: Int64 {
+    var inodeBlockLocation: UInt64 {
         get throws {
-            try inodeLocation / Int64(containingVolume.superblock.blockSize) * Int64(containingVolume.superblock.blockSize)
+            try inodeLocation / UInt64(containingVolume.superblock.blockSize) * UInt64(containingVolume.superblock.blockSize)
         }
     }
-    var inodeBlockOffset: Int64 {
+    var inodeBlockOffset: UInt64 {
         get throws {
-            try inodeLocation % Int64(containingVolume.superblock.blockSize)
+            try inodeLocation % UInt64(containingVolume.superblock.blockSize)
         }
     }
     
@@ -70,9 +70,9 @@ class Ext4Item: FSItem {
             var data = Data(count: Int(blockSize))
             try data.withUnsafeMutableBytes { ptr in
                 if BlockDeviceReader.useMetadataRead {
-                    try containingVolume.resource.metadataRead(into: ptr, startingAt: inodeBlockLocation, length: Int(blockSize))
+                    try containingVolume.resource.metadataRead(into: ptr, startingAt: off_t(inodeBlockLocation), length: Int(blockSize))
                 } else {
-                    let count = try containingVolume.resource.read(into: ptr, startingAt: inodeBlockLocation, length: Int(blockSize))
+                    let count = try containingVolume.resource.read(into: ptr, startingAt: off_t(inodeBlockLocation), length: Int(blockSize))
                     guard count == Int(blockSize) else {
                         throw POSIXError(.EIO)
                     }
@@ -104,9 +104,9 @@ class Ext4Item: FSItem {
         var data = Data(count: Int(blockSize))
         try data.withUnsafeMutableBytes { ptr in
             if BlockDeviceReader.useMetadataRead {
-                try containingVolume.resource.metadataRead(into: ptr, startingAt: inodeBlockLocation, length: Int(blockSize))
+                try containingVolume.resource.metadataRead(into: ptr, startingAt: off_t(inodeBlockLocation), length: Int(blockSize))
             } else {
-                let count = try containingVolume.resource.read(into: ptr, startingAt: inodeBlockLocation, length: Int(blockSize))
+                let count = try containingVolume.resource.read(into: ptr, startingAt: off_t(inodeBlockLocation), length: Int(blockSize))
                 guard count == Int(blockSize) else {
                     throw POSIXError(.EIO)
                 }
@@ -189,7 +189,7 @@ class Ext4Item: FSItem {
         }
         
         if let _directoryContentsInodes, let nameStr = name.string, let dirEntry = _directoryContentsInodes[nameStr] {
-            return try await containingVolume.item(forInode: dirEntry.inodePointee, withParentInode: self.inodeNumber, withName: FSFileName(string: dirEntry.name))
+            return try await containingVolume.item(forInode: dirEntry.inodePointee)
         }
         return nil
     }
