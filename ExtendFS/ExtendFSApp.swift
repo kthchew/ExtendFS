@@ -10,7 +10,7 @@ import SwiftUI
 @main
 struct ExtendFSApp: App {
     var body: some Scene {
-        WindowGroup {
+        Window("ExtendFS", id: "main") {
             ContentView()
         }
     }
