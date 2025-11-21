@@ -60,22 +60,23 @@ actor VolumeCache {
     }
 }
 
-class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
+final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Volume")
     
-    init(resource: FSBlockDeviceResource, fileSystem: FSUnaryFileSystem, readOnly: Bool) async throws {
+    init(resource: FSBlockDeviceResource, fileSystem: Ext4ExtensionFileSystem, readOnly: Bool) async throws {
         logger.log("Initializing volume")
         self.resource = resource
         self.fileSystem = fileSystem
-        self.superblock = try Superblock(blockDevice: resource, offset: 1024)
+        let superblock = try Superblock(blockDevice: resource, offset: 1024)
+        self.superblock = superblock
         self.readOnly = readOnly
-        
-        super.init(volumeID: FSVolume.Identifier(uuid: superblock.uuid ?? UUID()), volumeName: FSFileName(string: superblock.volumeName ?? ""))
         
         let endOfSuperblock = superblock.offset + 1024
         let blockSize = superblock.blockSize
         let firstBlockAfterSuperblockOffset = Int64(ceil(Double(endOfSuperblock) / Double(blockSize))) * Int64(blockSize)
-        self.blockGroupDescriptors = try BlockGroupDescriptors(volume: self, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
+        self.blockGroupDescriptors = try BlockGroupDescriptors(resource: resource, superblock: superblock, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
+        
+        super.init(volumeID: FSVolume.Identifier(uuid: superblock.uuid ?? UUID()), volumeName: FSFileName(string: superblock.volumeName ?? ""))
         
         let root = try await Ext4Item(volume: self, inodeNumber: 2)
         await cache.setRoot(root)
@@ -84,11 +85,11 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         await cache.setItem(root, forInodeNumber: 2)
     }
     
-    weak var fileSystem: FSUnaryFileSystem?
+    let fileSystem: Ext4ExtensionFileSystem
     let resource: FSBlockDeviceResource
     /// The superblock in block group 0.
-    var superblock: Superblock
-    var blockGroupDescriptors: BlockGroupDescriptors!
+    let superblock: Superblock
+    let blockGroupDescriptors: BlockGroupDescriptors
     
     let cache = VolumeCache()
     
@@ -201,7 +202,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
             throw POSIXError(.ENOENT)
         }
         
-        let attrs = try item.getAttributes(desiredAttributes)
+        let attrs = try await item.getAttributes(desiredAttributes)
         if desiredAttributes.isAttributeWanted(.parentID) {
             attrs.parentID = .invalid
         }
@@ -321,7 +322,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
                 let blockNumber = try self.blockNumber(forBlockContainingInode: content.inodePointee)
                 let items = try await loadItems(from: UInt64(blockNumber.0))
                 let item = items[Int(blockNumber.1)]
-                fileAttributes = try item.getAttributes(attributes)
+                fileAttributes = try await item.getAttributes(attributes)
                 
                 fileAttributes?.fileID = FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid
                 fileAttributes?.parentID = FSItem.Identifier(rawValue: UInt64(directory.inodeNumber)) ?? .invalid
@@ -339,13 +340,13 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     
     func activate(options: FSTaskOptions) async throws -> FSItem {
         logger.log("activate options: \(options.taskOptions, privacy: .public)")
-        fileSystem?.containerStatus = .active
+        fileSystem.containerStatus = .active
         return await cache.root
     }
     
     func deactivate(options: FSDeactivateOptions = []) async throws {
         logger.log("deactivate")
-        fileSystem?.containerStatus = .ready
+        fileSystem.containerStatus = .ready
         return
     }
     
@@ -365,8 +366,18 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         false
     }
     
-    var isVolumeRenameInhibited: Bool = false
-    var isPreallocateInhibited: Bool = false
+    var isVolumeRenameInhibited: Bool {
+        get {
+            false
+        }
+        set {}
+    }
+    var isPreallocateInhibited: Bool {
+        get {
+            false
+        }
+        set {}
+    }
 }
 
 extension Ext4Volume: FSVolume.ReadWriteOperations {
@@ -381,7 +392,7 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
         let extents = try await item.findExtentsCovering(UInt64(blockOffset), with: blockLength)
         let firstLogicalBlock = offset / Int64(blockSize)
         var amountRead = 0
-        let remainingLengthInFile = off_t(try item.indexNode.size) - offset
+        let remainingLengthInFile = await off_t(try item.indexNode.size) - offset
         let actualLengthToRead = min(length, Int(remainingLengthInFile.roundUp(toMultipleOf: off_t(blockSize))))
         for extent in extents {
             let startingAtLogicalBlock = min(max(firstLogicalBlock, extent.logicalBlock), Int64(actualLengthToRead - amountRead))
@@ -526,16 +537,16 @@ extension Ext4Volume: FSVolume.XattrOperations {
         guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
         guard let toFind = name.string else { throw POSIXError(.EINVAL) }
         
-        if let embeddedEntries = try item.indexNode.embeddedExtendedAttributes {
+        if let embeddedEntries = try await item.indexNode.embeddedExtendedAttributes {
             let found = embeddedEntries.filter { entry in
                 entry.name == toFind
             }
             if let first = found.first {
-                return try item.getValueForEmbeddedAttribute(first) ?? Data()
+                return try await item.getValueForEmbeddedAttribute(first) ?? Data()
             }
         }
         
-        if let block = try item.extendedAttributeBlock {
+        if let block = try await item.extendedAttributeBlock {
             let index = block.entries.partitioningIndex { entry in
                 entry.name >= toFind
             }
@@ -544,7 +555,7 @@ extension Ext4Volume: FSVolume.XattrOperations {
             }
         }
         
-        if let value = item.temporaryXattrs[toFind] {
+        if let value = await item.cache.getTemporaryXattr(toFind) {
             return value
         }
         
@@ -558,22 +569,22 @@ extension Ext4Volume: FSVolume.XattrOperations {
         if nameString.starts(with: "com.apple.") {
             switch policy {
             case .alwaysSet:
-                item.temporaryXattrs[nameString] = value
+                await item.cache.setTemporaryXattr(value, for: nameString)
             case .mustCreate:
-                guard item.temporaryXattrs[nameString] == nil else {
+                guard await item.cache.getTemporaryXattr(nameString) == nil else {
                     throw POSIXError(.EEXIST)
                 }
-                item.temporaryXattrs[nameString] = value
+                await item.cache.setTemporaryXattr(value, for: nameString)
             case .mustReplace:
-                guard item.temporaryXattrs[nameString] != nil else {
+                guard await item.cache.getTemporaryXattr(nameString) != nil else {
                     throw POSIXError(.ENOENT)
                 }
-                item.temporaryXattrs[nameString] = value
+                await item.cache.setTemporaryXattr(value, for: nameString)
             case .delete:
-                guard item.temporaryXattrs[nameString] != nil else {
+                guard await item.cache.getTemporaryXattr(nameString) != nil else {
                     throw POSIXError(.ENOENT)
                 }
-                item.temporaryXattrs[nameString] = nil
+                await item.cache.setTemporaryXattr(nil, for: nameString)
             @unknown default:
                 throw POSIXError(.ENOSYS)
             }
@@ -586,16 +597,16 @@ extension Ext4Volume: FSVolume.XattrOperations {
         guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
         
         var attrs: [String] = []
-        if let embeddedEntries = try item.indexNode.embeddedExtendedAttributes {
+        if let embeddedEntries = try await item.indexNode.embeddedExtendedAttributes {
             let names = embeddedEntries.map { $0.name }
             attrs.append(contentsOf: names)
         }
         
-        if let block = try item.extendedAttributeBlock {
+        if let block = try await item.extendedAttributeBlock {
             attrs.append(contentsOf: try block.extendedAttributes.keys)
         }
         
-        for temporaryXattr in item.temporaryXattrs {
+        for temporaryXattr in await item.cache.temporaryXattrs {
             attrs.append(temporaryXattr.key)
         }
         

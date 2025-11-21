@@ -9,7 +9,7 @@ import Algorithms
 import Foundation
 import os.log
 
-class FileExtentTreeLevel {
+struct FileExtentTreeLevel {
     var numberOfEntries: UInt16
     var maxNumberOfEntries: UInt16
     var depth: UInt16

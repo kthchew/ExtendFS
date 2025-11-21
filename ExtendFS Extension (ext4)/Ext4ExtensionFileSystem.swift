@@ -15,11 +15,20 @@ enum ExtensionError: Error {
 }
 
 @objc
-class Ext4ExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperations {
+final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperations {
     let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Ext4Extension")
     
-    var resource: FSBlockDeviceResource?
-    var volume: Ext4Volume?
+    @MainActor weak var resource: FSBlockDeviceResource?
+    @MainActor weak var volume: Ext4Volume?
+    
+    @MainActor func setResources(resource: FSBlockDeviceResource?, volume: Ext4Volume?) {
+        self.resource = resource
+        self.volume = volume
+    }
+    
+    @MainActor func setContainerStatus(_ status: FSContainerStatus) {
+        self.containerStatus = status
+    }
     
     func probeResource(resource: FSResource) async throws -> FSProbeResult {
         logger.log("Probing resource")
@@ -107,9 +116,8 @@ class Ext4ExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperations 
         }
         
         let volume = try await Ext4Volume(resource: resource, fileSystem: self, readOnly: readOnly)
-        self.resource = resource
-        self.volume = volume
-        containerStatus = .ready
+        await setResources(resource: resource, volume: volume)
+        await setContainerStatus(.ready)
         logger.log("Container status ready")
         BlockDeviceReader.useMetadataRead = true
         return volume
@@ -117,9 +125,8 @@ class Ext4ExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperations 
 
     func unloadResource(resource: FSResource, options: FSTaskOptions) async throws {
         logger.log("Unloading resource")
-        self.resource = nil
-        self.volume = nil
-        containerStatus = .notReady(status: ExtensionError.unloadedResource)
+        await setResources(resource: nil, volume: nil)
+        await setContainerStatus(.notReady(status: ExtensionError.unloadedResource))
         return
     }
     
@@ -153,8 +160,6 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
     }
     
     func startCheck(task: FSTask, options: FSTaskOptions) throws -> Progress {
-        guard let volume else { throw POSIXError(.ENOTSUP) }
-        
         let quick = options.taskOptions.contains("-q")
         let yes = options.taskOptions.contains("-y")
         
@@ -166,11 +171,16 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
         }
         
         let progress = Progress(totalUnitCount: 100)
-        containerStatus = .active
         Task {
+            await setContainerStatus(.active)
+            guard let volume = await volume else {
+                task.didComplete(error: POSIXError(.ENOTSUP))
+                await setContainerStatus(.notReady(status: POSIXError(.ENOTSUP)))
+                return
+            }
+            
             defer {
                 progress.completedUnitCount = 100
-                containerStatus = .ready
             }
             
             do {
@@ -179,6 +189,8 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
             } catch {
                 task.didComplete(error: error)
             }
+            
+            await setContainerStatus(.ready)
         }
         return progress
     }

@@ -6,33 +6,36 @@
 //
 
 import Foundation
+import FSKit
 import os.log
 
-class BlockGroupDescriptors {
-    let volume: Ext4Volume
+final class BlockGroupDescriptors: Sendable {
     /// An offset pointing to the first descriptor in this block group, starting from the start of the disk.
     let offset: Int64
     let blockGroupCount: Int
     
-    var data: Data
+    let data: Data
     
-    init(volume: Ext4Volume, offset: Int64, blockGroupCount: Int) throws {
-        self.volume = volume
+    private let descriptorSizeInBytes: UInt16
+    
+    init(resource: FSBlockDeviceResource, superblock: Superblock, offset: Int64, blockGroupCount: Int) throws {
         self.offset = offset
         self.blockGroupCount = blockGroupCount
+        self.descriptorSizeInBytes = superblock.featureIncompatibleFlags.contains(.enable64BitSize) ? superblock.descriptorSize : 32
         
-        let descriptorSizeBytes = volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) ? volume.superblock.descriptorSize : 32
-        let totalSize = (blockGroupCount * Int(descriptorSizeBytes)).roundUp(toMultipleOf: volume.superblock.blockSize)
+        let descriptorSizeBytes = superblock.featureIncompatibleFlags.contains(.enable64BitSize) ? superblock.descriptorSize : 32
+        let totalSize = (blockGroupCount * Int(descriptorSizeBytes)).roundUp(toMultipleOf: superblock.blockSize)
         
-        self.data = Data(count: totalSize)
-        try self.data.withUnsafeMutableBytes { ptr in
+        var data = Data(count: totalSize)
+        try data.withUnsafeMutableBytes { ptr in
             if BlockDeviceReader.useMetadataRead {
-                try volume.resource.metadataRead(into: ptr, startingAt: offset, length: totalSize)
+                try resource.metadataRead(into: ptr, startingAt: offset, length: totalSize)
             } else {
-                let actuallyRead = try volume.resource.read(into: ptr, startingAt: offset, length: totalSize)
+                let actuallyRead = try resource.read(into: ptr, startingAt: offset, length: totalSize)
                 guard actuallyRead == totalSize else { throw POSIXError(.EIO) }
             }
         }
+        self.data = data
     }
     
     subscript(index: Int) -> BlockGroupDescriptor? {
@@ -41,9 +44,8 @@ class BlockGroupDescriptors {
                 return nil
             }
             
-            let descriptorSizeBytes = volume.superblock.featureIncompatibleFlags.contains(.enable64BitSize) ? volume.superblock.descriptorSize : 32
-            let start = Int(index) * Int(descriptorSizeBytes)
-            let descriptorData = data.subdata(in: start..<(start+Int(descriptorSizeBytes)))
+            let start = Int(index) * Int(descriptorSizeInBytes)
+            let descriptorData = data.subdata(in: start..<(start+Int(descriptorSizeInBytes)))
             return BlockGroupDescriptor(from: descriptorData)
         }
     }

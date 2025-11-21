@@ -8,12 +8,50 @@
 import Foundation
 import FSKit
 
-class Ext4Item: FSItem {
+actor ItemCache {
+    /// Used to temporarily store `com.apple.*` attributes. Such attributes won't be written to disk or persisted.
+    var temporaryXattrs: [String: Data] = [:]
+    func getTemporaryXattr(_ name: String) -> Data? {
+        temporaryXattrs[name]
+    }
+    func setTemporaryXattr(_ data: Data?, for name: String) {
+        temporaryXattrs[name] = data
+    }
+    
+    var indexNode: IndexNode?
+    func getCachedIndexNode() -> IndexNode? {
+        return indexNode
+    }
+    func setCachedIndexNode(_ node: IndexNode) {
+        indexNode = node
+    }
+    
+    /// An array of directory entries, if this item is a directory and they have been queried.
+    ///
+    /// This list is sorted by the entry names.
+    private var directoryContentsInodes: [DirectoryEntry]? = nil
+    /// A value that changes if the contents of the directory changes.
+    private var directoryVerifier: FSDirectoryVerifier? = nil
+    func getDirectoryEntries() -> ([DirectoryEntry], FSDirectoryVerifier)? {
+        if let directoryVerifier, let directoryContentsInodes {
+            return (directoryContentsInodes, directoryVerifier)
+        }
+        return nil
+    }
+    func setDirectoryEntries(_ entries: [DirectoryEntry], withVerifier verifier: FSDirectoryVerifier) {
+        directoryContentsInodes = entries
+        directoryVerifier = verifier
+    }
+}
+
+final class Ext4Item: FSItem {
     static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item")
     
     let containingVolume: Ext4Volume
     /// The number of the index node for this item.
     let inodeNumber: UInt32
+    
+    let cache = ItemCache()
     
     var blockGroupNumber: UInt32 {
         get throws {
@@ -85,22 +123,18 @@ class Ext4Item: FSItem {
         guard let indexNode = IndexNode(from: fetchedData, creator: volume.superblock.creatorOS) else {
             throw POSIXError(.EIO)
         }
-        self._indexNode = indexNode
+        await cache.setCachedIndexNode(indexNode)
     }
     
-    /// Used to temporarily store `com.apple.*` attributes. Such attributes won't be written to disk or persisted.
-    var temporaryXattrs: [String: Data] = [:]
-    
-    var _indexNode: IndexNode?
     var indexNode: IndexNode {
-        get throws {
-            try fetchInode()
-            return _indexNode!
+        get async throws {
+            try await fetchInode()
+            return await cache.getCachedIndexNode()!
         }
     }
     
-    private func fetchInode() throws {
-        if _indexNode != nil {
+    private func fetchInode() async throws {
+        if await cache.getCachedIndexNode() != nil {
             return
         }
         let blockSize = containingVolume.superblock.blockSize
@@ -119,15 +153,16 @@ class Ext4Item: FSItem {
         let fetchedData = try data.subdata(in: Int(inodeBlockOffset)..<Int(inodeBlockOffset)+Int(inodeSize))
         
         guard let inode = IndexNode(from: fetchedData, creator: containingVolume.superblock.creatorOS) else { throw POSIXError(.EIO) }
-        self._indexNode = inode
+        await cache.setCachedIndexNode(inode)
     }
     
     var filetype: FSItem.ItemType {
-        get {
+        get async {
             // cases must be in descending order of value because they are mutually exclusive but can still overlap
-            guard let mode = try? indexNode.mode else {
+            guard let indexNode = try? await indexNode else {
                 return .unknown
             }
+            let mode = indexNode.mode
             
             switch mode {
             case _ where mode.contains(.socketType):
@@ -154,34 +189,28 @@ class Ext4Item: FSItem {
     ///
     /// If this is used repeatedly, call this once and save the result. The instance can save some cached data.
     private var indirectBlockMap: IndirectBlockMap? {
-        get throws {
-            try indexNode.flags.contains(.usesExtents) ? nil : IndirectBlockMap(from: indexNode.block)
+        get async throws {
+            try await indexNode.flags.contains(.usesExtents) ? nil : IndirectBlockMap(from: indexNode.block)
         }
     }
     /// The root of an extent tree used on ext4.
     ///
     /// If this is used repeatedly, call this once and save the result. The instance can save some cached data.
     private var extentTreeRoot: FileExtentTreeLevel? {
-        get throws {
-            try indexNode.flags.contains(.usesExtents) ? FileExtentTreeLevel(from: indexNode.block) : nil
+        get async throws {
+            try await indexNode.flags.contains(.usesExtents) ? FileExtentTreeLevel(from: indexNode.block) : nil
         }
     }
     
-    /// An array of directory entries, if this item is a directory and they have been queried.
-    ///
-    /// This list is sorted by the entry names.
-    private var _directoryContentsInodes: [DirectoryEntry]? = nil
-    /// A value that changes if the contents of the directory changes.
-    private var directoryVerifier: FSDirectoryVerifier? = nil
     var directoryContents: ([DirectoryEntry], FSDirectoryVerifier)? {
         get async throws {
-            guard filetype == .directory else { return nil }
-            if _directoryContentsInodes != nil, let group = _directoryContentsInodes, let verifier = directoryVerifier {
+            guard await filetype == .directory else { return nil }
+            if let (group, verifier) = await cache.getDirectoryEntries() {
                 return (group, verifier)
             }
             
             try await loadDirectoryContentCache()
-            if let group = _directoryContentsInodes, let verifier = directoryVerifier {
+            if let (group, verifier) = await cache.getDirectoryEntries() {
                 return (group, verifier)
             }
             return nil
@@ -189,21 +218,21 @@ class Ext4Item: FSItem {
     }
     
     func findItemInDirectory(named name: FSFileName) async throws -> Ext4Item? {
-        if _directoryContentsInodes == nil {
+        if await cache.getDirectoryEntries() == nil {
             try await loadDirectoryContentCache()
         }
         
-        if let _directoryContentsInodes, let nameStr = name.string {
-            let dirEntryIndex = _directoryContentsInodes.partitioningIndex { $0.name >= nameStr }
-            if dirEntryIndex != _directoryContentsInodes.endIndex, _directoryContentsInodes[dirEntryIndex].name == nameStr {
-                return try await containingVolume.item(forInode: _directoryContentsInodes[dirEntryIndex].inodePointee)
+        if let (directoryContentsInodes, _) = await cache.getDirectoryEntries(), let nameStr = name.string {
+            let dirEntryIndex = directoryContentsInodes.partitioningIndex { $0.name >= nameStr }
+            if dirEntryIndex != directoryContentsInodes.endIndex, directoryContentsInodes[dirEntryIndex].name == nameStr {
+                return try await containingVolume.item(forInode: directoryContentsInodes[dirEntryIndex].inodePointee)
             }
         }
         return nil
     }
     
     private func loadDirectoryContentCache() async throws {
-        guard filetype == .directory else { return }
+        guard await filetype == .directory else { return }
         Self.logger.debug("loadDirectoryContentCache")
         var cache: [DirectoryEntry] = []
         
@@ -227,14 +256,13 @@ class Ext4Item: FSItem {
             }
         }
         
-        _directoryContentsInodes = cache.sorted(by: { $0.name < $1.name })
-        directoryVerifier = FSDirectoryVerifier(UInt64.random(in: 1..<UInt64.max))
+        await self.cache.setDirectoryEntries(cache.sorted(by: { $0.name < $1.name }), withVerifier: FSDirectoryVerifier(UInt64.random(in: 1..<UInt64.max)))
     }
     
     var symbolicLinkTarget: String? {
         get async throws {
-            guard filetype == .symlink else { return nil }
-            let indexNode = try indexNode
+            guard await filetype == .symlink else { return nil }
+            let indexNode = try await indexNode
             if indexNode.size < 60 {
                 return indexNode.block.readString(at: 0, maxLength: indexNode.block.count)
             } else {
@@ -256,24 +284,26 @@ class Ext4Item: FSItem {
     }
     
     var extendedAttributeBlock: ExtendedAttrBlock? {
-        get throws {
-            guard try indexNode.xattrBlock != 0 else { return nil }
+        get async throws {
+            let indexNode = try await indexNode
+            guard indexNode.xattrBlock != 0 else { return nil }
             let data = try BlockDeviceReader.fetchExtent(from: containingVolume.resource, blockNumbers: off_t(indexNode.xattrBlock)..<(Int64(indexNode.xattrBlock) + 1), blockSize: containingVolume.superblock.blockSize)
             return ExtendedAttrBlock(from: data)
         }
     }
     
-    func getValueForEmbeddedAttribute(_ entry: ExtendedAttrEntry) throws -> Data? {
-        guard (try indexNode.embeddedExtendedAttributes) != nil else { return nil }
-        let offset = Data.Index(try entry.valueOffset - indexNode.embeddedXattrEntryBytes)
+    func getValueForEmbeddedAttribute(_ entry: ExtendedAttrEntry) async throws -> Data? {
+        let indexNode = try await indexNode
+        guard indexNode.embeddedExtendedAttributes != nil else { return nil }
+        let offset = Data.Index(entry.valueOffset - indexNode.embeddedXattrEntryBytes)
         let length = Data.Index(entry.valueLength)
-        let data = try indexNode.remainingData.subdata(in: offset..<offset+length)
+        let data = indexNode.remainingData.subdata(in: offset..<offset+length)
         guard data.count == length else { throw POSIXError(.EIO) }
         return data
     }
     
-    func getAttributes(_ request: GetAttributesRequest) throws -> FSItem.Attributes {
-        let attributes = try indexNode.getAttributes(request, superblock: containingVolume.superblock, readOnlySystem: containingVolume.readOnly)
+    func getAttributes(_ request: GetAttributesRequest) async throws -> FSItem.Attributes {
+        let attributes = try await indexNode.getAttributes(request, superblock: containingVolume.superblock, readOnlySystem: containingVolume.readOnly)
         
         if request.isAttributeWanted(.fileID) {
             attributes.fileID = FSItem.Identifier(rawValue: UInt64(inodeNumber)) ?? .invalid
@@ -283,11 +313,11 @@ class Ext4Item: FSItem {
     }
     
     func findExtentsCovering(_ fileBlock: UInt64, with blockLength: Int) async throws -> [FileExtentNode] {
-        if let extentTreeRoot = try extentTreeRoot {
+        if let extentTreeRoot = try await extentTreeRoot {
             return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength, in: containingVolume)
         } else {
-            let actualBlockLength = try min(blockLength, Int((Double(indexNode.size) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
-            guard var indirectBlockMap = try indirectBlockMap else {
+            let actualBlockLength = try await min(blockLength, Int((Double(indexNode.size) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
+            guard var indirectBlockMap = try await indirectBlockMap else {
                 throw POSIXError(.EIO)
             }
             return try (fileBlock..<(fileBlock + UInt64(actualBlockLength))).reduce(into: []) { extents, block in
