@@ -162,7 +162,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         statistics.usedBlocks = statistics.totalBlocks - statistics.freeBlocks
         statistics.freeFiles = UInt64(superblock.freeInodeCount)
         statistics.totalFiles = UInt64(superblock.inodeCount)
-        statistics.ioSize = superblock.blockSize
+        statistics.ioSize = superblock.blockSize * 4
         
         if superblock.featureIncompatibleFlags.contains(.extents) {
             statistics.fileSystemSubType = ExtendedFilesystemTypes.ext4.rawValue
