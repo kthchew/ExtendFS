@@ -71,6 +71,54 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         self.superblock = superblock
         self.readOnly = readOnly
         
+        logger.log("""
+            Superblock contents:
+                Inode count: \(superblock.inodeCount, privacy: .public)
+                Block count (low): \(superblock.blockCount, privacy: .public)
+                Root-only block count (low): \(superblock.superUserBlockCount, privacy: .public)
+                Free block count (low): \(superblock.freeBlockCount, privacy: .public)
+                Free inode count: \(superblock.freeInodeCount, privacy: .public)
+                First data block: \(superblock.firstDataBlock, privacy: .public)
+                Log block size: \(superblock.logBlockSize, privacy: .public)
+                Log cluster size: \(superblock.logClusterSize, privacy: .public)
+                Blocks per group: \(superblock.blocksPerGroup, privacy: .public)
+                Clusters per group: \(superblock.clustersPerGroup, privacy: .public)
+                Inodes per group: \(superblock.inodesPerGroup, privacy: .public)
+                Mount time: \(superblock.mountTime, privacy: .public)
+                Write time: \(superblock.writeTime, privacy: .public)
+                Mount count: \(superblock.mountCount, privacy: .public)
+                Max mount count: \(superblock.maxMountCount, privacy: .public)
+                Magic: \(superblock.magic, privacy: .public)
+                State: \(superblock.state.rawValue, privacy: .public)
+                Error behavior: \(String(describing: try? superblock.errors), privacy: .public)
+                Minor revision level: \(superblock.minorRevisionLevel, privacy: .public)
+                Last check: \(superblock.lastCheckTime, privacy: .public)
+                Check interval: \(superblock.checkInterval, privacy: .public)
+                Creator OS: \(superblock.creatorOS.rawValue, privacy: .public)
+                Revision level: \(superblock.revisionLevel.rawValue, privacy: .public)
+                Default UID: \(superblock.defaultReservedUid, privacy: .public)
+                Default GID: \(superblock.defaultReservedGid, privacy: .public)
+                First non-reserved inode: \(superblock.firstNonReservedInode, privacy: .public)
+                Inode size: \(superblock.inodeSize, privacy: .public)
+                Block group of this superblock: \(String(describing: superblock.blockGroupNumber), privacy: .public)
+                Compat features: \(superblock.featureCompatibilityFlags.rawValue, privacy: .public)
+                Incompat features: \(superblock.featureIncompatibleFlags.rawValue, privacy: .public)
+                Readonly compat features: \(superblock.readonlyFeatureCompatibilityFlags.rawValue, privacy: .public)
+                UUID: \(superblock.uuid?.uuidString ?? "")
+                Volume name: \(superblock.volumeName ?? "")
+                Last mounted directory: \(superblock.lastMountedDirectory ?? "")
+                Compresion algo use bitmap: \(String(describing: superblock.algorithmUsageBitmap), privacy: .public)
+                
+                Block count (high): \(String(describing: superblock.blocksCountHigh), privacy: .public)
+                Root-only block count (high): \(String(describing: superblock.reservedBlocksCountHigh), privacy: .public)
+                Free block count (high): \(String(describing: superblock.freeBlocksCountHigh), privacy: .public)
+                Min extra inode size: \(String(describing: superblock.minimumExtraInodeSize), privacy: .public)
+                Want extra inode size: \(String(describing: superblock.wantExtraInodeSize), privacy: .public)
+                Flags: \(String(describing: superblock.flags), privacy: .public)
+            
+                Log groups per flex: \(String(describing: superblock.logGroupsPerFlexibleGroup), privacy: .public)
+            """)
+        
         let endOfSuperblock = superblock.offset + 1024
         let blockSize = superblock.blockSize
         let firstBlockAfterSuperblockOffset = Int64(ceil(Double(endOfSuperblock) / Double(blockSize))) * Int64(blockSize)
@@ -99,6 +147,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     func blockNumber(forBlockContainingInode inodeNumber: UInt32) throws -> (UInt64, UInt32) {
         let blockGroup = Int((inodeNumber - 1) / superblock.inodesPerGroup)
         guard let groupDescriptor = try blockGroupDescriptors[blockGroup], let tableLocation = groupDescriptor.inodeTableLocation else {
+            logger.error("Failed to fetch data from block group descriptors while looking for block containing inode \(inodeNumber, privacy: .public)")
             throw POSIXError(.EIO)
         }
         let tableIndex = (inodeNumber - 1) % superblock.inodesPerGroup
@@ -114,6 +163,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         }
         let blockGroup = blockNumber / UInt64(superblock.blocksPerGroup)
         guard let groupDescriptor = try blockGroupDescriptors[Int(blockGroup)], let tableLocation = groupDescriptor.inodeTableLocation else {
+            logger.error("Failed to fetch data from block group descriptors while loading inodes at block \(blockNumber, privacy: .public)")
             throw POSIXError(.EIO)
         }
         let blockOffset = blockNumber - tableLocation
@@ -122,6 +172,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         let firstInodeInBlock = firstInodeOfGroup + (UInt32(blockOffset) * UInt32(inodesPerBlock))
         let lastInodeInBlock = firstInodeInBlock + UInt32(inodesPerBlock) - 1
         
+        logger.debug("Loading inodes \(firstInodeInBlock, privacy: .public) through \(lastInodeInBlock, privacy: .public) at block number \(blockNumber, privacy: .public) from disk")
         var data = try BlockDeviceReader.fetchExtent(from: resource, blockNumbers: off_t(blockNumber)..<Int64(blockNumber)+1, blockSize: superblock.blockSize)
         var items: [Ext4Item] = []
         for inode in firstInodeInBlock...lastInodeInBlock {
@@ -197,10 +248,10 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     }
     
     func attributes(_ desiredAttributes: FSItem.GetAttributesRequest, of item: FSItem) async throws -> FSItem.Attributes {
-        logger.debug("attributes")
         guard let item = item as? Ext4Item else {
             throw POSIXError(.ENOENT)
         }
+        logger.debug("attributes for \(item.inodeNumber, privacy: .public)")
         
         let attrs = try await item.getAttributes(desiredAttributes)
         if desiredAttributes.isAttributeWanted(.parentID) {
@@ -218,10 +269,10 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     }
     
     func lookupItem(named name: FSFileName, inDirectory directory: FSItem) async throws -> (FSItem, FSFileName) {
-        logger.debug("lookupItem with name \(name.string ?? "(unknown)")")
         guard let directory = directory as? Ext4Item else {
             throw POSIXError(.ENOENT)
         }
+        logger.debug("Looking up item with name \(name.string ?? "(unknown)") in directory (inode \(directory.inodeNumber))")
         
         if let item = try await directory.findItemInDirectory(named: name) {
             return (item, name)
@@ -244,11 +295,11 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     
     
     func readSymbolicLink(_ item: FSItem) async throws -> FSFileName {
-        logger.debug("readSymbolicLink")
         guard let item = item as? Ext4Item else {
             throw POSIXError(.EIO)
         }
         guard let target = try await item.symbolicLinkTarget else {
+            logger.fault("Symbolic link request for item with inode \(item.inodeNumber) but symbolic link target was nil")
             throw POSIXError(.EIO)
         }
         return FSFileName(string: target)
@@ -463,7 +514,7 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
             let extentLengthInBytes = Int(extent.lengthInBlocks ?? 1) * Int(blockSize)
             if current < extentStartInBytes {
                 if flags.contains(.write) {
-                    throw POSIXError(.EIO)
+                    throw POSIXError(.EROFS)
                 } else {
                     let zeros = Int(extentStartInBytes - current)
                     guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: zeros) else {
@@ -481,7 +532,7 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
         }
         if current < end {
             if flags.contains(.write) {
-                throw POSIXError(.EIO)
+                throw POSIXError(.EROFS)
             } else {
                 guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: end - Int(current)) else {
                     return
@@ -559,7 +610,7 @@ extension Ext4Volume: FSVolume.XattrOperations {
             return value
         }
         
-        logger.log("No xattr named \(toFind, privacy: .public)")
+        logger.info("No xattr named \(toFind, privacy: .public)")
         throw POSIXError(.ENOATTR)
     }
     

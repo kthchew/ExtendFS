@@ -16,7 +16,7 @@ enum ExtensionError: Error {
 
 @objc
 final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperations {
-    let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Ext4Extension")
+    static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Ext4Extension")
     
     @MainActor weak var resource: FSBlockDeviceResource?
     @MainActor weak var volume: Ext4Volume?
@@ -31,9 +31,9 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
     }
     
     func probeResource(resource: FSResource) async throws -> FSProbeResult {
-        logger.log("Probing resource")
+        Self.logger.log("Probing resource")
         guard let resource = resource as? FSBlockDeviceResource else {
-            logger.log("Not block device")
+            Self.logger.log("Not block device")
             return .notRecognized
         }
         
@@ -43,29 +43,29 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
             let uuid = superblock.uuid ?? UUID()
             // seems like recognized and usableButLimited are treated like notRecognized as of macOS 15.6 (24G84)
 //            guard superblock.featureIncompatibleFlags.isSubset(of: Superblock.IncompatibleFeatures.supportedFeatures) else {
-//                logger.log("Recognized but not usable")
+//                Self.logger.log("Recognized but not usable")
 //                return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
 //            }
 //            guard superblock.readonlyFeatureCompatibilityFlags.isSubset(of: Superblock.ReadOnlyCompatibleFeatures.supportedFeatures) else {
-//                logger.log("Usable but limited")
+//                Self.logger.log("Usable but limited")
 //                return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
 //            }
             
             if superblock.state.contains(.errorsDetected) {
-                logger.log("Errors detected on volume.")
+                Self.logger.log("Errors detected on volume.")
                 let errorPolicy = try superblock.errors
                 switch errorPolicy {
                 case .continue:
-                    logger.log("Error policy set to continue, continuing as normal.")
+                    Self.logger.log("Error policy set to continue, continuing as normal.")
                     break
                 case .remountReadOnly:
-                    logger.log("Error policy set to remount as read-only, indicating usable but limited.")
+                    Self.logger.log("Error policy set to remount as read-only, indicating usable but limited.")
                     return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
                 case .panic:
-                    logger.log("Error policy set to panic, indicating recognized but not usable.")
+                    Self.logger.log("Error policy set to panic, indicating recognized but not usable.")
                     return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
                 case .unknown:
-                    logger.log("Error policy is not recognized.")
+                    Self.logger.log("Error policy is not recognized.")
                     return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
                 }
             }
@@ -78,37 +78,37 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
 
     func loadResource(resource: FSResource, options: FSTaskOptions) async throws -> FSVolume {
         // FIXME: do I need to check probe result here?
-        logger.log("Loading resource")
+        Self.logger.log("Loading resource")
         let probeResult = try await probeResource(resource: resource)
         var readOnly: Bool
         switch probeResult.result {
         case .notRecognized:
-            logger.log("Invalid resource")
+            Self.logger.log("Invalid resource")
             throw ExtensionError.resourceUnsupported
         case .recognized:
-            logger.log("Recognized but can't mount")
+            Self.logger.log("Recognized but can't mount")
             throw ExtensionError.resourceUnsupported
         case .usableButLimited:
             readOnly = true
         case .usable:
             readOnly = true // write not supported atm
         @unknown default:
-            logger.log("Unknown probe result")
+            Self.logger.log("Unknown probe result")
             throw ExtensionError.resourceUnsupported
         }
         
         guard let resource = resource as? FSBlockDeviceResource else {
-            logger.log("Not a block resource")
+            Self.logger.log("Not a block resource")
             throw ExtensionError.resourceUnsupported
         }
         
-        logger.log("load options: \(options.taskOptions, privacy: .public)")
+        Self.logger.log("load options: \(options.taskOptions, privacy: .public)")
         for option in options.taskOptions {
             switch option {
             case "-f":
                 continue
             case "--rdonly":
-                logger.log("Read only option provided")
+                Self.logger.log("Read only option provided")
                 readOnly = true
             default:
                 continue
@@ -118,20 +118,20 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
         let volume = try await Ext4Volume(resource: resource, fileSystem: self, readOnly: readOnly)
         await setResources(resource: resource, volume: volume)
         await setContainerStatus(.ready)
-        logger.log("Container status ready")
+        Self.logger.log("Container status ready")
         BlockDeviceReader.useMetadataRead = true
         return volume
     }
 
     func unloadResource(resource: FSResource, options: FSTaskOptions) async throws {
-        logger.log("Unloading resource")
+        Self.logger.log("Unloading resource")
         await setResources(resource: nil, volume: nil)
         await setContainerStatus(.notReady(status: ExtensionError.unloadedResource))
         return
     }
     
     func didFinishLoading() {
-        logger.log("did finish loading")
+        Self.logger.log("did finish loading")
     }
 }
 
@@ -150,8 +150,10 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
             case .remountReadOnly:
                 break
             case .panic:
+                Self.logger.error("Errors deteched on disk, and error policy is to panic.")
                 throw POSIXError(.EDEVERR)
             case .unknown:
+                Self.logger.error("Errors deteched on disk, and error policy is unknown.")
                 throw POSIXError(.EDEVERR)
             }
         }

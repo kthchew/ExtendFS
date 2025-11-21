@@ -228,17 +228,18 @@ final class Ext4Item: FSItem {
                 return try await containingVolume.item(forInode: directoryContentsInodes[dirEntryIndex].inodePointee)
             }
         }
+        
         return nil
     }
     
     private func loadDirectoryContentCache() async throws {
         guard await filetype == .directory else { return }
-        Self.logger.debug("loadDirectoryContentCache")
+        Self.logger.debug("Loading directory content cache for directory (inode \(self.inodeNumber, privacy: .public))")
         var cache: [DirectoryEntry] = []
         
         let extents = try await findExtentsCovering(0, with: Int.max)
         for extent in extents {
-            Self.logger.debug("Fetching extent at block \(extent.physicalBlock)")
+            Self.logger.debug("Fetching extent at block \(extent.physicalBlock, privacy: .public)")
             guard let lengthInBlocks = extent.lengthInBlocks else {
                 throw POSIXError(.EIO)
             }
@@ -246,9 +247,9 @@ final class Ext4Item: FSItem {
             for block in 0..<lengthInBlocks {
                 let byteOffset = containingVolume.superblock.blockSize * Data.Index(block)
                 let blockData = data.subdata(in: byteOffset..<(byteOffset+containingVolume.superblock.blockSize))
-                Self.logger.debug("Trying to decode data of length \(blockData.count)")
+                Self.logger.debug("Trying to decode data of length \(blockData.count, privacy: .public)")
                 guard let dirEntryBlock = ClassicDirectoryEntryBlock(from: blockData) else { continue }
-                Self.logger.debug("Block has \(dirEntryBlock.entries.count) entries")
+                Self.logger.debug("Block has \(dirEntryBlock.entries.count, privacy: .public) entries")
                 for entry in dirEntryBlock.entries {
                     guard entry.inodePointee != 0, entry.nameLength != 0 else { continue }
                     cache.append(entry)

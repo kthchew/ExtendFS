@@ -10,6 +10,7 @@ import FSKit
 import os.log
 
 final class BlockGroupDescriptors: Sendable {
+    static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "BlockGroupDescriptors")
     /// An offset pointing to the first descriptor in this block group, starting from the start of the disk.
     let offset: Int64
     let blockGroupCount: Int
@@ -41,6 +42,7 @@ final class BlockGroupDescriptors: Sendable {
     subscript(index: Int) -> BlockGroupDescriptor? {
         get throws {
             guard index >= 0 && index < blockGroupCount else {
+                Self.logger.fault("Trying to get block group descriptor for index \(index, privacy: .public), but it is out of bounds (offset \(self.offset, privacy: .public), total block group count \(self.blockGroupCount, privacy: .public))")
                 return nil
             }
             
