@@ -129,7 +129,7 @@ class Ext4ExtensionFileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperations 
 }
 
 extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
-    private func quickCheck(volume: Ext4Volume, task: FSTask) throws {
+    @MainActor private static func quickCheck(volume: Ext4Volume, task: FSTask) throws {
         let superblock = volume.superblock
         guard superblock.magic == 0xEF53 else {
             task.logMessage("Magic value in superblock did not match expectation. Is this an ext volume?")
@@ -174,7 +174,7 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
             }
             
             do {
-                try quickCheck(volume: volume, task: task)
+                try await Self.quickCheck(volume: volume, task: task)
                 task.didComplete(error: nil)
             } catch {
                 task.didComplete(error: error)

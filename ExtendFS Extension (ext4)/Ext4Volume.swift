@@ -35,6 +35,9 @@ actor VolumeCache {
     func setInodeTableBlock(_ items: [Ext4Item]?, forBlock blockNumber: UInt64) {
         inodeTableBlocks[blockNumber] = items
     }
+    func getItems(fromInodeTableBlockNumber blockNumber: UInt64) -> [Ext4Item]? {
+        return inodeTableBlocks[blockNumber]
+    }
     
     /// The key is the inode number.
     var items = [UInt32: Ext4Item]()
@@ -43,6 +46,11 @@ actor VolumeCache {
     }
     func fetchItem(forInodeNumber inodeNumber: UInt32) -> Ext4Item? {
         return items[inodeNumber]
+    }
+    
+    var root: Ext4Item!
+    func setRoot(_ root: Ext4Item) {
+        self.root = root
     }
     
     func clearAllCaches() {
@@ -70,13 +78,11 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
         self.blockGroupDescriptors = try BlockGroupDescriptors(volume: self, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
         
         let root = try await Ext4Item(volume: self, inodeNumber: 2)
-        self.root = root
+        await cache.setRoot(root)
         
-        await cache.addInode(inodeNumber: 2, blockNumber: try self.root.inodeBlockLocation)
+        await cache.addInode(inodeNumber: 2, blockNumber: try cache.root.inodeBlockLocation)
         await cache.setItem(root, forInodeNumber: 2)
     }
-    
-    private var root: Ext4Item!
     
     weak var fileSystem: FSUnaryFileSystem?
     let resource: FSBlockDeviceResource
@@ -102,7 +108,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     /// Loads all items associated with the inodes located at the given block number.
     /// - Parameter blockNumber: The block number of part of the inode table to load.
     func loadItems(from blockNumber: UInt64) async throws -> [Ext4Item] {
-        if let items = await cache.inodeTableBlocks[blockNumber] {
+        if let items = await cache.getItems(fromInodeTableBlockNumber: blockNumber) {
             return items
         }
         let blockGroup = blockNumber / UInt64(superblock.blocksPerGroup)
@@ -334,7 +340,7 @@ class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
     func activate(options: FSTaskOptions) async throws -> FSItem {
         logger.log("activate options: \(options.taskOptions, privacy: .public)")
         fileSystem?.containerStatus = .active
-        return root
+        return await cache.root
     }
     
     func deactivate(options: FSDeactivateOptions = []) async throws {
