@@ -9,8 +9,6 @@ import Foundation
 import FSKit
 
 @main
-struct Ext4Extension : UnaryFileSystemExtension {
-    var fileSystem : FSUnaryFileSystem & FSUnaryFileSystemOperations {
-        Ext4ExtensionFileSystem()
-    }
+struct Ext4Extension: UnaryFileSystemExtension {
+    let fileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperations = Ext4ExtensionFileSystem()
 }
