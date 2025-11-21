@@ -9,7 +9,7 @@ import Foundation
 import FSKit
 
 class Ext4Item: FSItem {
-    let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item")
+    static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item")
     
     let containingVolume: Ext4Volume
     /// The number of the index node for this item.
@@ -164,20 +164,22 @@ class Ext4Item: FSItem {
         }
     }
     
-    /// A map of file names to their directory entries.
-    private var _directoryContentsInodes: [String: DirectoryEntry]? = nil
+    /// An array of directory entries, if this item is a directory and they have been queried.
+    ///
+    /// This list is sorted by the entry names.
+    private var _directoryContentsInodes: [DirectoryEntry]? = nil
     /// A value that changes if the contents of the directory changes.
     private var directoryVerifier: FSDirectoryVerifier? = nil
     var directoryContents: ([DirectoryEntry], FSDirectoryVerifier)? {
         get async throws {
             guard filetype == .directory else { return nil }
             if _directoryContentsInodes != nil, let group = _directoryContentsInodes, let verifier = directoryVerifier {
-                return (Array(group.values), verifier)
+                return (group, verifier)
             }
             
             try await loadDirectoryContentCache()
             if let group = _directoryContentsInodes, let verifier = directoryVerifier {
-                return (Array(group.values), verifier)
+                return (group, verifier)
             }
             return nil
         }
@@ -188,20 +190,23 @@ class Ext4Item: FSItem {
             try await loadDirectoryContentCache()
         }
         
-        if let _directoryContentsInodes, let nameStr = name.string, let dirEntry = _directoryContentsInodes[nameStr] {
-            return try await containingVolume.item(forInode: dirEntry.inodePointee)
+        if let _directoryContentsInodes, let nameStr = name.string {
+            let dirEntryIndex = _directoryContentsInodes.partitioningIndex { $0.name >= nameStr }
+            if dirEntryIndex != _directoryContentsInodes.endIndex, _directoryContentsInodes[dirEntryIndex].name == nameStr {
+                return try await containingVolume.item(forInode: _directoryContentsInodes[dirEntryIndex].inodePointee)
+            }
         }
         return nil
     }
     
     private func loadDirectoryContentCache() async throws {
         guard filetype == .directory else { return }
-        logger.debug("loadDirectoryContentCache")
-        var cache: [String: DirectoryEntry] = [:]
+        Self.logger.debug("loadDirectoryContentCache")
+        var cache: [DirectoryEntry] = []
         
         let extents = try await findExtentsCovering(0, with: Int.max)
         for extent in extents {
-            logger.debug("Fetching extent at block \(extent.physicalBlock)")
+            Self.logger.debug("Fetching extent at block \(extent.physicalBlock)")
             guard let lengthInBlocks = extent.lengthInBlocks else {
                 throw POSIXError(.EIO)
             }
@@ -209,17 +214,17 @@ class Ext4Item: FSItem {
             for block in 0..<lengthInBlocks {
                 let byteOffset = containingVolume.superblock.blockSize * Data.Index(block)
                 let blockData = data.subdata(in: byteOffset..<(byteOffset+containingVolume.superblock.blockSize))
-                logger.debug("Trying to decode data of length \(blockData.count)")
+                Self.logger.debug("Trying to decode data of length \(blockData.count)")
                 guard let dirEntryBlock = ClassicDirectoryEntryBlock(from: blockData) else { continue }
-                logger.debug("Block has \(dirEntryBlock.entries.count) entries")
+                Self.logger.debug("Block has \(dirEntryBlock.entries.count) entries")
                 for entry in dirEntryBlock.entries {
                     guard entry.inodePointee != 0, entry.nameLength != 0 else { continue }
-                    cache[entry.name] = entry
+                    cache.append(entry)
                 }
             }
         }
         
-        _directoryContentsInodes = cache
+        _directoryContentsInodes = cache.sorted(by: { $0.name < $1.name })
         directoryVerifier = FSDirectoryVerifier(UInt64.random(in: 1..<UInt64.max))
     }
     
