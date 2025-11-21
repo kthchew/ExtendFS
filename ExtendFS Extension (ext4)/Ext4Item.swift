@@ -88,6 +88,9 @@ class Ext4Item: FSItem {
         self._indexNode = indexNode
     }
     
+    /// Used to temporarily store `com.apple.*` attributes. Such attributes won't be written to disk or persisted.
+    var temporaryXattrs: [String: Data] = [:]
+    
     var _indexNode: IndexNode?
     var indexNode: IndexNode {
         get throws {

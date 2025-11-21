@@ -544,11 +544,41 @@ extension Ext4Volume: FSVolume.XattrOperations {
             }
         }
         
+        if let value = item.temporaryXattrs[toFind] {
+            return value
+        }
+        
         logger.log("No xattr named \(toFind, privacy: .public)")
         throw POSIXError(.ENOATTR)
     }
     
     func setXattr(named name: FSFileName, to value: Data?, on item: FSItem, policy: FSVolume.SetXattrPolicy) async throws {
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        guard let nameString = name.string else { throw POSIXError(.EINVAL) }
+        if nameString.starts(with: "com.apple.") {
+            switch policy {
+            case .alwaysSet:
+                item.temporaryXattrs[nameString] = value
+            case .mustCreate:
+                guard item.temporaryXattrs[nameString] == nil else {
+                    throw POSIXError(.EEXIST)
+                }
+                item.temporaryXattrs[nameString] = value
+            case .mustReplace:
+                guard item.temporaryXattrs[nameString] != nil else {
+                    throw POSIXError(.ENOENT)
+                }
+                item.temporaryXattrs[nameString] = value
+            case .delete:
+                guard item.temporaryXattrs[nameString] != nil else {
+                    throw POSIXError(.ENOENT)
+                }
+                item.temporaryXattrs[nameString] = nil
+            @unknown default:
+                throw POSIXError(.ENOSYS)
+            }
+        }
+        
         throw POSIXError(.ENOSYS)
     }
     
@@ -563,6 +593,10 @@ extension Ext4Volume: FSVolume.XattrOperations {
         
         if let block = try item.extendedAttributeBlock {
             attrs.append(contentsOf: try block.extendedAttributes.keys)
+        }
+        
+        for temporaryXattr in item.temporaryXattrs {
+            attrs.append(temporaryXattr.key)
         }
         
         return attrs.map { FSFileName(string: $0) }
