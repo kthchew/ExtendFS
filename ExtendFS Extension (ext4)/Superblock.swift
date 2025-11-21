@@ -30,47 +30,6 @@ struct BlockDeviceReader {
         
         return data
     }
-    
-    static func readSmallSection<T>(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> T? {
-        var item: T?
-        let blockSize = off_t(blockDevice.physicalBlockSize)
-        let startReadAt = (offset / blockSize) * blockSize
-        let targetContentOffset = Int(offset - startReadAt)
-        let targetContentEnd = Int(targetContentOffset) + MemoryLayout<T>.size
-        let readLength = targetContentEnd < blockSize ? Int(blockSize) : Int(blockSize) * 2
-        try withUnsafeTemporaryAllocation(byteCount: readLength, alignment: 1) { ptr in
-            if useMetadataRead {
-                try blockDevice.metadataRead(into: ptr, startingAt: startReadAt, length: readLength)
-            } else {
-                let actuallyRead = try blockDevice.read(into: ptr, startingAt: startReadAt, length: readLength)
-                guard actuallyRead == readLength else {
-                    logger.error("Expected to read \(readLength) bytes, actually read \(actuallyRead)")
-                    throw POSIXError(.EIO)
-                }
-            }
-            withUnsafeTemporaryAllocation(byteCount: MemoryLayout<T>.size, alignment: MemoryLayout<T>.alignment) { itemPtr in
-                itemPtr.copyMemory(from: UnsafeRawBufferPointer(rebasing: ptr[targetContentOffset..<targetContentEnd]))
-                item = itemPtr.load(as: T.self)
-            }
-        }
-        guard let item else {
-            throw POSIXError(.EIO)
-        }
-        return item
-    }
-    static func readLittleEndian<T: FixedWidthInteger>(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> T {
-        guard let item: T = try readSmallSection(blockDevice: blockDevice, at: offset) else {
-            throw POSIXError(.EIO)
-        }
-        return item.littleEndian
-    }
-    
-    static func readBigEndian<T: FixedWidthInteger>(blockDevice: FSBlockDeviceResource, at offset: off_t) throws -> T {
-        guard let item: T = try readSmallSection(blockDevice: blockDevice, at: offset) else {
-            throw POSIXError(.EIO)
-        }
-        return item.bigEndian
-    }
 }
 
 struct Superblock {
