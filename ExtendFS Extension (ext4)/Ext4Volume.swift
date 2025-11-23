@@ -215,7 +215,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         statistics.blockSize = superblock.blockSize
         statistics.totalBlocks = superblock.blockCount
         statistics.freeBlocks = superblock.freeBlockCount
-        statistics.availableBlocks = superblock.freeBlockCount - superblock.superUserBlockCount
+        statistics.availableBlocks = superblock.freeBlockCount >= superblock.superUserBlockCount ? superblock.freeBlockCount - superblock.superUserBlockCount : 0
         statistics.usedBlocks = statistics.totalBlocks - statistics.freeBlocks
         statistics.freeFiles = UInt64(superblock.freeInodeCount)
         statistics.totalFiles = UInt64(superblock.inodeCount)
