@@ -315,7 +315,7 @@ struct IndexNode {
             attributes.size = size
         }
         if request.isAttributeWanted(.allocSize) {
-            let usesHugeBlocks = superblock.readonlyFeatureCompatibilityFlags.contains(.hugeFile) && flags.contains(.hugeFile)
+            let usesHugeBlocks = superblock.readOnlyCompatibleFeatures.contains(.hugeFile) && flags.contains(.hugeFile)
             attributes.allocSize = (blockCount * UInt64(usesHugeBlocks ? superblock.blockSize : 512))
         }
         if request.isAttributeWanted(.inhibitKernelOffloadedIO) {

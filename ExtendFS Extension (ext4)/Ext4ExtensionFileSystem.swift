@@ -37,7 +37,10 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
             return .notRecognized
         }
         
-        let superblock = try Superblock(blockDevice: resource, offset: 1024)
+        guard let superblock = try Superblock(blockDevice: resource, offset: 1024) else {
+            Self.logger.error("Could not read superblock from resource")
+            return .notRecognized
+        }
         if superblock.magic == 0xEF53 {
             let name = superblock.volumeName ?? ""
             let uuid = superblock.uuid ?? UUID()
@@ -53,7 +56,7 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
             
             if superblock.state.contains(.errorsDetected) {
                 Self.logger.log("Errors detected on volume.")
-                let errorPolicy = try superblock.errors
+                let errorPolicy = superblock.errorPolicy
                 switch errorPolicy {
                 case .continue:
                     Self.logger.log("Error policy set to continue, continuing as normal.")
@@ -144,7 +147,7 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
         }
         
         if superblock.state.contains(.errorsDetected) {
-            switch try superblock.errors {
+            switch superblock.errorPolicy {
             case .continue:
                 break
             case .remountReadOnly:

@@ -9,8 +9,8 @@ import Foundation
 import FSKit
 import os.log
 
-final class BlockGroupDescriptors: Sendable {
-    static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "BlockGroupDescriptors")
+final class BlockGroupDescriptorManager: Sendable {
+    static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "BlockGroupDescriptorManager")
     /// An offset pointing to the first descriptor in this block group, starting from the start of the disk.
     let offset: Int64
     let blockGroupCount: Int
@@ -22,9 +22,9 @@ final class BlockGroupDescriptors: Sendable {
     init(resource: FSBlockDeviceResource, superblock: Superblock, offset: Int64, blockGroupCount: Int) throws {
         self.offset = offset
         self.blockGroupCount = blockGroupCount
-        self.descriptorSizeInBytes = superblock.featureIncompatibleFlags.contains(.enable64BitSize) ? superblock.descriptorSize : 32
+        let descriptorSizeBytes = superblock.incompatibleFeatures.contains(.enable64BitSize) ? (superblock.groupDescriptorSizeInBytes ?? 32) : 32
+        self.descriptorSizeInBytes = descriptorSizeBytes
         
-        let descriptorSizeBytes = superblock.featureIncompatibleFlags.contains(.enable64BitSize) ? superblock.descriptorSize : 32
         let totalSize = (blockGroupCount * Int(descriptorSizeBytes)).roundUp(toMultipleOf: superblock.blockSize)
         
         var data = Data(count: totalSize)

@@ -67,16 +67,18 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         logger.log("Initializing volume")
         self.resource = resource
         self.fileSystem = fileSystem
-        let superblock = try Superblock(blockDevice: resource, offset: 1024)
+        guard let superblock = try Superblock(blockDevice: resource, offset: 1024) else {
+            throw POSIXError(.EIO)
+        }
         self.superblock = superblock
         self.readOnly = readOnly
         
         logger.log("""
             Superblock contents:
                 Inode count: \(superblock.inodeCount, privacy: .public)
-                Block count (low): \(superblock.blockCount, privacy: .public)
-                Root-only block count (low): \(superblock.superUserBlockCount, privacy: .public)
-                Free block count (low): \(superblock.freeBlockCount, privacy: .public)
+                Block count: \(superblock.blockCount, privacy: .public)
+                Root-only block count: \(superblock.superUserBlockCount, privacy: .public)
+                Free block count: \(superblock.freeBlockCount, privacy: .public)
                 Free inode count: \(superblock.freeInodeCount, privacy: .public)
                 First data block: \(superblock.firstDataBlock, privacy: .public)
                 Log block size: \(superblock.logBlockSize, privacy: .public)
@@ -86,32 +88,29 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
                 Inodes per group: \(superblock.inodesPerGroup, privacy: .public)
                 Mount time: \(superblock.mountTime, privacy: .public)
                 Write time: \(superblock.writeTime, privacy: .public)
-                Mount count: \(superblock.mountCount, privacy: .public)
-                Max mount count: \(superblock.maxMountCount, privacy: .public)
+                Mount count: \(superblock.mountsSinceLastFsck, privacy: .public)
+                Max mount count: \(superblock.maxMountsSinceLastFsck, privacy: .public)
                 Magic: \(superblock.magic, privacy: .public)
                 State: \(superblock.state.rawValue, privacy: .public)
-                Error behavior: \(String(describing: try? superblock.errors), privacy: .public)
+                Error behavior: \(String(describing: superblock.errorPolicy), privacy: .public)
                 Minor revision level: \(superblock.minorRevisionLevel, privacy: .public)
                 Last check: \(superblock.lastCheckTime, privacy: .public)
-                Check interval: \(superblock.checkInterval, privacy: .public)
+                Check interval: \(superblock.maxSecondsBetweenChecks, privacy: .public)
                 Creator OS: \(superblock.creatorOS.rawValue, privacy: .public)
                 Revision level: \(superblock.revisionLevel.rawValue, privacy: .public)
-                Default UID: \(superblock.defaultReservedUid, privacy: .public)
-                Default GID: \(superblock.defaultReservedGid, privacy: .public)
+                Default UID: \(superblock.defaultUidForReservedBlocks, privacy: .public)
+                Default GID: \(superblock.defaultGidForReservedBlocks, privacy: .public)
                 First non-reserved inode: \(superblock.firstNonReservedInode, privacy: .public)
                 Inode size: \(superblock.inodeSize, privacy: .public)
                 Block group of this superblock: \(String(describing: superblock.blockGroupNumber), privacy: .public)
-                Compat features: \(superblock.featureCompatibilityFlags.rawValue, privacy: .public)
-                Incompat features: \(superblock.featureIncompatibleFlags.rawValue, privacy: .public)
-                Readonly compat features: \(superblock.readonlyFeatureCompatibilityFlags.rawValue, privacy: .public)
+                Compat features: \(superblock.compatibleFeatures.rawValue, privacy: .public)
+                Incompat features: \(superblock.incompatibleFeatures.rawValue, privacy: .public)
+                Readonly compat features: \(superblock.readOnlyCompatibleFeatures.rawValue, privacy: .public)
                 UUID: \(superblock.uuid?.uuidString ?? "")
                 Volume name: \(superblock.volumeName ?? "")
-                Last mounted directory: \(superblock.lastMountedDirectory ?? "")
-                Compresion algo use bitmap: \(String(describing: superblock.algorithmUsageBitmap), privacy: .public)
+                Last mounted directory: \(superblock.lastMountDirectory ?? "")
+                Compresion algo use bitmap: \(String(describing: superblock.compressionAlgorithmUsageBitmap), privacy: .public)
                 
-                Block count (high): \(String(describing: superblock.blocksCountHigh), privacy: .public)
-                Root-only block count (high): \(String(describing: superblock.reservedBlocksCountHigh), privacy: .public)
-                Free block count (high): \(String(describing: superblock.freeBlocksCountHigh), privacy: .public)
                 Min extra inode size: \(String(describing: superblock.minimumExtraInodeSize), privacy: .public)
                 Want extra inode size: \(String(describing: superblock.wantExtraInodeSize), privacy: .public)
                 Flags: \(String(describing: superblock.flags), privacy: .public)
@@ -119,10 +118,10 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
                 Log groups per flex: \(String(describing: superblock.logGroupsPerFlexibleGroup), privacy: .public)
             """)
         
-        let endOfSuperblock = superblock.offset + 1024
+        let endOfSuperblock = 1024 + 1024
         let blockSize = superblock.blockSize
         let firstBlockAfterSuperblockOffset = Int64(ceil(Double(endOfSuperblock) / Double(blockSize))) * Int64(blockSize)
-        self.blockGroupDescriptors = try BlockGroupDescriptors(resource: resource, superblock: superblock, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
+        self.blockGroupDescriptors = try BlockGroupDescriptorManager(resource: resource, superblock: superblock, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
         
         super.init(volumeID: FSVolume.Identifier(uuid: superblock.uuid ?? UUID()), volumeName: FSFileName(string: superblock.volumeName ?? ""))
         
@@ -137,7 +136,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     let resource: FSBlockDeviceResource
     /// The superblock in block group 0.
     let superblock: Superblock
-    let blockGroupDescriptors: BlockGroupDescriptors
+    let blockGroupDescriptors: BlockGroupDescriptorManager
     
     let cache = VolumeCache()
     
@@ -214,17 +213,17 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     var volumeStatistics: FSStatFSResult {
         let statistics = FSStatFSResult(fileSystemTypeName: "ExtendFS")
         statistics.blockSize = superblock.blockSize
-        statistics.totalBlocks = UInt64.combine(upper: superblock.blocksCountHigh ?? 0, lower: superblock.blockCount)
-        statistics.freeBlocks = UInt64.combine(upper: superblock.freeBlocksCountHigh ?? 0, lower: superblock.freeBlockCount)
-        statistics.availableBlocks = UInt64.combine(upper: superblock.freeBlocksCountHigh ?? 0, lower: superblock.freeBlockCount)
+        statistics.totalBlocks = superblock.blockCount
+        statistics.freeBlocks = superblock.freeBlockCount
+        statistics.availableBlocks = superblock.freeBlockCount - superblock.superUserBlockCount
         statistics.usedBlocks = statistics.totalBlocks - statistics.freeBlocks
         statistics.freeFiles = UInt64(superblock.freeInodeCount)
         statistics.totalFiles = UInt64(superblock.inodeCount)
         statistics.ioSize = superblock.blockSize * 4
         
-        if superblock.featureIncompatibleFlags.contains(.extents) {
+        if superblock.incompatibleFeatures.contains(.extents) {
             statistics.fileSystemSubType = ExtendedFilesystemTypes.ext4.rawValue
-        } else if superblock.featureCompatibilityFlags.contains(.journal) {
+        } else if superblock.compatibleFeatures.contains(.journal) {
             statistics.fileSystemSubType = ExtendedFilesystemTypes.ext3.rawValue
         } else {
             statistics.fileSystemSubType = ExtendedFilesystemTypes.ext2.rawValue

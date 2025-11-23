@@ -71,6 +71,19 @@ extension Data.Iterator {
         }
         return String(decoding: chars, as: encoding)
     }
+    
+    mutating func nextUUID() -> UUID? {
+        var uuidArray: [UInt8] = []
+        uuidArray.reserveCapacity(16)
+        for _ in 0..<16 {
+            guard let b: UInt8 = self.next() else { return nil }
+            uuidArray.append(b)
+        }
+        return uuidArray.withUnsafeBytes { buf in
+            let uuidStruct = buf.load(as: uuid_t.self)
+            return UUID(uuid: uuidStruct)
+        }
+    }
 }
 
 extension Data {
