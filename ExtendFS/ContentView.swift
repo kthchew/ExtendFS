@@ -29,24 +29,46 @@ struct ContentView: View {
         VStack {
             switch ext4ExtensionState {
             case .inactive:
-                Text("Extension needs to be enabled in System Settings")
-                Button("Open System Settings") {
-                    SMAppService.openSystemSettingsLoginItems()
+                ScrollView {
+                    Text("The file system extension needs to be enabled in System Settings.")
+                        .padding()
+                    Divider()
+                    switch osVersion.majorVersion {
+                    case 15:
+                        SequoiaEnablementTutorialView()
+                            .padding(.bottom)
+                    default:
+                        TahoeEnablementTutorialView()
+                            .padding(.bottom)
+                    }
                 }
             case .active:
-                Text("Extension is active and ready")
+                ExtensionReadyView()
             case .notDetermined:
-                if osVersion.majorVersion < 26 {
-                    Text("The app cannot tell if the extension is enabled on versions of macOS before macOS Tahoe 26.0. However, it will still function if enabled.")
-                } else {
-                    Text("An error occurred while determining whether the extension is enabled.")
-                }
-                Button("Open System Settings") {
-                    SMAppService.openSystemSettingsLoginItems()
+                ScrollView {
+                    if osVersion.majorVersion < 26 {
+                        Text("""
+                            The file system extension needs to be enabled in System Settings.
+                            
+                            _This app cannot automatically detect if the extension has been properly enabled on versions of macOS before macOS Tahoe 26.0. However, it will still function if enabled._
+                            """)
+                            .padding()
+                    } else {
+                        Text("An error occurred while determining whether the extension is enabled.")
+                            .padding()
+                    }
+                    Divider()
+                    switch osVersion.majorVersion {
+                    case 15:
+                        SequoiaEnablementTutorialView()
+                            .padding(.bottom)
+                    default:
+                        TahoeEnablementTutorialView()
+                            .padding(.bottom)
+                    }
                 }
             }
         }
-        .padding()
         .onReceive(timer) { _ in
             Task {
                 await updateExtensionEnablementState()
