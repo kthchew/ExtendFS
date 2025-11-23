@@ -144,6 +144,10 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     /// - Parameter inodeNumber: The inode number.
     /// - Returns: The block number, and the index into that block at which you'll find the inode.
     func blockNumber(forBlockContainingInode inodeNumber: UInt32) throws -> (UInt64, UInt32) {
+        guard inodeNumber != 0 else {
+            logger.error("Tried to get block number for inode number 0")
+            throw POSIXError(.EINVAL)
+        }
         let blockGroup = Int((inodeNumber - 1) / superblock.inodesPerGroup)
         guard let groupDescriptor = try blockGroupDescriptors[blockGroup], let tableLocation = groupDescriptor.inodeTableLocation else {
             logger.error("Failed to fetch data from block group descriptors while looking for block containing inode \(inodeNumber, privacy: .public)")
@@ -151,7 +155,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         }
         let tableIndex = (inodeNumber - 1) % superblock.inodesPerGroup
         let blockOffset = UInt64(tableIndex) * UInt64(superblock.inodeSize) / UInt64(superblock.blockSize)
-        return (tableLocation + blockOffset, tableIndex - (UInt32(blockOffset) * UInt32(superblock.blockSize) / UInt32(superblock.inodeSize)))
+        return (tableLocation + blockOffset, tableIndex - UInt32(blockOffset * UInt64(superblock.blockSize) / UInt64(superblock.inodeSize)))
     }
     
     /// Loads all items associated with the inodes located at the given block number.
@@ -160,16 +164,26 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         if let items = await cache.getItems(fromInodeTableBlockNumber: blockNumber) {
             return items
         }
-        let blockGroup = blockNumber / UInt64(superblock.blocksPerGroup)
+        guard let blockGroup = UInt32(exactly: blockNumber / UInt64(superblock.blocksPerGroup)) else {
+            logger.error("Block group for \(blockNumber) is too large to fit in a 32-bit integer - should not happen")
+            throw POSIXError(.EIO)
+        }
         guard let groupDescriptor = try blockGroupDescriptors[Int(blockGroup)], let tableLocation = groupDescriptor.inodeTableLocation else {
             logger.error("Failed to fetch data from block group descriptors while loading inodes at block \(blockNumber, privacy: .public)")
             throw POSIXError(.EIO)
         }
-        let blockOffset = blockNumber - tableLocation
-        let firstInodeOfGroup = UInt32(blockGroup) * superblock.inodesPerGroup + 1
-        let inodesPerBlock = Int(superblock.blockSize) / Int(superblock.inodeSize)
-        let firstInodeInBlock = firstInodeOfGroup + (UInt32(blockOffset) * UInt32(inodesPerBlock))
-        let lastInodeInBlock = firstInodeInBlock + UInt32(inodesPerBlock) - 1
+        guard blockNumber >= tableLocation else {
+            logger.error("Trying to load inodes at block \(blockNumber, privacy: .public), but the inode table starts later (at \(tableLocation, privacy: .public))")
+            throw POSIXError(.EIO)
+        }
+        guard let blockOffset = UInt32(exactly: blockNumber - tableLocation) else {
+            logger.error("Inodes at block \(blockNumber, privacy: .public) are way too far from the table starting at \(tableLocation, privacy: .public)")
+            throw POSIXError(.EIO)
+        }
+        let firstInodeOfGroup = blockGroup * superblock.inodesPerGroup + 1
+        let inodesPerBlock = UInt32(superblock.blockSize) / UInt32(superblock.inodeSize)
+        let firstInodeInBlock = firstInodeOfGroup + (blockOffset * inodesPerBlock)
+        let lastInodeInBlock = firstInodeInBlock + inodesPerBlock - 1
         
         logger.debug("Loading inodes \(firstInodeInBlock, privacy: .public) through \(lastInodeInBlock, privacy: .public) at block number \(blockNumber, privacy: .public) from disk")
         var data = try BlockDeviceReader.fetchExtent(from: resource, blockNumbers: off_t(blockNumber)..<Int64(blockNumber)+1, blockSize: superblock.blockSize)
@@ -179,7 +193,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
             let item = try await Ext4Item(volume: self, inodeNumber: inode, inodeData: inodeData)
             
             items.append(item)
-            await cache.setItem(item, forInodeNumber: UInt32(inode))
+            await cache.setItem(item, forInodeNumber: inode)
             data = data.advanced(by: Int(superblock.inodeSize))
         }
         await cache.setInodeTableBlock(items, forBlock: blockNumber)

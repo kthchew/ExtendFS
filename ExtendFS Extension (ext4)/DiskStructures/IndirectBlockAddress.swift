@@ -8,6 +8,8 @@
 import Foundation
 import FSKit
 
+fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "IndirectBlockMap")
+
 /// A mapping of file block numbers to logical block numbers used by ext2/3.
 struct IndirectBlockMap {
     /// A direct map to file blocks 0 through 11.
@@ -37,12 +39,16 @@ struct IndirectBlockMap {
     }
     
     mutating func getPhysicalBlockLocations(for logicalBlock: UInt64, blockDevice: FSBlockDeviceResource, blockSize: Int) throws -> UInt64 {
-        let coveredPerLevelOfIndirection = UInt64(blockSize / 4)
+        guard let logicalBlock = UInt32(exactly: logicalBlock) else {
+            logger.error("Trying to use indirect block map to get logical block number \(logicalBlock, privacy: .public), which is too large")
+            throw POSIXError(.EFBIG)
+        }
+        let coveredPerLevelOfIndirection = UInt32(blockSize / 4)
         
-        let level1End: UInt64 = 11
+        let level1End: UInt32 = 11
         let level2End = level1End + coveredPerLevelOfIndirection
-        let level3End = level2End + UInt64(pow(Double(coveredPerLevelOfIndirection), 2))
-        let level4End = level3End + UInt64(pow(Double(coveredPerLevelOfIndirection), 3)) + 1
+        let level3End = level2End + UInt32(pow(Double(coveredPerLevelOfIndirection), 2))
+        let level4End = level3End + UInt32(pow(Double(coveredPerLevelOfIndirection), 3)) + 1
         switch logicalBlock {
         case 0...level1End:
             return UInt64(directMap[Int(logicalBlock)])
@@ -51,7 +57,7 @@ struct IndirectBlockMap {
                 let data = try BlockDeviceReader.fetchExtent(from: blockDevice, blockNumbers: off_t(indirectBlockLocation)..<Int64(indirectBlockLocation)+1, blockSize: blockSize)
                 self.singleIndirectBlock = IndirectBlock(from: data, startingAt: UInt32(level1End) + 1, depth: 0)
             }
-            guard let location = try singleIndirectBlock?.getPhysicalBlockLocation(for: logicalBlock, blockDevice: blockDevice, blockSize: blockSize) else {
+            guard let location = try singleIndirectBlock?.getPhysicalBlockLocation(for: UInt64(logicalBlock), blockDevice: blockDevice, blockSize: blockSize) else {
                 throw POSIXError(.EIO)
             }
             return location
@@ -60,7 +66,7 @@ struct IndirectBlockMap {
                 let data = try BlockDeviceReader.fetchExtent(from: blockDevice, blockNumbers: off_t(doubleIndirectBlockLocation)..<Int64(doubleIndirectBlockLocation)+1, blockSize: blockSize)
                 self.doubleIndirectBlock = IndirectBlock(from: data, startingAt: UInt32(level2End) + 1, depth: 1)
             }
-            guard let location = try doubleIndirectBlock?.getPhysicalBlockLocation(for: logicalBlock, blockDevice: blockDevice, blockSize: blockSize) else {
+            guard let location = try doubleIndirectBlock?.getPhysicalBlockLocation(for: UInt64(logicalBlock), blockDevice: blockDevice, blockSize: blockSize) else {
                 throw POSIXError(.EIO)
             }
             return location
@@ -69,7 +75,7 @@ struct IndirectBlockMap {
                 let data = try BlockDeviceReader.fetchExtent(from: blockDevice, blockNumbers: off_t(tripleIndirectBlockLocation)..<Int64(tripleIndirectBlockLocation)+1, blockSize: blockSize)
                 self.tripleIndirectBlock = IndirectBlock(from: data, startingAt: UInt32(level3End) + 1, depth: 0)
             }
-            guard let location = try tripleIndirectBlock?.getPhysicalBlockLocation(for: logicalBlock, blockDevice: blockDevice, blockSize: blockSize) else {
+            guard let location = try tripleIndirectBlock?.getPhysicalBlockLocation(for: UInt64(logicalBlock), blockDevice: blockDevice, blockSize: blockSize) else {
                 throw POSIXError(.EIO)
             }
             return location
@@ -106,6 +112,11 @@ struct IndirectBlock {
     }
     
     mutating func getPhysicalBlockLocation(for logicalBlock: UInt64, blockDevice: FSBlockDeviceResource, blockSize: Int) throws -> UInt64 {
+        guard logicalBlock >= startingBlock else {
+            let startingBlock = self.startingBlock
+            logger.fault("Tried to get physical block location for logical block \(logicalBlock, privacy: .public), but it is smaller than the starting block \(startingBlock, privacy: .public)")
+            throw POSIXError(.EIO)
+        }
         if depth <= 0 {
             let blockOffset = Int(logicalBlock) - Int(startingBlock)
             guard blockOffset < blockNumbers.count else {
@@ -120,6 +131,9 @@ struct IndirectBlock {
         let index = Int(blockOffset) / blocksCoveredPerItem
         
         guard let indirectBlocks, index < indirectBlocks.count else {
+            let startingBlock = self.startingBlock
+            let depth = self.depth
+            logger.error("Trying to get indirect block index \(index, privacy: .public) for indirect block starting at \(startingBlock, privacy: .public), depth \(depth, privacy: .public), but it is past the end")
             throw POSIXError(.EIO)
         }
         var indirectBlock: IndirectBlock
@@ -128,7 +142,11 @@ struct IndirectBlock {
         } else {
             let lowerLevelLocation = blockNumbers[index]
             let lowerLevelData = try BlockDeviceReader.fetchExtent(from: blockDevice, blockNumbers: off_t(lowerLevelLocation)..<off_t(lowerLevelLocation)+1, blockSize: blockSize)
-            indirectBlock = IndirectBlock(from: lowerLevelData, startingAt: startingBlock + UInt32(index * blocksCoveredPerItem), depth: depth - 1)
+            guard let blockIndex = UInt32(exactly: index * blocksCoveredPerItem) else {
+                logger.error("Trying to get index \(index, privacy: .public) for indirect block, but it is too large")
+                throw POSIXError(.EFBIG)
+            }
+            indirectBlock = IndirectBlock(from: lowerLevelData, startingAt: startingBlock + blockIndex, depth: depth - 1)
             self.indirectBlocks?[index] = indirectBlock
         }
         return try indirectBlock.getPhysicalBlockLocation(for: logicalBlock, blockDevice: blockDevice, blockSize: blockSize)

@@ -6,6 +6,9 @@
 //
 
 import Foundation
+import os.log
+
+fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "ExtendedAttrBlock")
 
 struct ExtendedAttrBlock {
     var header: ExtendedAttrHeader
@@ -33,7 +36,11 @@ struct ExtendedAttrBlock {
             offset += advance
         }
         self.remainingData = data
-        self.remainingDataOffset = UInt32(offset)
+        guard let remainingOffset = UInt32(exactly: offset) else {
+            logger.error("The remaining data offset can't fit in a 32-bit integer. This should not happen for a well-formed extended attribute block.")
+            return nil
+        }
+        self.remainingDataOffset = remainingOffset
     }
     
     init?(blockAt blockNumber: UInt32, in volume: Ext4Volume) throws {

@@ -95,6 +95,10 @@ final class Ext4Item: FSItem {
     }
     
     init(volume: Ext4Volume, inodeNumber: UInt32, inodeData: Data? = nil) async throws {
+        guard inodeNumber != 0 else {
+            Self.logger.error("Volume contains a file with inode number 0, but this is invalid")
+            throw POSIXError(.EIO)
+        }
         self.containingVolume = volume
         self.inodeNumber = inodeNumber
         
@@ -296,6 +300,10 @@ final class Ext4Item: FSItem {
     func getValueForEmbeddedAttribute(_ entry: ExtendedAttrEntry) async throws -> Data? {
         let indexNode = try await indexNode
         guard indexNode.embeddedExtendedAttributes != nil else { return nil }
+        guard entry.valueOffset >= indexNode.embeddedXattrEntryBytes else {
+            Self.logger.error("Value offset \(entry.valueOffset, privacy: .public) was less than embedded xattr entry bytes \(indexNode.embeddedXattrEntryBytes, privacy: .public)")
+            return nil
+        }
         let offset = Data.Index(entry.valueOffset - indexNode.embeddedXattrEntryBytes)
         let length = Data.Index(entry.valueLength)
         let data = indexNode.remainingData.subdata(in: offset..<offset+length)

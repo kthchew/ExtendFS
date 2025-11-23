@@ -150,7 +150,11 @@ struct IndexNode {
             totalAdvance += advance
             possibleExtAttr = possibleExtAttr.advanced(by: advance)
         }
-        self.embeddedXattrEntryBytes = UInt16(totalAdvance)
+        guard let embeddedByteCount = UInt16(exactly: totalAdvance) else {
+            Self.logger.error("Embedded byte count can't fit in a 16-bit integer. This should not happen for a well-formed inode.")
+            return nil
+        }
+        self.embeddedXattrEntryBytes = embeddedByteCount
         self.remainingData = possibleExtAttr
     }
     
@@ -285,15 +289,15 @@ struct IndexNode {
         let attributes = FSItem.Attributes()
         
         if request.isAttributeWanted(.uid) {
-            attributes.uid = UInt32(uid)
+            attributes.uid = uid
         }
         if request.isAttributeWanted(.gid) {
-            attributes.gid = UInt32(gid)
+            attributes.gid = gid
         }
         if request.isAttributeWanted(.mode) {
             // FIXME: not correct way to enforce read-only file system but does FSKit currently have a better way?
             let useMode = readOnlySystem ? mode.subtracting([.ownerWrite, .groupWrite, .otherWrite]) : mode
-            attributes.mode = UInt32(useMode.rawValue)
+            attributes.mode = useMode.rawValue
         }
         if request.isAttributeWanted(.flags) {
             let fileFlags = flags
