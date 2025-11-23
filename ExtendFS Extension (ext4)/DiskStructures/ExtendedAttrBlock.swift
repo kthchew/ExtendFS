@@ -49,7 +49,10 @@ struct ExtendedAttrBlock {
         try blockData.withUnsafeMutableBytes { ptr in
             try volume.resource.metadataRead(into: ptr, startingAt: off_t(blockNumber) * off_t(blockSize), length: blockSize)
         }
-        guard let header = ExtendedAttrHeader(from: blockData[0..<32]) else { throw POSIXError(.EIO) }
+        guard let header = ExtendedAttrHeader(from: blockData[0..<32]) else {
+            logger.error("Could not form valid extended attribute block from data because the header was invalid")
+            throw POSIXError(.EIO)
+        }
         
         let additionalBlocks = Int(header.diskBlockCount) - 1
         if additionalBlocks > 0 {
@@ -68,7 +71,10 @@ struct ExtendedAttrBlock {
             var attrs: [String: Data] = [:]
             for entry in entries {
                 let offset = Int(entry.valueOffset) - Int(remainingDataOffset)
-                guard offset >= 0 else { throw POSIXError(.EIO) }
+                guard offset >= 0 else {
+                    logger.error("Offset for extended attribute entry was negative")
+                    throw POSIXError(.EIO)
+                }
                 
                 attrs[entry.name] = remainingData.subdata(in: offset..<(offset+Int(entry.valueLength)))
             }
@@ -78,7 +84,10 @@ struct ExtendedAttrBlock {
     
     func value(for entry: ExtendedAttrEntry) throws -> Data {
         let offset = Int(entry.valueOffset) - Int(remainingDataOffset)
-        guard offset >= 0 else { throw POSIXError(.EIO) }
+        guard offset >= 0 else {
+            logger.error("Offset for extended attribute entry was negative")
+            throw POSIXError(.EIO)
+        }
         
         return remainingData.subdata(in: offset..<(offset+Int(entry.valueLength)))
     }

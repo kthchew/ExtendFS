@@ -7,6 +7,9 @@
 
 import Foundation
 import FSKit
+import os.log
+
+fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Superblock")
 
 struct Superblock {
     init?(from data: Data) {
@@ -305,6 +308,7 @@ struct Superblock {
             return try blockDevice.read(into: ptr, startingAt: offset, length: 1024)
         }
         guard actuallyRead == superblockSize else {
+            logger.error("Expected to read 1024 bytes for superblock, only read \(actuallyRead, privacy: .public) bytes")
             throw POSIXError(.EIO)
         }
         self.init(from: data)

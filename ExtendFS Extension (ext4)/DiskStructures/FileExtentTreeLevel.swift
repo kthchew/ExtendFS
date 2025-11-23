@@ -9,6 +9,8 @@ import Algorithms
 import Foundation
 import os.log
 
+fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "FileExtentTree")
+
 struct FileExtentTreeLevel {
     var numberOfEntries: UInt16
     var maxNumberOfEntries: UInt16
@@ -43,7 +45,7 @@ struct FileExtentTreeLevel {
             currentData = currentData.advanced(by: nodeSize)
         }
         guard numberOfEntries == self.nodes.count else {
-            Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "FileExtentTreeLevel").error("numberOfEntries did not match node count!")
+            logger.error("numberOfEntries did not match node count!")
             return nil
         }
         
@@ -65,7 +67,10 @@ struct FileExtentTreeLevel {
         
         for node in nodes[lastPotentialChildIndex..<(Int(numberOfEntries))] {
             if isLeaf {
-                guard let lengthInBlocks = node.lengthInBlocks else { throw POSIXError(.EIO) }
+                guard let lengthInBlocks = node.lengthInBlocks else {
+                    logger.fault("Extent node's length was nil, but it is apparently a leaf node")
+                    throw POSIXError(.EIO)
+                }
                 let firstBlockCoveredByExtent = node.logicalBlock
                 let lastBlockCoveredByExtent = Int(node.logicalBlock) + Int(lengthInBlocks) - 1
                 if lastBlockCoveredByExtent < firstBlock {
@@ -79,7 +84,10 @@ struct FileExtentTreeLevel {
             } else {
                 let range = node.physicalBlock..<node.physicalBlock+1
                 let lowerLevelData = try BlockDeviceReader.fetchExtent(from: volume.resource, blockNumbers: range, blockSize: volume.superblock.blockSize)
-                guard let lowerLevel = FileExtentTreeLevel(from: lowerLevelData) else { throw POSIXError(.EIO) }
+                guard let lowerLevel = FileExtentTreeLevel(from: lowerLevelData) else {
+                    logger.error("Next level down in file extent tree was not vlaid")
+                    throw POSIXError(.EIO)
+                }
                 let childResult = try lowerLevel.findExtentsCovering(fileBlock, with: blockLength, in: volume)
                 if childResult.isEmpty {
                     break

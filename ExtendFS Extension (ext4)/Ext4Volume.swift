@@ -68,6 +68,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         self.resource = resource
         self.fileSystem = fileSystem
         guard let superblock = try Superblock(blockDevice: resource, offset: 1024) else {
+            logger.error("Superblock could not be parsed")
             throw POSIXError(.EIO)
         }
         self.superblock = superblock
@@ -366,6 +367,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         }
         
         guard let (contents, currentVerifier) = try await directory.directoryContents else {
+            logger.error("Could not read directory contents")
             throw POSIXError(.EIO)
         }
         

@@ -58,6 +58,7 @@ struct IndirectBlockMap {
                 self.singleIndirectBlock = IndirectBlock(from: data, startingAt: UInt32(level1End) + 1, depth: 0)
             }
             guard let location = try singleIndirectBlock?.getPhysicalBlockLocation(for: UInt64(logicalBlock), blockDevice: blockDevice, blockSize: blockSize) else {
+                logger.fault("Single indirect block was nil even after setting it")
                 throw POSIXError(.EIO)
             }
             return location
@@ -67,6 +68,7 @@ struct IndirectBlockMap {
                 self.doubleIndirectBlock = IndirectBlock(from: data, startingAt: UInt32(level2End) + 1, depth: 1)
             }
             guard let location = try doubleIndirectBlock?.getPhysicalBlockLocation(for: UInt64(logicalBlock), blockDevice: blockDevice, blockSize: blockSize) else {
+                logger.fault("Double indirect block was nil even after setting it")
                 throw POSIXError(.EIO)
             }
             return location
@@ -76,10 +78,12 @@ struct IndirectBlockMap {
                 self.tripleIndirectBlock = IndirectBlock(from: data, startingAt: UInt32(level3End) + 1, depth: 0)
             }
             guard let location = try tripleIndirectBlock?.getPhysicalBlockLocation(for: UInt64(logicalBlock), blockDevice: blockDevice, blockSize: blockSize) else {
+                logger.fault("Triple indirect block was nil even after setting it")
                 throw POSIXError(.EIO)
             }
             return location
         default:
+            logger.error("Trying to use indirect block map but the requested logical block \(logicalBlock, privacy: .public) is too large")
             throw POSIXError(.EFBIG)
         }
     }
@@ -120,6 +124,9 @@ struct IndirectBlock {
         if depth <= 0 {
             let blockOffset = Int(logicalBlock) - Int(startingBlock)
             guard blockOffset < blockNumbers.count else {
+                let count = blockNumbers.count
+                let startingBlock = self.startingBlock
+                logger.error("Block offset \(blockOffset, privacy: .public) is out of range for block numbers (count \(count, privacy: .public)) for indirect block starting at \(startingBlock, privacy: .public)")
                 throw POSIXError(.EIO)
             }
             return UInt64(blockNumbers[blockOffset])

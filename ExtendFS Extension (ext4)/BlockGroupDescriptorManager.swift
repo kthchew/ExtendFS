@@ -33,7 +33,10 @@ final class BlockGroupDescriptorManager: Sendable {
                 try resource.metadataRead(into: ptr, startingAt: offset, length: totalSize)
             } else {
                 let actuallyRead = try resource.read(into: ptr, startingAt: offset, length: totalSize)
-                guard actuallyRead == totalSize else { throw POSIXError(.EIO) }
+                guard actuallyRead == totalSize else {
+                    Self.logger.error("Expected to read \(totalSize) bytes, but only read \(actuallyRead) bytes for block group descriptor")
+                    throw POSIXError(.EIO)
+                }
             }
         }
         self.data = data

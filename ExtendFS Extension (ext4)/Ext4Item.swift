@@ -77,6 +77,7 @@ final class Ext4Item: FSItem {
     var inodeLocation: UInt64 {
         get throws {
             guard let inodeTableLocation = try blockGroupDescriptor?.inodeTableLocation else {
+                Self.logger.error("Failed to fetch inode table location from block group descriptor")
                 throw POSIXError(.EIO)
             }
             return try (inodeTableLocation * UInt64(containingVolume.superblock.blockSize)) + inodeTableOffset
@@ -116,6 +117,7 @@ final class Ext4Item: FSItem {
                 } else {
                     let count = try containingVolume.resource.read(into: ptr, startingAt: off_t(inodeBlockLocation), length: Int(blockSize))
                     guard count == Int(blockSize) else {
+                        Self.logger.error("Expected to read \(blockSize) bytes, but only read \(count) bytes from inode block")
                         throw POSIXError(.EIO)
                     }
                 }
@@ -125,6 +127,7 @@ final class Ext4Item: FSItem {
         }
         
         guard let indexNode = IndexNode(from: fetchedData, creator: volume.superblock.creatorOS) else {
+            Self.logger.error("Index node \(inodeNumber, privacy: .public) is not well formed")
             throw POSIXError(.EIO)
         }
         await cache.setCachedIndexNode(indexNode)
@@ -149,6 +152,7 @@ final class Ext4Item: FSItem {
             } else {
                 let count = try containingVolume.resource.read(into: ptr, startingAt: off_t(inodeBlockLocation), length: Int(blockSize))
                 guard count == Int(blockSize) else {
+                    Self.logger.error("Expected to read \(blockSize) bytes, but only read \(count) bytes from inode block")
                     throw POSIXError(.EIO)
                 }
             }
@@ -156,7 +160,10 @@ final class Ext4Item: FSItem {
         let inodeSize = containingVolume.superblock.inodeSize
         let fetchedData = try data.subdata(in: Int(inodeBlockOffset)..<Int(inodeBlockOffset)+Int(inodeSize))
         
-        guard let inode = IndexNode(from: fetchedData, creator: containingVolume.superblock.creatorOS) else { throw POSIXError(.EIO) }
+        guard let inode = IndexNode(from: fetchedData, creator: containingVolume.superblock.creatorOS) else {
+            Self.logger.error("Index node \(inodeNumber, privacy: .public) is not well formed")
+            throw POSIXError(.EIO)
+        }
         await cache.setCachedIndexNode(inode)
     }
     
@@ -245,6 +252,7 @@ final class Ext4Item: FSItem {
         for extent in extents {
             Self.logger.debug("Fetching extent at block \(extent.physicalBlock, privacy: .public)")
             guard let lengthInBlocks = extent.lengthInBlocks else {
+                Self.logger.fault("Extent somehow does not have a length")
                 throw POSIXError(.EIO)
             }
             let data = try BlockDeviceReader.fetchExtent(from: containingVolume.resource, blockNumbers: extent.physicalBlock..<extent.physicalBlock+Int64(extent.lengthInBlocks ?? 0), blockSize: containingVolume.superblock.blockSize)
@@ -307,7 +315,10 @@ final class Ext4Item: FSItem {
         let offset = Data.Index(entry.valueOffset - indexNode.embeddedXattrEntryBytes)
         let length = Data.Index(entry.valueLength)
         let data = indexNode.remainingData.subdata(in: offset..<offset+length)
-        guard data.count == length else { throw POSIXError(.EIO) }
+        guard data.count == length else {
+            Self.logger.error("Extended attribute is apparently longer than the data available")
+            throw POSIXError(.EIO)
+        }
         return data
     }
     
@@ -327,6 +338,7 @@ final class Ext4Item: FSItem {
         } else {
             let actualBlockLength = try await min(blockLength, Int((Double(indexNode.size) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
             guard var indirectBlockMap = try await indirectBlockMap else {
+                Self.logger.error("An item had no extent tree, but also no indirect block map")
                 throw POSIXError(.EIO)
             }
             return try (fileBlock..<(fileBlock + UInt64(actualBlockLength))).reduce(into: []) { extents, block in
