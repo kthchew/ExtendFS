@@ -1,0 +1,20 @@
+name: Feature Request
+description: Suggest an idea for this project.
+labels: ["enhancement"]
+assignees:
+  - kthchew
+body:
+  - type: textarea
+    id: request
+    attributes:
+      label: Describe your feature request
+      description: What would you like to see?
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: If you have additional context, screenshots, or documents that could help me understand your request, you can include them here.
+    validations:
+      required: false

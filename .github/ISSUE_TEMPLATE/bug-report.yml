@@ -1,0 +1,74 @@
+name: Bug Report
+description: Report unexpected behavior.
+labels: ["bug"]
+assignees:
+  - kthchew
+body:
+  - type: textarea
+    id: describe-bug
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+      placeholder: Disks with no free space cause a crash when attempting to mount them
+    validations:
+      required: true
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Mount an ext3 volume at `/tmp/mnt`
+        2. `ls -l /tmp/mnt`
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected-results
+    attributes:
+      label: Expected results
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual-results
+    attributes:
+      label: Actual results
+      description: What actually happened?
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots to help explain your problem.
+    validations:
+      required: false
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: macOS 15.7.2 (24G325)
+    validations:
+      required: true
+  - type: input
+    id: extendfs-version
+    attributes:
+      label: ExtendFS version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and crash reports
+      description: Please copy and paste any relevant log output or attach files such as crash reports.
+    validations:
+      required: false
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here, if applicable.
+    validations:
+      required: false

@@ -9,6 +9,9 @@
 /* Begin PBXBuildFile section */
 		9F283FD22DED6F90005EF8BB /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 9F283FD12DED6F90005EF8BB /* Algorithms */; };
 		9F57A64D2DD6841D00D7E52D /* ExtendFS Extension (ext4).appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = 9F57A6432DD6841D00D7E52D /* ExtendFS Extension (ext4).appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		9FBD04882ED38221001E909D /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD04872ED38221001E909D /* README.md */; };
+		9FBD048A2ED3B3DC001E909D /* CONTRIBUTING.md in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD04892ED3B3DC001E909D /* CONTRIBUTING.md */; };
+		9FBD048C2ED3B9DE001E909D /* SUPPORT.md in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD048B2ED3B9DE001E909D /* SUPPORT.md */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -38,6 +41,9 @@
 /* Begin PBXFileReference section */
 		9F57A6142DD6835E00D7E52D /* ExtendFS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ExtendFS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F57A6432DD6841D00D7E52D /* ExtendFS Extension (ext4).appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = "ExtendFS Extension (ext4).appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		9FBD04872ED38221001E909D /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		9FBD04892ED3B3DC001E909D /* CONTRIBUTING.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CONTRIBUTING.md; sourceTree = "<group>"; };
+		9FBD048B2ED3B9DE001E909D /* SUPPORT.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = SUPPORT.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -62,6 +68,11 @@
 				9F57A64E2DD6841D00D7E52D /* Exceptions for "ExtendFS Extension (ext4)" folder in "ExtendFS Extension (ext4)" target */,
 			);
 			path = "ExtendFS Extension (ext4)";
+			sourceTree = "<group>";
+		};
+		9FBD048D2ED3BB59001E909D /* .github */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = .github;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -95,6 +106,10 @@
 		9F57A60B2DD6835E00D7E52D = {
 			isa = PBXGroup;
 			children = (
+				9FBD048D2ED3BB59001E909D /* .github */,
+				9FBD048B2ED3B9DE001E909D /* SUPPORT.md */,
+				9FBD04892ED3B3DC001E909D /* CONTRIBUTING.md */,
+				9FBD04872ED38221001E909D /* README.md */,
 				9F57A6162DD6835E00D7E52D /* ExtendFS */,
 				9F57A6442DD6841D00D7E52D /* ExtendFS Extension (ext4) */,
 				9F5787942E3C3EAE001224B5 /* Frameworks */,
@@ -130,6 +145,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				9F57A6162DD6835E00D7E52D /* ExtendFS */,
+				9FBD048D2ED3BB59001E909D /* .github */,
 			);
 			name = ExtendFS;
 			packageProductDependencies = (
@@ -207,6 +223,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9FBD04882ED38221001E909D /* README.md in Resources */,
+				9FBD048C2ED3B9DE001E909D /* SUPPORT.md in Resources */,
+				9FBD048A2ED3B3DC001E909D /* CONTRIBUTING.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
