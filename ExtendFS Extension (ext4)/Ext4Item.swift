@@ -161,7 +161,7 @@ final class Ext4Item: FSItem {
         let fetchedData = try data.subdata(in: Int(inodeBlockOffset)..<Int(inodeBlockOffset)+Int(inodeSize))
         
         guard let inode = IndexNode(from: fetchedData, creator: containingVolume.superblock.creatorOS) else {
-            Self.logger.error("Index node \(inodeNumber, privacy: .public) is not well formed")
+            Self.logger.error("Index node \(self.inodeNumber, privacy: .public) is not well formed")
             throw POSIXError(.EIO)
         }
         await cache.setCachedIndexNode(inode)

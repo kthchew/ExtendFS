@@ -137,7 +137,7 @@ struct IndirectBlock {
         let blockOffset = logicalBlock - UInt64(startingBlock)
         let index = Int(blockOffset) / blocksCoveredPerItem
         
-        guard let indirectBlocks, index < indirectBlocks.count else {
+        guard let indirectBlocks, index < indirectBlocks.count, index < blockNumbers.count else {
             let startingBlock = self.startingBlock
             let depth = self.depth
             logger.error("Trying to get indirect block index \(index, privacy: .public) for indirect block starting at \(startingBlock, privacy: .public), depth \(depth, privacy: .public), but it is past the end")
