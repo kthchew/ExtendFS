@@ -418,13 +418,19 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     
     var isVolumeRenameInhibited: Bool {
         get {
-            false
+            true
         }
         set {}
     }
     var isPreallocateInhibited: Bool {
         get {
-            false
+            true
+        }
+        set {}
+    }
+    var isOpenCloseInhibited: Bool {
+        get {
+            true
         }
         set {}
     }
