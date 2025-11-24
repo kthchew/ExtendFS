@@ -1,1 +1,1 @@
-Unfortunately, pull requests aren't currently accepted and will be closed. For more information, see the CONTRIBUTING.md file at the root of the repo.
+<!-- Please remember that each commit included in your pull request must be signed-off to show that you agree to the DCO. See CONTRIBUTING.md for more information. -->

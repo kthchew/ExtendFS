@@ -12,6 +12,8 @@
 		9FBD04882ED38221001E909D /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD04872ED38221001E909D /* README.md */; };
 		9FBD048A2ED3B3DC001E909D /* CONTRIBUTING.md in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD04892ED3B3DC001E909D /* CONTRIBUTING.md */; };
 		9FBD048C2ED3B9DE001E909D /* SUPPORT.md in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD048B2ED3B9DE001E909D /* SUPPORT.md */; };
+		9FBD07DB2ED5059A001E909D /* LICENSE.md in Sources */ = {isa = PBXBuildFile; fileRef = 9FBD07DA2ED50597001E909D /* LICENSE.md */; };
+		9FBD07DD2ED505C3001E909D /* COPYING in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD07DC2ED505C3001E909D /* COPYING */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -44,6 +46,8 @@
 		9FBD04872ED38221001E909D /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		9FBD04892ED3B3DC001E909D /* CONTRIBUTING.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CONTRIBUTING.md; sourceTree = "<group>"; };
 		9FBD048B2ED3B9DE001E909D /* SUPPORT.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = SUPPORT.md; sourceTree = "<group>"; };
+		9FBD07DA2ED50597001E909D /* LICENSE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = LICENSE.md; sourceTree = "<group>"; };
+		9FBD07DC2ED505C3001E909D /* COPYING */ = {isa = PBXFileReference; lastKnownFileType = text; path = COPYING; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -110,6 +114,8 @@
 				9FBD048B2ED3B9DE001E909D /* SUPPORT.md */,
 				9FBD04892ED3B3DC001E909D /* CONTRIBUTING.md */,
 				9FBD04872ED38221001E909D /* README.md */,
+				9FBD07DA2ED50597001E909D /* LICENSE.md */,
+				9FBD07DC2ED505C3001E909D /* COPYING */,
 				9F57A6162DD6835E00D7E52D /* ExtendFS */,
 				9F57A6442DD6841D00D7E52D /* ExtendFS Extension (ext4) */,
 				9F5787942E3C3EAE001224B5 /* Frameworks */,
@@ -225,6 +231,7 @@
 			files = (
 				9FBD04882ED38221001E909D /* README.md in Resources */,
 				9FBD048C2ED3B9DE001E909D /* SUPPORT.md in Resources */,
+				9FBD07DD2ED505C3001E909D /* COPYING in Resources */,
 				9FBD048A2ED3B3DC001E909D /* CONTRIBUTING.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -243,6 +250,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9FBD07DB2ED5059A001E909D /* LICENSE.md in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -298,7 +306,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = YN43D87323;
@@ -366,7 +374,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = YN43D87323;
@@ -404,8 +412,17 @@
 				DEVELOPMENT_TEAM = YN43D87323;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -434,8 +451,17 @@
 				DEVELOPMENT_TEAM = YN43D87323;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";

@@ -80,4 +80,4 @@ See the [contributing guidelines](CONTRIBUTING.md).
 
 ## License
 
-Will come before first binary release! (If you're seeing this and there are releases available for download, open an issue. I probably forgot.)
+[GPLv3 or later with app store exception](LICENSE)

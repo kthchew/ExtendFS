@@ -1,9 +1,5 @@
-//
-//  IndexNode.swift
-//  ExtendFSExtension
-//
-//  Created by Kenneth Chew on 7/31/25.
-//
+// This file is part of ExtendFS which is released under the GNU GPL v3 or later license with an app store exception.
+// See the LICENSE file in the root of the repository for full license details.
 
 import Foundation
 import FSKit
