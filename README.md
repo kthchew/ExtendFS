@@ -85,4 +85,4 @@ See the [contributing guidelines](CONTRIBUTING.md).
 
 ## License
 
-[GPLv3 or later with app store exception](LICENSE)
+[GPLv3 or later with app store exception](LICENSE.md)
