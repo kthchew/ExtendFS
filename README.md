@@ -28,6 +28,7 @@ mount -t ExtendFS /dev/disk15 /tmp/mnt
 ## Known Limitations
 
 - Not all ext4 features are supported. The following feature flags _are_ supported: `filetype`, `extents`, `64bit`, `flex_bg`, `csum_seed` [1]. If your volume requires other features, like `inline_data` or `meta_bg`, it won't mount.
+- LVM is not currently supported.
 - Performance may be lower than it would be with a kernel extension (e.g. FB21069313). A large part of this is FSKit overhead, but there is also likely some room for improvement in this code.
 - As stated above, this is a read-only implementation. You cannot write data to an ext4 volume using ExtendFS.
     - Write-related options such as creating new folders or deleting items might unexpectedly appear in the Finder. This is an FSKit bug (actually, various bugs - FB19241327, FB21068845). Performing those actions does not actually write any data to the disk.
