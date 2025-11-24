@@ -6,7 +6,11 @@ macOS 15.6 or later is required.
 
 ## Download
 
-You can either download the latest version from the [releases page](https://github.com/kthchew/ExtendFS/releases) on GitHub for free, or purchase it from the Mac App Store. There is no difference in functionality.
+You can either download the latest version from the [releases page](https://github.com/kthchew/ExtendFS/releases) on GitHub for free, or purchase it from the [Mac App Store](https://apps.apple.com/us/app/extendfs-for-linux-filesystems/id6755664332). There is no difference in functionality.
+
+<a href="https://apps.apple.com/us/app/extendfs-for-linux-filesystems/id6755664332?mt=12&itscg=30200&itsct=apps_box_badge&mttnsubad=6755664332" style="display: inline-block;">
+<img src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1763942400" alt="Download on the App Store" style="width: 245px; height: 82px; vertical-align: middle; object-fit: contain;" />
+</a>
 
 ## Usage
 
