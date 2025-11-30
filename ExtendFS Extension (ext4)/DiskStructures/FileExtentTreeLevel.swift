@@ -64,6 +64,9 @@ struct FileExtentTreeLevel {
         let lastBlock = Int(fileBlock) + blockLength - 1
         
         var result: [FileExtentNode] = []
+        guard nodes.count > 0 else {
+            return result
+        }
         let lastPotentialChildIndex = -1 + nodes.partitioningIndex { element in
             element.logicalBlock > firstBlock
         }
