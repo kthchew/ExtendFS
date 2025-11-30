@@ -118,7 +118,8 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         let endOfSuperblock = 1024 + 1024
         let blockSize = superblock.blockSize
         let firstBlockAfterSuperblockOffset = Int64(ceil(Double(endOfSuperblock) / Double(blockSize))) * Int64(blockSize)
-        self.blockGroupDescriptors = try BlockGroupDescriptorManager(resource: resource, superblock: superblock, offset: firstBlockAfterSuperblockOffset, blockGroupCount: Int(resource.blockCount) / Int(superblock.blocksPerGroup))
+        let blockGroupCount = (Int(resource.blockCount) + Int(superblock.blocksPerGroup) - 1) / Int(superblock.blocksPerGroup)
+        self.blockGroupDescriptors = try BlockGroupDescriptorManager(resource: resource, superblock: superblock, offset: firstBlockAfterSuperblockOffset, blockGroupCount: blockGroupCount)
         
         super.init(volumeID: FSVolume.Identifier(uuid: superblock.uuid ?? UUID()), volumeName: FSFileName(string: superblock.volumeName ?? ""))
         
