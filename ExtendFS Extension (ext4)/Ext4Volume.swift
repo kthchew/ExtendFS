@@ -571,7 +571,28 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
     }
     
     func lookupItem(name: FSFileName, in directory: FSItem, packer: FSExtentPacker) async throws -> (FSItem, FSFileName) {
-        return try await lookupItem(named: name, inDirectory: directory)
+        let (item, name) = try await lookupItem(named: name, inDirectory: directory)
+        
+        guard let item = item as? Ext4Item else {
+            throw POSIXError(.EIO)
+        }
+        do {
+            let extents = try await item.findExtentsCovering(0, with: Int(item.indexNode.size) / superblock.blockSize, performAdditionalIO: false)
+            for extent in extents {
+                guard let type = extent.type, let lengthInBlocks = extent.lengthInBlocks else {
+                    logger.fault("Got extent while looking up item, but it had no type and/or length")
+                    continue
+                }
+                
+                guard packer.packExtent(resource: resource, type: type, logicalOffset: extent.logicalBlock, physicalOffset: extent.physicalBlock, length: Int(lengthInBlocks)) else {
+                    break
+                }
+            }
+        } catch {
+            logger.error("Failed to prefetch extents while looking up item: \(error)")
+        }
+        
+        return (item, name)
     }
 }
 

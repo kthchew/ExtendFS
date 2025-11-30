@@ -52,13 +52,24 @@ struct FileExtentTreeLevel {
         depth == 0
     }
     
-    func findExtentsCovering(_ fileBlock: UInt64, with blockLength: Int, in volume: Ext4Volume) throws -> [FileExtentNode] {
+    /// Fetches a list of extents for this tree.
+    /// - Parameters:
+    ///   - fileBlock: The logical file block to start at.
+    ///   - blockLength: A number of blocks, at minimum, that extents should be fetched for, starting at `fileBlock`.
+    ///   - volume: The volume for this filesystem.
+    ///   - performAdditionalIO: A boolean that determines whether performing additional IO to fetch extents is allowed. If `false`, only extents that do not require performing additional IO to the disk are fetched, if any.
+    /// - Returns: An array of extents.
+    func findExtentsCovering(_ fileBlock: UInt64, with blockLength: Int, in volume: Ext4Volume, performAdditionalIO: Bool = true) throws -> [FileExtentNode] {
         let firstBlock = fileBlock
         let lastBlock = Int(fileBlock) + blockLength - 1
         
         var result: [FileExtentNode] = []
         let lastPotentialChildIndex = -1 + nodes.partitioningIndex { element in
             element.logicalBlock > firstBlock
+        }
+        guard lastPotentialChildIndex >= 0 else {
+            logger.fault("Last potential child index was invalid")
+            throw POSIXError(.EIO)
         }
         
         for node in nodes[lastPotentialChildIndex..<(Int(numberOfEntries))] {
@@ -77,7 +88,7 @@ struct FileExtentTreeLevel {
                 }
                 
                 result.append(node)
-            } else {
+            } else if performAdditionalIO {
                 let range = node.physicalBlock..<node.physicalBlock+1
                 let lowerLevelData = try BlockDeviceReader.fetchExtent(from: volume.resource, blockNumbers: range, blockSize: volume.superblock.blockSize)
                 guard let lowerLevel = FileExtentTreeLevel(from: lowerLevelData) else {
@@ -89,6 +100,8 @@ struct FileExtentTreeLevel {
                     break
                 }
                 result += childResult
+            } else {
+                break
             }
         }
         

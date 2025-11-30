@@ -328,9 +328,9 @@ final class Ext4Item: FSItem {
         return attributes
     }
     
-    func findExtentsCovering(_ fileBlock: UInt64, with blockLength: Int) async throws -> [FileExtentNode] {
+    func findExtentsCovering(_ fileBlock: UInt64, with blockLength: Int, performAdditionalIO: Bool = true) async throws -> [FileExtentNode] {
         if let extentTreeRoot = try await extentTreeRoot {
-            return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength, in: containingVolume)
+            return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength, in: containingVolume, performAdditionalIO: performAdditionalIO)
         } else {
             let actualBlockLength = try await min(blockLength, Int((Double(indexNode.size) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
             guard var indirectBlockMap = try await indirectBlockMap else {
@@ -338,6 +338,10 @@ final class Ext4Item: FSItem {
                 throw POSIXError(.EIO)
             }
             return try (fileBlock..<(fileBlock + UInt64(actualBlockLength))).reduce(into: []) { extents, block in
+                let level1End: UInt32 = 11
+                guard performAdditionalIO || block <= level1End else {
+                    return
+                }
                 let answer = try indirectBlockMap.getPhysicalBlockLocations(for: block, blockDevice: containingVolume.resource, blockSize: containingVolume.superblock.blockSize)
                 
                 if var last = extents.last, (last.physicalBlock + off_t(last.lengthInBlocks ?? 1) == answer) {
