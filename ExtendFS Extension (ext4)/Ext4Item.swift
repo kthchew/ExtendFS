@@ -5,15 +5,6 @@ import Foundation
 import FSKit
 
 actor ItemCache {
-    /// Used to temporarily store `com.apple.*` attributes. Such attributes won't be written to disk or persisted.
-    var temporaryXattrs: [String: Data] = [:]
-    func getTemporaryXattr(_ name: String) -> Data? {
-        temporaryXattrs[name]
-    }
-    func setTemporaryXattr(_ data: Data?, for name: String) {
-        temporaryXattrs[name] = data
-    }
-    
     var indexNode: IndexNode?
     func getCachedIndexNode() -> IndexNode? {
         return indexNode

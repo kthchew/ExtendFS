@@ -645,40 +645,12 @@ extension Ext4Volume: FSVolume.XattrOperations {
             }
         }
         
-        if let value = await item.cache.getTemporaryXattr(toFind) {
-            return value
-        }
-        
         logger.info("No xattr named \(toFind, privacy: .public)")
         throw POSIXError(.ENOATTR)
     }
     
     func setXattr(named name: FSFileName, to value: Data?, on item: FSItem, policy: FSVolume.SetXattrPolicy) async throws {
-        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
-        guard let nameString = name.string else { throw POSIXError(.EINVAL) }
-        if nameString.starts(with: "com.apple.") {
-            switch policy {
-            case .alwaysSet:
-                await item.cache.setTemporaryXattr(value, for: nameString)
-            case .mustCreate:
-                guard await item.cache.getTemporaryXattr(nameString) == nil else {
-                    throw POSIXError(.EEXIST)
-                }
-                await item.cache.setTemporaryXattr(value, for: nameString)
-            case .mustReplace:
-                guard await item.cache.getTemporaryXattr(nameString) != nil else {
-                    throw POSIXError(.ENOENT)
-                }
-                await item.cache.setTemporaryXattr(value, for: nameString)
-            case .delete:
-                guard await item.cache.getTemporaryXattr(nameString) != nil else {
-                    throw POSIXError(.ENOENT)
-                }
-                await item.cache.setTemporaryXattr(nil, for: nameString)
-            @unknown default:
-                throw POSIXError(.ENOSYS)
-            }
-        }
+        guard !readOnly else { throw POSIXError(.EROFS) }
         
         throw POSIXError(.ENOSYS)
     }
@@ -694,10 +666,6 @@ extension Ext4Volume: FSVolume.XattrOperations {
         
         if let block = try await item.extendedAttributeBlock {
             attrs.append(contentsOf: try block.extendedAttributes.keys)
-        }
-        
-        for temporaryXattr in await item.cache.temporaryXattrs {
-            attrs.append(temporaryXattr.key)
         }
         
         return attrs.map { FSFileName(string: $0) }
