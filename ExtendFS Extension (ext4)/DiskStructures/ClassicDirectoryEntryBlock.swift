@@ -2,6 +2,9 @@
 // See the LICENSE file in the root of the repository for full license details.
 
 import Foundation
+import os.log
+
+fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "ClassicDirectoryEntryBlock")
 
 struct ClassicDirectoryEntryBlock {
     var entries: [DirectoryEntry]
@@ -15,6 +18,10 @@ struct ClassicDirectoryEntryBlock {
         var data = data
         while data.count > 0 {
             guard let entry = DirectoryEntry(from: data) else { break }
+            guard entry.directoryEntryLength > 0 else {
+                logger.error("Directory entry had length of 0")
+                break
+            }
             self.entries.append(entry)
             data = data.advanced(by: Int(entry.directoryEntryLength))
         }

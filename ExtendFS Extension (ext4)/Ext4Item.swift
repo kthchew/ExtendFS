@@ -323,12 +323,16 @@ final class Ext4Item: FSItem {
         if let extentTreeRoot = try await extentTreeRoot {
             return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength, in: containingVolume, performAdditionalIO: performAdditionalIO)
         } else {
-            let actualBlockLength = try await min(blockLength, Int((Double(indexNode.size) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
+            let indexNode = try await self.indexNode
             guard var indirectBlockMap = try await indirectBlockMap else {
                 Self.logger.error("An item had no extent tree, but also no indirect block map")
                 throw POSIXError(.EIO)
             }
-            return try (fileBlock..<(fileBlock + UInt64(actualBlockLength))).reduce(into: []) { extents, block in
+            // if hugeFile is not set the blocks are 512 bytes, otherwise they are logical blocks
+            let scale = indexNode.flags.contains(.hugeFile) ? 1 : containingVolume.superblock.blockSize / 512
+            let blockCount = UInt64((Int(indexNode.blockCount) + scale - 1) / scale)
+            let upperBound = min(blockCount, fileBlock + UInt64(blockLength))
+            return try (fileBlock..<upperBound).reduce(into: []) { extents, block in
                 let level1End: UInt32 = 11
                 guard performAdditionalIO || block <= level1End else {
                     return
