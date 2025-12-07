@@ -122,14 +122,13 @@ final class Ext4Item: FSItem {
     
     var indexNode: IndexNode {
         get async throws {
-            try await fetchInode()
-            return await cache.getCachedIndexNode()!
+            return try await fetchInode()
         }
     }
     
-    private func fetchInode() async throws {
-        if await cache.getCachedIndexNode() != nil {
-            return
+    private func fetchInode() async throws -> IndexNode {
+        if let inode = await cache.getCachedIndexNode() {
+            return inode
         }
         let blockSize = containingVolume.superblock.blockSize
         var data = Data(count: Int(blockSize))
@@ -152,6 +151,7 @@ final class Ext4Item: FSItem {
             throw POSIXError(.EIO)
         }
         await cache.setCachedIndexNode(inode)
+        return inode
     }
     
     var filetype: FSItem.ItemType {
@@ -203,37 +203,30 @@ final class Ext4Item: FSItem {
     var directoryContents: ([DirectoryEntry], FSDirectoryVerifier)? {
         get async throws {
             guard await filetype == .directory else { return nil }
-            if let (group, verifier) = await cache.getDirectoryEntries() {
-                return (group, verifier)
-            }
-            
-            try await loadDirectoryContentCache()
-            if let (group, verifier) = await cache.getDirectoryEntries() {
-                return (group, verifier)
-            }
-            return nil
+            return try await loadDirectoryContentCache()
         }
     }
     
     func findItemInDirectory(named name: FSFileName) async throws -> Ext4Item? {
-        if await cache.getDirectoryEntries() == nil {
-            try await loadDirectoryContentCache()
-        }
+        let (entries, _) = try await loadDirectoryContentCache()
         
-        if let (directoryContentsInodes, _) = await cache.getDirectoryEntries(), let nameStr = name.string {
-            let dirEntryIndex = directoryContentsInodes.partitioningIndex { $0.name >= nameStr }
-            if dirEntryIndex != directoryContentsInodes.endIndex, directoryContentsInodes[dirEntryIndex].name == nameStr {
-                return try await containingVolume.item(forInode: directoryContentsInodes[dirEntryIndex].inodePointee)
+        if let nameStr = name.string {
+            let dirEntryIndex = entries.partitioningIndex { $0.name >= nameStr }
+            if dirEntryIndex != entries.endIndex, entries[dirEntryIndex].name == nameStr {
+                return try await containingVolume.item(forInode: entries[dirEntryIndex].inodePointee)
             }
         }
         
         return nil
     }
     
-    private func loadDirectoryContentCache() async throws {
-        guard await filetype == .directory else { return }
+    private func loadDirectoryContentCache() async throws -> ([DirectoryEntry], FSDirectoryVerifier) {
+        guard await filetype == .directory else { throw POSIXError(.ENOSYS) }
+        if let (entries, verifier) = await cache.getDirectoryEntries() {
+            return (entries, verifier)
+        }
         Self.logger.debug("Loading directory content cache for directory (inode \(self.inodeNumber, privacy: .public))")
-        var cache: [DirectoryEntry] = []
+        var loadedEntries: [DirectoryEntry] = []
         
         let extents = try await findExtentsCovering(0, with: Int.max)
         for extent in extents {
@@ -251,12 +244,15 @@ final class Ext4Item: FSItem {
                 Self.logger.debug("Block has \(dirEntryBlock.entries.count, privacy: .public) entries")
                 for entry in dirEntryBlock.entries {
                     guard entry.inodePointee != 0, entry.nameLength != 0 else { continue }
-                    cache.append(entry)
+                    loadedEntries.append(entry)
                 }
             }
         }
         
-        await self.cache.setDirectoryEntries(cache.sorted(by: { $0.name < $1.name }), withVerifier: FSDirectoryVerifier(UInt64.random(in: 1..<UInt64.max)))
+        let sortedEntries = loadedEntries.sorted(by: { $0.name < $1.name })
+        let verifier = FSDirectoryVerifier(UInt64.random(in: 1..<UInt64.max))
+        await self.cache.setDirectoryEntries(sortedEntries, withVerifier: verifier)
+        return (sortedEntries, verifier)
     }
     
     var symbolicLinkTarget: String? {
