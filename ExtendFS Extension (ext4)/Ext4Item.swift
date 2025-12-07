@@ -320,14 +320,12 @@ final class Ext4Item: FSItem {
             return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength, in: containingVolume, performAdditionalIO: performAdditionalIO)
         } else {
             let indexNode = try await self.indexNode
+            let actualBlockLength = min(blockLength, Int((Double(indexNode.size) / Double(containingVolume.superblock.blockSize)).rounded(.up)))
+            let upperBound = fileBlock + UInt64(actualBlockLength)
             guard var indirectBlockMap = try await indirectBlockMap else {
                 Self.logger.error("An item had no extent tree, but also no indirect block map")
                 throw POSIXError(.EIO)
             }
-            // if hugeFile is not set the blocks are 512 bytes, otherwise they are logical blocks
-            let scale = indexNode.flags.contains(.hugeFile) ? 1 : containingVolume.superblock.blockSize / 512
-            let blockCount = UInt64((Int(indexNode.blockCount) + scale - 1) / scale)
-            let upperBound = min(blockCount, fileBlock + UInt64(blockLength))
             return try (fileBlock..<upperBound).reduce(into: []) { extents, block in
                 let level1End: UInt32 = 11
                 guard performAdditionalIO || block <= level1End else {
@@ -335,11 +333,11 @@ final class Ext4Item: FSItem {
                 }
                 let answer = try indirectBlockMap.getPhysicalBlockLocations(for: block, blockDevice: containingVolume.resource, blockSize: containingVolume.superblock.blockSize)
                 
-                if var last = extents.last, (last.physicalBlock + off_t(last.lengthInBlocks ?? 1) == answer) {
+                if var last = extents.last, (last.physicalBlock + off_t(last.lengthInBlocks ?? 1) == answer) || (last.type == .zeroFill && answer == 0) {
                     last.lengthInBlocks? += 1
                     extents[extents.count - 1] = last
                 } else {
-                    let extent = FileExtentNode(physicalBlock: off_t(answer), logicalBlock: off_t(block), lengthInBlocks: 1, type: .data)
+                    let extent = FileExtentNode(physicalBlock: off_t(answer), logicalBlock: off_t(block), lengthInBlocks: 1, type: answer == 0 ? .zeroFill : .data)
                     extents.append(extent)
                 }
             }

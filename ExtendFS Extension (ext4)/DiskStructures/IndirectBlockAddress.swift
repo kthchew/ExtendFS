@@ -34,6 +34,12 @@ struct IndirectBlockMap {
         self.tripleIndirectBlockLocation = tripleIndirectBlockLocation
     }
     
+    /// Gets the physical block number corresponding to the logical block for the file.
+    /// - Parameters:
+    ///   - logicalBlock: The logical block to get the physical block number for.
+    ///   - blockDevice: The block device containing the volume.
+    ///   - blockSize: The size of a logical block used by the file system.
+    /// - Returns: The physical block number. 0 means that a block is not allocated.
     mutating func getPhysicalBlockLocations(for logicalBlock: UInt64, blockDevice: FSBlockDeviceResource, blockSize: Int) throws -> UInt64 {
         guard let logicalBlock = UInt32(exactly: logicalBlock) else {
             logger.error("Trying to use indirect block map to get logical block number \(logicalBlock, privacy: .public), which is too large")
