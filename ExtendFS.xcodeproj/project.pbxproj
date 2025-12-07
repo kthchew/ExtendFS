@@ -12,7 +12,6 @@
 		9FBD04882ED38221001E909D /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD04872ED38221001E909D /* README.md */; };
 		9FBD048A2ED3B3DC001E909D /* CONTRIBUTING.md in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD04892ED3B3DC001E909D /* CONTRIBUTING.md */; };
 		9FBD048C2ED3B9DE001E909D /* SUPPORT.md in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD048B2ED3B9DE001E909D /* SUPPORT.md */; };
-		9FBD07DB2ED5059A001E909D /* LICENSE.md in Sources */ = {isa = PBXBuildFile; fileRef = 9FBD07DA2ED50597001E909D /* LICENSE.md */; };
 		9FBD07DD2ED505C3001E909D /* COPYING in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD07DC2ED505C3001E909D /* COPYING */; };
 /* End PBXBuildFile section */
 
@@ -250,7 +249,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9FBD07DB2ED5059A001E909D /* LICENSE.md in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -306,7 +304,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = YN43D87323;
@@ -374,7 +372,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = YN43D87323;
@@ -424,6 +422,7 @@
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -463,6 +462,7 @@
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
