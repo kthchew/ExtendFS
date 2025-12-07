@@ -131,7 +131,8 @@ struct Superblock {
         }
         self.hashSeed = hashSeed
 
-        guard let defaultHashAlgorithm: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let defaultHashAlgorithmRaw: UInt8 = iterator.nextLittleEndian() else { return nil }
+        let defaultHashAlgorithm = HashVersion(rawValue: defaultHashAlgorithmRaw) ?? .unknown
         self.defaultHashAlgorithm = defaultHashAlgorithm
         guard let journalBackupType: UInt8 = iterator.nextLittleEndian() else { return nil }
         if compatibleFeatures.contains(.journal) {
@@ -406,7 +407,7 @@ struct Superblock {
         static let quota = ReadOnlyCompatibleFeatures(rawValue: 1 << 8)
         /// File extents are tracked in units of clusters of blocks instead of blocks.
         static let supportsBigalloc = ReadOnlyCompatibleFeatures(rawValue: 1 << 9)
-        /// This implies `groupDescriptorsHaveChecksums`.
+        /// This implies ``Superblock/ReadOnlyCompatibleFeatures/groupDescriptorsHaveChecksums``.
         static let supportsMetadataChecksumming = ReadOnlyCompatibleFeatures(rawValue: 1 << 10)
         /// Not supported in the Linux kernel nor e2fsprogs.
         static let supportsReplicas = ReadOnlyCompatibleFeatures(rawValue: 1 << 11)
@@ -426,6 +427,8 @@ struct Superblock {
         case legacyUnsigned = 3
         case halfMD4Unsigned = 4
         case teaUnsigned = 5
+        case sipHash = 6
+        case unknown = 255
     }
     
     struct DefaultMountOptions: OptionSet {
@@ -530,7 +533,7 @@ struct Superblock {
     
     var lastOrphan: UInt32?
     var hashSeed: [UInt32]? // size 4
-    var defaultHashAlgorithm: UInt8?
+    var defaultHashAlgorithm: HashVersion?
     var journalBackupType: UInt8?
     var groupDescriptorSizeInBytes: UInt16?
     var defaultMountOptions: UInt32?

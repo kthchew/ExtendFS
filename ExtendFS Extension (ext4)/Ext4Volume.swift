@@ -107,6 +107,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
                 Volume name: \(superblock.volumeName ?? "")
                 Last mounted directory: \(superblock.lastMountDirectory ?? "")
                 Compresion algo use bitmap: \(String(describing: superblock.compressionAlgorithmUsageBitmap), privacy: .public)
+                Hash algorithm: \(String(describing: superblock.defaultHashAlgorithm), privacy: .public)
                 
                 Min extra inode size: \(String(describing: superblock.minimumExtraInodeSize), privacy: .public)
                 Want extra inode size: \(String(describing: superblock.wantExtraInodeSize), privacy: .public)
