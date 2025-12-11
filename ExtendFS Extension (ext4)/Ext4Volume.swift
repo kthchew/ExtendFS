@@ -404,13 +404,13 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     
     func activate(options: FSTaskOptions) async throws -> FSItem {
         logger.log("activate options: \(options.taskOptions, privacy: .public)")
-        fileSystem.containerStatus = .active
+        await fileSystem.setContainerStatus(.active)
         return await cache.root
     }
     
     func deactivate(options: FSDeactivateOptions = []) async throws {
         logger.log("deactivate")
-        fileSystem.containerStatus = .ready
+        await fileSystem.setContainerStatus(.ready)
         return
     }
     

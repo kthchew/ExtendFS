@@ -4,12 +4,6 @@
 import Foundation
 import FSKit
 
-enum ExtensionError: Error {
-    case notImplemented
-    case resourceUnsupported
-    case unloadedResource
-}
-
 @objc
 final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperations {
     static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Ext4Extension")
@@ -83,22 +77,26 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
         switch probeResult.result {
         case .notRecognized:
             Self.logger.log("Invalid resource")
-            throw ExtensionError.resourceUnsupported
+            await setContainerStatus(.blocked(status: FSError(.resourceUnrecognized)))
+            throw FSError(.resourceUnrecognized)
         case .recognized:
             Self.logger.log("Recognized but can't mount")
-            throw ExtensionError.resourceUnsupported
+            await setContainerStatus(.blocked(status: FSError(.resourceUnusable)))
+            throw FSError(.resourceUnusable)
         case .usableButLimited:
             readOnly = true
         case .usable:
             readOnly = true // write not supported atm
         @unknown default:
             Self.logger.log("Unknown probe result")
-            throw ExtensionError.resourceUnsupported
+            await setContainerStatus(.blocked(status: FSError(.resourceUnrecognized)))
+            throw FSError(.resourceUnrecognized)
         }
         
         guard let resource = resource as? FSBlockDeviceResource else {
             Self.logger.log("Not a block resource")
-            throw ExtensionError.resourceUnsupported
+            await setContainerStatus(.blocked(status: FSError(.resourceUnrecognized)))
+            throw FSError(.resourceUnrecognized)
         }
         
         Self.logger.log("load options: \(options.taskOptions, privacy: .public)")
@@ -125,7 +123,7 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
     func unloadResource(resource: FSResource, options: FSTaskOptions) async throws {
         Self.logger.log("Unloading resource")
         await setResources(resource: nil, volume: nil)
-        await setContainerStatus(.notReady(status: ExtensionError.unloadedResource))
+        await setContainerStatus(.notReady(status: POSIXError(.EAGAIN)))
         return
     }
     
@@ -175,8 +173,8 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
         Task {
             await setContainerStatus(.active)
             guard let volume = await volume else {
-                task.didComplete(error: POSIXError(.ENOTSUP))
-                await setContainerStatus(.notReady(status: POSIXError(.ENOTSUP)))
+                await setContainerStatus(.notReady(status: FSError(.resourceDamaged)))
+                task.didComplete(error: FSError(.resourceDamaged))
                 return
             }
             
@@ -186,12 +184,12 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
             
             do {
                 try await Self.quickCheck(volume: volume, task: task)
+                await setContainerStatus(.ready)
                 task.didComplete(error: nil)
             } catch {
+                await setContainerStatus(.notReady(status: FSError(.resourceDamaged)))
                 task.didComplete(error: error)
             }
-            
-            await setContainerStatus(.ready)
         }
         return progress
     }
