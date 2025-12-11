@@ -158,15 +158,55 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
         // TODO: should probably calculate a checksum
     }
     
+    /// Makes a "shadow file" of the provided volume.
+    ///
+    /// A shadow file contains the metadata for the volume, but excludes file data. It is intended to be included in bug reports for hard-to-debug issues.
+    /// - Parameters:
+    ///   - destination: The directory at which the shadow file should be created.
+    ///   - volume: The volume to create a shadow file of.
+    ///   - task: The task associated with the check operation that initiated this request.
+    private static func makeShadowFile(at destination: URL, volume: Ext4Volume, task: FSTask) async throws {
+        #if DEBUG
+        let name = "shadow-\(volume.resource.bsdName)"
+        let shadowURL = destination.appendingPathComponent(name)
+        FileManager.default.createFile(atPath: shadowURL.path(percentEncoded: false), contents: nil)
+        // TODO: implement once url options are fixed
+        #else
+        task.logMessage("Shadow file requested, but this function is not implemented yet. Ignoring.")
+        #endif
+    }
+    
+    /// A type of check that can be performed.
+    enum CheckType {
+        /// A quick, surface-level check.
+        case quick
+        /// A more complete check.
+        ///
+        /// Not currently supported.
+        case full
+    }
+    
     func startCheck(task: FSTask, options: FSTaskOptions) throws -> Progress {
-        let quick = options.taskOptions.contains("-q")
         let yes = options.taskOptions.contains("-y")
+        let makeShadow = options.taskOptions.contains("-S")
+        
+        var checkType: CheckType = .full
+        for option in options.taskOptions {
+            switch option {
+            case "-q":
+                checkType = .quick
+                break
+            default:
+                continue
+            }
+        }
         
         if yes {
             task.logMessage("-y option provided, but ExtendFS is read-only. Ignoring option.")
         }
-        if !quick {
+        if checkType == .full {
             task.logMessage("Full check requested, but ExtendFS only supports simple quick checks. A quick check will be run.")
+            checkType = .quick
         }
         
         let progress = Progress(totalUnitCount: 100)
@@ -182,13 +222,37 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
                 progress.completedUnitCount = 100
             }
             
-            do {
-                try await Self.quickCheck(volume: volume, task: task)
-                await setContainerStatus(.ready)
-                task.didComplete(error: nil)
-            } catch {
-                await setContainerStatus(.notReady(status: FSError(.resourceDamaged)))
-                task.didComplete(error: error)
+            if makeShadow {
+                if let destination = options.url(forOption: "S"), destination.startAccessingSecurityScopedResource() {
+                    defer {
+                        destination.stopAccessingSecurityScopedResource()
+                    }
+                    
+                    try await Self.makeShadowFile(at: destination, volume: volume, task: task)
+                } else {
+                    task.logMessage("No valid directory provided to -S option. Shadow file not being created.")
+                }
+            }
+            
+            switch checkType {
+            case .quick:
+                do {
+                    try await Self.quickCheck(volume: volume, task: task)
+                    await setContainerStatus(.ready)
+                    task.didComplete(error: nil)
+                } catch {
+                    await setContainerStatus(.notReady(status: FSError(.resourceDamaged)))
+                    task.didComplete(error: error)
+                }
+            case .full:
+                do {
+                    try await Self.quickCheck(volume: volume, task: task)
+                    await setContainerStatus(.ready)
+                    task.didComplete(error: nil)
+                } catch {
+                    await setContainerStatus(.notReady(status: FSError(.resourceDamaged)))
+                    task.didComplete(error: error)
+                }
             }
         }
         return progress

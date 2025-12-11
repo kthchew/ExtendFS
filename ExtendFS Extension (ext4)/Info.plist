@@ -14,7 +14,12 @@
 		<key>FSCheckOptionSyntax</key>
 		<dict>
 			<key>shortOptions</key>
-			<string>nqy</string>
+			<string>nqyS:</string>
+			<key>pathOptions</key>
+			<dict>
+				<key>S</key>
+				<string>Directory</string>
+			</dict>
 		</dict>
 		<key>FSFormatOptionSyntax</key>
 		<dict>
@@ -523,7 +528,6 @@
 					<true/>
 				</dict>
 			</dict>
-
 			<key>Linux</key>
 			<dict>
 				<key>FSMediaProperties</key>
