@@ -1,6 +1,7 @@
 // This file is part of ExtendFS which is released under the GNU GPL v3 or later license with an app store exception.
 // See the LICENSE file in the root of the repository for full license details.
 
+import AppKit
 import Algorithms
 import Foundation
 import FSKit
@@ -405,6 +406,16 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     func activate(options: FSTaskOptions) async throws -> FSItem {
         logger.log("activate options: \(options.taskOptions, privacy: .public)")
         await fileSystem.setContainerStatus(.active)
+        
+        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.kpchew.ExtendFS") {
+            let config = NSWorkspace.OpenConfiguration()
+            config.createsNewApplicationInstance = true
+            config.activates = false
+            config.addsToRecentItems = false
+            config.hides = true
+            try? await NSWorkspace.shared.open([URL(string: "extendfs-internal-diskwatch:/dev/\(resource.bsdName)")!], withApplicationAt: appURL, configuration: config)
+        }
+        
         return await cache.root
     }
     
