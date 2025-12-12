@@ -4,6 +4,9 @@
 import Foundation
 import AppKit
 import DiskArbitration
+import os.log
+
+fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS", category: "WatcherModeDelegate")
 
 /// An object that watches a disk and keeps the process alive until it is unmounted.
 ///
@@ -21,6 +24,7 @@ class DiskWatcher {
         self.session = session
         
         guard let disk = DADiskCreateFromBSDName(kCFAllocatorDefault, session, blockDevice) else {
+            logger.log("Couldn't create disk from BSD name \(blockDevice)")
             return nil
         }
         let cfDesc = DADiskCopyDescription(disk) as! [String: Any]
@@ -32,6 +36,7 @@ class DiskWatcher {
         ]
         
         DARegisterDiskUnmountApprovalCallback(session, filter as CFDictionary, { (recvDisk, context) in
+            logger.log("Disk is trying to unmount, exiting")
             Task { @MainActor in
                 exit(0)
             }
@@ -58,6 +63,7 @@ class DiskWatcher {
         
         if let description = DADiskCopyDescription(disk) as? [CFString: Any], let bsd = description[kDADiskDescriptionMediaBSDNameKey] as? String {
             // mark as unmounted so it can be tried to be mounted again later
+            logger.log("Creating marker for unmounted disk")
             let empty = Data()
             try? empty.write(to: URL.temporaryDirectory.appending(component: "unmounted-\(bsd)"))
         }

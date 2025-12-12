@@ -23,8 +23,7 @@ struct ExtendFSApp: App {
     
     init() {
         // handle unmounted disks that were previously unmounted during a quit event, probably indicating an App Store update relaunch
-        
-        if let contents = try? FileManager.default.contentsOfDirectory(at: URL.temporaryDirectory, includingPropertiesForKeys: nil) {
+        if let contents = try? FileManager.default.contentsOfDirectory(at: URL.temporaryDirectory, includingPropertiesForKeys: [.creationDateKey]) {
             let bsdList = contents
                 .filter({ $0.lastPathComponent.starts(with: "unmounted-") })
             guard bsdList.count > 0 else {
@@ -44,6 +43,11 @@ struct ExtendFSApp: App {
                     DADiskMount(disk, nil, options, nil, nil)
                 } else {
                     logger.error("Couldn't create disk from BSD name \(bsd, privacy: .public)")
+                }
+                
+                if let creationDate = try? name.resourceValues(forKeys: [.creationDateKey]).creationDate, abs(creationDate.timeIntervalSinceNow) > 60 * 10 {
+                    logger.log("Disk was marked as unmounted more than 10 minutes ago, which is strange. Will open GUI as a fallback")
+                    couldCleanAllItems = false
                 }
                 
                 do {
@@ -66,6 +70,8 @@ struct ExtendFSApp: App {
                 .onOpenURL { url in
                     guard !delegate.wasStartedForGUI, url.scheme == "extendfs-internal-diskwatch" else { return }
                     
+                    logger.log("Got request to monitor disk \(url.lastPathComponent, privacy: .public)")
+                    
                     dismissWindow(id: "main")
                     let devNode = url.path(percentEncoded: false)
                     NSApp.hide(nil)
@@ -87,9 +93,17 @@ struct ExtendFSApp: App {
                     }
                     do {
                         try Task.checkCancellation()
+                        logger.log("Normal app launch")
                         delegate.wasStartedForGUI = true
                         NSApp.setActivationPolicy(.regular)
                         NSApp.activate()
+                        if !NSApp.isActive {
+                            // weird workaround since LSUIElement is set to avoid dock flickering, but that causes the window to not be activated by default
+                            // either this will activate the GUI, or a background process which is setup to then activate the GUI
+                            let appURL = Bundle.main.bundleURL
+                            let config = NSWorkspace.OpenConfiguration()
+                            NSWorkspace.shared.openApplication(at: appURL, configuration: config)
+                        }
                     } catch {}
                 }
         }

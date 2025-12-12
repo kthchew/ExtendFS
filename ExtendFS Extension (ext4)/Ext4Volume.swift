@@ -413,7 +413,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
             config.activates = false
             config.addsToRecentItems = false
             config.hides = true
-            try? await NSWorkspace.shared.open([URL(string: "extendfs-internal-diskwatch:/dev/\(resource.bsdName)")!], withApplicationAt: appURL, configuration: config)
+            let _ = try? await NSWorkspace.shared.open([URL(string: "extendfs-internal-diskwatch:/dev/\(resource.bsdName)")!], withApplicationAt: appURL, configuration: config)
         }
         
         return await cache.root
