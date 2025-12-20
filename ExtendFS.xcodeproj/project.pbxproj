@@ -9,10 +9,6 @@
 /* Begin PBXBuildFile section */
 		9F283FD22DED6F90005EF8BB /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 9F283FD12DED6F90005EF8BB /* Algorithms */; };
 		9F57A64D2DD6841D00D7E52D /* ExtendFS Extension (ext4).appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = 9F57A6432DD6841D00D7E52D /* ExtendFS Extension (ext4).appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		9FBD04882ED38221001E909D /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD04872ED38221001E909D /* README.md */; };
-		9FBD048A2ED3B3DC001E909D /* CONTRIBUTING.md in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD04892ED3B3DC001E909D /* CONTRIBUTING.md */; };
-		9FBD048C2ED3B9DE001E909D /* SUPPORT.md in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD048B2ED3B9DE001E909D /* SUPPORT.md */; };
-		9FBD07DD2ED505C3001E909D /* COPYING in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD07DC2ED505C3001E909D /* COPYING */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +53,16 @@
 			);
 			target = 9F57A6132DD6835E00D7E52D /* ExtendFS */;
 		};
+		9F3646A82EF6A7940020386A /* Exceptions for ".github" folder in "ExtendFS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"ISSUE_TEMPLATE/bug-report.yml",
+				ISSUE_TEMPLATE/config.yml,
+				"ISSUE_TEMPLATE/feature-request.yml",
+				pull_request_template.md,
+			);
+			target = 9F57A6132DD6835E00D7E52D /* ExtendFS */;
+		};
 		9F57A64E2DD6841D00D7E52D /* Exceptions for "ExtendFS Extension (ext4)" folder in "ExtendFS Extension (ext4)" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -85,6 +91,9 @@
 		};
 		9FBD048D2ED3BB59001E909D /* .github */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				9F3646A82EF6A7940020386A /* Exceptions for ".github" folder in "ExtendFS" target */,
+			);
 			path = .github;
 			sourceTree = "<group>";
 		};
@@ -238,10 +247,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9FBD04882ED38221001E909D /* README.md in Resources */,
-				9FBD048C2ED3B9DE001E909D /* SUPPORT.md in Resources */,
-				9FBD07DD2ED505C3001E909D /* COPYING in Resources */,
-				9FBD048A2ED3B3DC001E909D /* CONTRIBUTING.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
