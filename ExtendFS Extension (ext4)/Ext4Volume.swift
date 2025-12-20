@@ -215,12 +215,20 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         capabilities.caseFormat = .sensitive
         capabilities.supportsHardLinks = true
         capabilities.supportsSymbolicLinks = true
+        capabilities.supportsJournal = superblock.compatibleFeatures.contains(.journal)
+        capabilities.supportsActiveJournal = false
         capabilities.supportsPersistentObjectIDs = true
+        capabilities.supports64BitObjectIDs = false
+        capabilities.supportsDocumentID = false
         capabilities.supportsSparseFiles = true
         capabilities.supportsZeroRuns = true
         capabilities.supports2TBFiles = true
         capabilities.supportsHiddenFiles = false
         capabilities.supportsFastStatFS = true
+        capabilities.doesNotSupportRootTimes = false
+        capabilities.doesNotSupportVolumeSizes = false
+        capabilities.doesNotSupportImmutableFiles = false
+        capabilities.doesNotSupportSettingFilePermissions = false
         return capabilities
     }
     
