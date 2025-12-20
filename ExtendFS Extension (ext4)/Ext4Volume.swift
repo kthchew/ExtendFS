@@ -441,6 +441,26 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         255
     }
     
+    var maximumFileSizeInBits: Int {
+        if superblock.incompatibleFeatures.contains(.extents) {
+            return -1
+        } else {
+            let blockSize = UInt64(superblock.blockSize)
+            let addressesPerBlock = blockSize / 4
+            let tripleIndirectMapBlockCoverage = UInt64(pow(Double(addressesPerBlock), 3.0)) + UInt64(pow(Double(addressesPerBlock), 2.0)) + addressesPerBlock + 12 + 1
+            let sizeInBytes = tripleIndirectMapBlockCoverage * blockSize
+            return Int(log2(Double(sizeInBytes))) + 1
+        }
+    }
+    
+    var maximumXattrSize: Int {
+        if superblock.incompatibleFeatures.contains(.inodesCanStoreLargeExtendedAttributes) {
+            return 65536
+        } else {
+            return superblock.blockSize
+        }
+    }
+    
     var restrictsOwnershipChanges: Bool {
         false
     }
