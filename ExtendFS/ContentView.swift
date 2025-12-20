@@ -4,6 +4,7 @@
 import SwiftUI
 import FSKit
 import ServiceManagement
+import StoreKit
 
 enum ExtensionActivationState {
     case inactive
@@ -13,6 +14,10 @@ enum ExtensionActivationState {
 
 struct ContentView: View {
     nonisolated static let logger = Logger(subsystem: "com.kpchew.ExtendFS", category: "default")
+    
+    @AppStorage("lastAskedForRating") private var lastAskedForRating: Date = Date.distantPast
+    @Environment(\.requestReview) private var requestReview
+    @Environment(\.appearsActive) private var appearsActive
     
     let ext4ExtensionIdentifier = "com.kpchew.ExtendFS.ext4Extension"
     @State private var ext4ExtensionState: ExtensionActivationState = .notDetermined
@@ -84,6 +89,13 @@ struct ContentView: View {
         let states = await checkExtensionEnablementState()
         
         self.ext4ExtensionState = states[ext4ExtensionIdentifier] ?? .notDetermined
+        
+        let timeSinceLastAskedForRating = lastAskedForRating.timeIntervalSinceNow.magnitude
+        let secondsPerMonth = Double(60 * 60 * 24 * 7 * 30)
+        if appearsActive && timeSinceLastAskedForRating > secondsPerMonth {
+            lastAskedForRating = Date.now
+            requestReview()
+        }
     }
     
     nonisolated func checkExtensionEnablementState() async -> [String: ExtensionActivationState] {
