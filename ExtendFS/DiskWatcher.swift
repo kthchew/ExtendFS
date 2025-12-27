@@ -42,6 +42,12 @@ class DiskWatcher {
             }
             return nil
         }, nil)
+        DARegisterDiskDisappearedCallback(session, filter as CFDictionary, { (recvDisk, context) in
+            logger.log("Disk disappeared, exiting")
+            Task { @MainActor in
+                exit(0)
+            }
+        }, nil)
         
         self.queue = dispatch_queue_t(label: "com.kpchew.ExtendFS.DiskWatcher")
         DASessionSetDispatchQueue(session, self.queue)
