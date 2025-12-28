@@ -415,13 +415,16 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         logger.log("activate options: \(options.taskOptions, privacy: .public)")
         await fileSystem.setContainerStatus(.active)
         
-        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.kpchew.ExtendFS") {
-            let config = NSWorkspace.OpenConfiguration()
-            config.createsNewApplicationInstance = true
-            config.activates = false
-            config.addsToRecentItems = false
-            config.hides = true
-            let _ = try? await NSWorkspace.shared.open([URL(string: "extendfs-internal-diskwatch:/dev/\(resource.bsdName)")!], withApplicationAt: appURL, configuration: config)
+        let bsdName = resource.bsdName
+        Task {
+            if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.kpchew.ExtendFS") {
+                let config = NSWorkspace.OpenConfiguration()
+                config.createsNewApplicationInstance = true
+                config.activates = false
+                config.addsToRecentItems = false
+                config.hides = true
+                let _ = try? await NSWorkspace.shared.open([URL(string: "extendfs-internal-diskwatch:/dev/\(bsdName)")!], withApplicationAt: appURL, configuration: config)
+            }
         }
         
         return await cache.root

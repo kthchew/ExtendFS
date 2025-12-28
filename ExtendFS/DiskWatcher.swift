@@ -4,6 +4,7 @@
 import Foundation
 import AppKit
 import DiskArbitration
+import Combine
 import os.log
 
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS", category: "WatcherModeDelegate")
@@ -13,8 +14,11 @@ fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS", category: "Wat
 /// For more information about why this is here, see ``ExtendFSApp``.
 class DiskWatcher {
     let session: DASession
+    let disk: DADisk
     let initialBSDName: String
-    let queue: dispatch_queue_t
+    var initializeSink: AnyCancellable?
+    var initializeGuard: Task<(), any Error>?
+    var sink: AnyCancellable?
     
     init?(blockDevice: String) {
         self.initialBSDName = blockDevice
@@ -27,34 +31,45 @@ class DiskWatcher {
             logger.log("Couldn't create disk from BSD name \(blockDevice)")
             return nil
         }
-        let cfDesc = DADiskCopyDescription(disk) as! [String: Any]
-        let uuid = cfDesc[String(kDADiskDescriptionVolumeUUIDKey)]
-        let bsd = cfDesc[String(kDADiskDescriptionMediaBSDNameKey)]
-        let filter = [
-            String(kDADiskDescriptionVolumeUUIDKey): uuid,
-            String(kDADiskDescriptionMediaBSDNameKey): bsd
-        ]
+        self.disk = disk
         
-        DARegisterDiskUnmountApprovalCallback(session, filter as CFDictionary, { (recvDisk, context) in
-            logger.log("Disk is trying to unmount, exiting")
-            Task { @MainActor in
+        let initializeSink = NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification).sink { notification in
+            if self.startWatchingIfMounted() {
+                self.initializeGuard?.cancel()
+                self.initializeGuard = nil
+                self.initializeSink = nil
+            }
+        }
+        if !self.startWatchingIfMounted() {
+            self.initializeGuard = Task {
+                try await Task.sleep(for: .seconds(30))
+                logger.error("Requested to watch block device but it has not been mounted for 30 seconds. Exiting.")
                 exit(0)
             }
-            return nil
-        }, nil)
-        DARegisterDiskDisappearedCallback(session, filter as CFDictionary, { (recvDisk, context) in
-            logger.log("Disk disappeared, exiting")
-            Task { @MainActor in
-                exit(0)
-            }
-        }, nil)
-        
-        self.queue = dispatch_queue_t(label: "com.kpchew.ExtendFS.DiskWatcher")
-        DASessionSetDispatchQueue(session, self.queue)
+            self.initializeSink = initializeSink
+        }
     }
     
     deinit {
         DASessionSetDispatchQueue(session, nil)
+    }
+    
+    private func startWatchingIfMounted() -> Bool {
+        let cfDesc = DADiskCopyDescription(disk) as! [String: Any]
+        guard let diskMountPath = cfDesc[String(kDADiskDescriptionVolumePathKey)] as? URL else {
+            return false
+        }
+        
+        self.sink = NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification).sink { notification in
+            guard let mountPath = notification.userInfo?["NSDevicePath"] as? String else { return }
+            if URL(filePath: mountPath).pathComponents == diskMountPath.pathComponents {
+                logger.log("Received disk unmount notification, exiting")
+                Task { @MainActor in
+                    exit(0)
+                }
+            }
+        }
+        return true
     }
     
     /// Unmount the disk this object is watching.
