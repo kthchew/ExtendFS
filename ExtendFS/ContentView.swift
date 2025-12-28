@@ -21,6 +21,7 @@ struct ContentView: View {
     
     let ext4ExtensionIdentifier = "com.kpchew.ExtendFS.ext4Extension"
     @State private var ext4ExtensionState: ExtensionActivationState = .notDetermined
+    @State private var appStoreRatingManager: AppStoreRatingManager?
     
     let osVersion = ProcessInfo.processInfo.operatingSystemVersion
     
@@ -81,6 +82,7 @@ struct ContentView: View {
             }
         })
         .task {
+            appStoreRatingManager = AppStoreRatingManager(action: requestReview)
             await updateExtensionEnablementState()
         }
     }
@@ -90,33 +92,8 @@ struct ContentView: View {
         
         self.ext4ExtensionState = states[ext4ExtensionIdentifier] ?? .notDetermined
         
-        if !isSignedForDirectDistribution() {
-            let timeSinceLastAskedForRating = lastAskedForRating.timeIntervalSinceNow.magnitude
-            let secondsPerMonth = Double(60 * 60 * 24 * 7 * 30)
-            if appearsActive && timeSinceLastAskedForRating > secondsPerMonth {
-                lastAskedForRating = Date.now
-                requestReview()
-            }
-        }
-    }
-    
-    func isSignedForDirectDistribution() -> Bool {
-        var code: SecCode? = nil
-        SecCodeCopySelf(SecCSFlags(), &code)
-        guard let code else { return true }
-        var staticCode: SecStaticCode? = nil
-        SecCodeCopyStaticCode(code, SecCSFlags(), &staticCode)
-        guard let staticCode else { return true }
-        var dict: CFDictionary?
-        SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &dict)
-        guard let info = dict as? [CFString: Any], let certificates = info[kSecCodeInfoCertificates] as? [SecCertificate] else {
-            return true
-        }
-        return certificates.contains { cert in
-            var commonName: CFString? = nil
-            SecCertificateCopyCommonName(cert, &commonName)
-            guard let commonName = commonName as? String else { return false }
-            return commonName.contains("Developer ID Application")
+        if let shouldAsk = appStoreRatingManager?.shouldAskForRatings, appearsActive && shouldAsk {
+            appStoreRatingManager?.requestRating()
         }
     }
     
