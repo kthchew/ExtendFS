@@ -281,14 +281,26 @@ struct Superblock {
         self.firstErrorTimeHigh = firstErrorTimeHigh
         guard let lastErrorTimeHigh: UInt8 = iterator.nextLittleEndian() else { return nil }
         self.lastErrorTimeHigh = lastErrorTimeHigh
+        
+        var pad: [UInt8] = []
+        pad.reserveCapacity(2)
+        for _ in 0..<2 {
+            guard let v: UInt8 = iterator.nextLittleEndian() else { return nil }
+            pad.append(v)
+        }
+        self.pad = pad
+        
+        guard let encoding: UInt16 = iterator.nextLittleEndian() else { return nil }
+        self.encoding = encoding
+        guard let encodingFlags: UInt16 = iterator.nextLittleEndian() else { return nil }
+        self.encodingFlags = encodingFlags
+        guard let orphanFileInodeNumber: UInt32 = iterator.nextLittleEndian() else { return nil }
+        self.orphanFileInodeNumber = orphanFileInodeNumber
 
         // zero padding
-        guard let _: UInt8 = iterator.nextLittleEndian() else { return nil }
-        guard let _: UInt8 = iterator.nextLittleEndian() else { return nil }
-
         var reservedPadding: [UInt32] = []
-        reservedPadding.reserveCapacity(96)
-        for _ in 0..<96 {
+        reservedPadding.reserveCapacity(94)
+        for _ in 0..<94 {
             guard let v: UInt32 = iterator.nextLittleEndian() else { return nil }
             reservedPadding.append(v)
         }
@@ -543,9 +555,6 @@ struct Superblock {
     var backupJournalBlocks: [UInt32]? // size 17
     
     // MARK: - 64-bit support
-    var blockCountHigh: UInt32?
-    var superUserBlockCountHigh: UInt32?
-    var freeBlockCountHigh: UInt32?
     /// All inodes have at least `minimumExtraInodeSize` bytes.
     var minimumExtraInodeSize: UInt16?
     /// New inodes should reserve `wantExtraInodeSize` bytes.
@@ -610,8 +619,179 @@ struct Superblock {
     var lastCheckTimeHigh: UInt8?
     var firstErrorTimeHigh: UInt8?
     var lastErrorTimeHigh: UInt8?
+    
+    var pad: [UInt8]?
+    var encoding: UInt16?
+    var encodingFlags: UInt16?
+    var orphanFileInodeNumber: UInt32?
 
     var reservedPadding: [UInt32]?
 
     var checksum: UInt32?
+    
+    func toData() throws -> Data {
+        var data = Data()
+        data.reserveCapacity(1024)
+        
+        data.appendLittleEndian(inodeCount)
+        data.appendLittleEndian(blockCount.lowerHalf)
+        data.appendLittleEndian(superUserBlockCount.lowerHalf)
+        data.appendLittleEndian(freeBlockCount.lowerHalf)
+        data.appendLittleEndian(freeInodeCount)
+        data.appendLittleEndian(firstDataBlock)
+        data.appendLittleEndian(logBlockSize)
+        data.appendLittleEndian(logClusterSize)
+        data.appendLittleEndian(blocksPerGroup)
+        data.appendLittleEndian(clustersPerGroup)
+        data.appendLittleEndian(inodesPerGroup)
+        data.appendLittleEndian(mountTime.lowerHalf)
+        data.appendLittleEndian(writeTime.lowerHalf)
+        data.appendLittleEndian(mountsSinceLastFsck)
+        data.appendLittleEndian(maxMountsSinceLastFsck)
+        data.appendLittleEndian(magic)
+        data.appendLittleEndian(state.rawValue)
+        data.appendLittleEndian(errorPolicy.rawValue)
+        data.appendLittleEndian(minorRevisionLevel)
+        data.appendLittleEndian(lastCheckTime)
+        data.appendLittleEndian(maxSecondsBetweenChecks)
+        data.appendLittleEndian(creatorOS.rawValue)
+        data.appendLittleEndian(revisionLevel.rawValue)
+        data.appendLittleEndian(defaultUidForReservedBlocks)
+        data.appendLittleEndian(defaultGidForReservedBlocks)
+        
+        guard revisionLevel == .version2 else {
+            // FIXME: padding
+            return data
+        }
+        
+        data.appendLittleEndian(firstNonReservedInode)
+        data.appendLittleEndian(inodeSize)
+        guard let blockGroupNumber else {
+            logger.fault("Superblock state is corrupted")
+            throw POSIXError(.EIO)
+        }
+        data.appendLittleEndian(blockGroupNumber)
+        data.appendLittleEndian(compatibleFeatures.rawValue)
+        data.appendLittleEndian(incompatibleFeatures.rawValue)
+        data.appendLittleEndian(readOnlyCompatibleFeatures.rawValue)
+        data.append(uuid: (uuid ?? UUID()))
+        try data.append(cStringFrom: volumeName ?? "", length: 16)
+        try data.append(cStringFrom: lastMountDirectory ?? "", length: 64)
+        data.appendLittleEndian(compressionAlgorithmUsageBitmap ?? 0)
+        data.appendLittleEndian(preallocateBlocks ?? 0)
+        data.appendLittleEndian(preallocateDirectoryBlocks ?? 0)
+        data.appendLittleEndian(reservedGDTBlocks ?? 0)
+        data.append(uuid: journalUUID ?? UUID())
+        data.appendLittleEndian(journalInodeNumber ?? 0)
+        data.appendLittleEndian(journalDeviceNumber ?? 0)
+        data.appendLittleEndian(lastOrphan ?? 0)
+        guard let hashSeed, hashSeed.count == 4 else {
+            logger.fault("Superblock state is corrupted")
+            throw POSIXError(.EIO)
+        }
+        for i in hashSeed {
+            data.appendLittleEndian(i)
+        }
+        data.appendLittleEndian(defaultHashAlgorithm?.rawValue ?? 0)
+        data.appendLittleEndian(journalBackupType ?? 0)
+        data.appendLittleEndian(groupDescriptorSizeInBytes ?? 0)
+        data.appendLittleEndian(defaultMountOptions ?? 0)
+        data.appendLittleEndian(firstMetablockBlockGroup ?? 0)
+        data.appendLittleEndian(mkfsTime ?? 0)
+        guard let backupJournalBlocks, backupJournalBlocks.count == 17 else {
+            logger.fault("Superblock state is corrupted")
+            throw POSIXError(.EIO)
+        }
+        for i in backupJournalBlocks {
+            data.appendLittleEndian(i)
+        }
+        data.appendLittleEndian(blockCount.upperHalf)
+        data.appendLittleEndian(superUserBlockCount.upperHalf)
+        data.appendLittleEndian(freeBlockCount.upperHalf)
+        data.appendLittleEndian(minimumExtraInodeSize ?? 0)
+        data.appendLittleEndian(wantExtraInodeSize ?? 0)
+        data.appendLittleEndian(flags ?? 0)
+        data.appendLittleEndian(raidStride ?? 0)
+        data.appendLittleEndian(mmpIntervalInSeconds ?? 0)
+        data.appendLittleEndian(mmpBlock ?? 0)
+        data.appendLittleEndian(raidStripeWidth ?? 0)
+        data.appendLittleEndian(logGroupsPerFlexibleGroup ?? 0)
+        data.appendLittleEndian(checksumType ?? 0)
+        data.appendLittleEndian(reservedPad ?? 0)
+        data.appendLittleEndian(kbytesWritten ?? 0)
+        data.appendLittleEndian(snapshotInodeNumber ?? 0)
+        data.appendLittleEndian(snapshotId ?? 0)
+        data.appendLittleEndian(snapshotReservedBlockCount ?? 0)
+        data.appendLittleEndian(snapshotListInodeNumber ?? 0)
+        data.appendLittleEndian(errorCount ?? 0)
+        data.appendLittleEndian(firstErrorTime ?? 0)
+        data.appendLittleEndian(firstErrorInode ?? 0)
+        data.appendLittleEndian(firstErrorBlock ?? 0)
+        try data.append(cStringFrom: firstErrorFunctionName ?? "", length: 32)
+        data.appendLittleEndian(firstErrorLineNumber ?? 0)
+        data.appendLittleEndian(lastErrorTime ?? 0)
+        data.appendLittleEndian(lastErrorInodeNumber ?? 0)
+        data.appendLittleEndian(lastErrorLine ?? 0)
+        data.appendLittleEndian(lastErrorBlock ?? 0)
+        try data.append(cStringFrom: lastErrorFunctionName ?? "", length: 32)
+        try data.append(cStringFrom: mountOptions ?? "", length: 64)
+        data.appendLittleEndian(userQuotaInode ?? 0)
+        data.appendLittleEndian(groupQuotaInode ?? 0)
+        data.appendLittleEndian(overheadBlocks ?? 0)
+        guard let superblockBackupGroups, superblockBackupGroups.count == 2 else {
+            logger.fault("Superblock state is corrupted")
+            throw POSIXError(.EIO)
+        }
+        for i in superblockBackupGroups {
+            data.appendLittleEndian(i)
+        }
+        guard let encryptionAlgorithms, encryptionAlgorithms.count == 4 else {
+            logger.fault("Superblock state is corrupted")
+            throw POSIXError(.EIO)
+        }
+        for i in encryptionAlgorithms {
+            data.appendLittleEndian(i)
+        }
+        guard let encryptionSalt, encryptionSalt.count == 16 else {
+            logger.fault("Superblock state is corrupted")
+            throw POSIXError(.EIO)
+        }
+        for i in encryptionSalt {
+            data.appendLittleEndian(i)
+        }
+        data.appendLittleEndian(lostAndFoundInode ?? 0)
+        data.appendLittleEndian(projectQuotaInode ?? 0)
+        data.appendLittleEndian(checksumSeed ?? 0)
+        data.appendLittleEndian(writeTimeHigh ?? 0)
+        data.appendLittleEndian(mountTimeHigh ?? 0)
+        data.appendLittleEndian(mkfsTimeHigh ?? 0)
+        data.appendLittleEndian(lastCheckTimeHigh ?? 0)
+        data.appendLittleEndian(firstErrorTimeHigh ?? 0)
+        data.appendLittleEndian(lastErrorTimeHigh ?? 0)
+        guard let pad, pad.count == 2 else {
+            logger.fault("Superblock state is corrupted")
+            throw POSIXError(.EIO)
+        }
+        for i in pad {
+            data.appendLittleEndian(i)
+        }
+        data.appendLittleEndian(encoding ?? 0)
+        data.appendLittleEndian(encodingFlags ?? 0)
+        data.appendLittleEndian(orphanFileInodeNumber ?? 0)
+        guard let reservedPadding, reservedPadding.count == 94 else {
+            logger.fault("Superblock state is corrupted")
+            throw POSIXError(.EIO)
+        }
+        for i in reservedPadding {
+            data.appendLittleEndian(i)
+        }
+        data.appendLittleEndian(checksum ?? 0)
+        
+        guard data.count == 1024 else {
+            logger.fault("Attempted to create data from superblock, but it was not 1024 bytes")
+            throw POSIXError(.EIO)
+        }
+        
+        return data
+    }
 }

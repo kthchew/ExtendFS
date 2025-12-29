@@ -135,7 +135,11 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     let fileSystem: Ext4ExtensionFileSystem
     let resource: FSBlockDeviceResource
     /// The superblock in block group 0.
+    #if DEBUG
+    var superblock: Superblock // TODO: this must be moved into an actor for thread safety
+    #else
     let superblock: Superblock
+    #endif
     let blockGroupDescriptors: BlockGroupDescriptorManager
     
     let cache = VolumeCache()
@@ -265,6 +269,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     }
     
     func synchronize(flags: FSSyncFlags) async throws {
+        try resource.metadataFlush()
         return
     }
     
@@ -474,7 +479,11 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     
     var isVolumeRenameInhibited: Bool {
         get {
+            #if DEBUG
+            false
+            #else
             true
+            #endif
         }
         set {}
     }
@@ -717,7 +726,16 @@ extension Ext4Volume: FSVolume.XattrOperations {
 
 extension Ext4Volume: FSVolume.RenameOperations {
     func setVolumeName(_ name: FSFileName) async throws -> FSFileName {
+        #if DEBUG
+        superblock.volumeName = name.string ?? ""
+        let newSBData = try superblock.toData()
+        try newSBData.withUnsafeBytes { buf in
+            try resource.metadataWrite(from: buf, startingAt: 1024, length: buf.count)
+        }
+        return FSFileName(string: superblock.volumeName ?? "")
+        #else
         throw POSIXError(.ENOSYS)
+        #endif
     }
 }
 

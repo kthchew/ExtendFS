@@ -123,4 +123,35 @@ extension Data {
             return String(cString: cString, encoding: .utf8) ?? ""
         }
     }
+    
+    mutating func appendLittleEndian<T: FixedWidthInteger>(_ number: T) {
+        var little = number.littleEndian
+        Swift.withUnsafeBytes(of: &little) { buf in
+            let ptr = buf.baseAddress!.assumingMemoryBound(to: UInt8.self)
+            self.append(ptr, count: buf.count)
+        }
+    }
+    
+    mutating func append(uuid: UUID) {
+        let u = uuid.uuid
+        let array = [u.0, u.1, u.2, u.3, u.4, u.5, u.6, u.7, u.8, u.9, u.10, u.11, u.12, u.13, u.14, u.15]
+        self.append(contentsOf: array)
+    }
+    
+    mutating func append(cStringFrom string: String, using encoding: String.Encoding = .utf8, length: Int, useNullTerminator: Bool = true) throws {
+        guard let cString = string.cString(using: encoding) else {
+            throw POSIXError(.EINVAL)
+        }
+        let actualLength = useNullTerminator ? cString.count : cString.count - 1
+        guard actualLength <= length else {
+            throw POSIXError(.EINVAL)
+        }
+        
+        let bytes = cString.compactMap { int in
+            (useNullTerminator || int != 0) ? UInt8(bitPattern: int) : nil
+        }
+        self.append(contentsOf: bytes)
+        let padding = [UInt8](repeating: 0, count: length - bytes.count)
+        self.append(contentsOf: padding)
+    }
 }
