@@ -16,8 +16,10 @@ class DiskWatcher {
     let session: DASession
     let disk: DADisk
     let initialBSDName: String
+    var diskMountPath: URL?
     var initializeSink: AnyCancellable?
     var initializeGuard: Task<(), any Error>?
+    var renameSink: AnyCancellable?
     var sink: AnyCancellable?
     
     init?(blockDevice: String) {
@@ -59,9 +61,18 @@ class DiskWatcher {
         guard let diskMountPath = cfDesc[String(kDADiskDescriptionVolumePathKey)] as? URL else {
             return false
         }
+        self.diskMountPath = diskMountPath
         
+        self.renameSink = NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didRenameVolumeNotification).sink { notification in
+            guard let diskMountPath = self.diskMountPath, let old = notification.userInfo?[NSWorkspace.oldVolumeURLUserInfoKey] as? URL, let new = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else {
+                return
+            }
+            if diskMountPath.pathComponents == old.pathComponents {
+                self.diskMountPath = new
+            }
+        }
         self.sink = NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification).sink { notification in
-            guard let mountPath = notification.userInfo?["NSDevicePath"] as? String else { return }
+            guard let diskMountPath = self.diskMountPath, let mountPath = notification.userInfo?["NSDevicePath"] as? String else { return }
             if URL(filePath: mountPath).pathComponents == diskMountPath.pathComponents {
                 logger.log("Received disk unmount notification, exiting")
                 Task { @MainActor in
