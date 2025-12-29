@@ -291,7 +291,15 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         if readOnly {
             throw POSIXError(.EROFS)
         }
+        
+        guard let item = item as? Ext4Item else {
+            throw POSIXError(.ENOENT)
+        }
+        #if DEBUG
+        return try await item.setAttributes(newAttributes)
+        #else
         throw POSIXError(.ENOSYS)
+        #endif
     }
     
     func lookupItem(named name: FSFileName, inDirectory directory: FSItem) async throws -> (FSItem, FSFileName) {
@@ -728,6 +736,7 @@ extension Ext4Volume: FSVolume.RenameOperations {
     func setVolumeName(_ name: FSFileName) async throws -> FSFileName {
         #if DEBUG
         superblock.volumeName = name.string ?? ""
+        superblock.checksum = try superblock.calculateChecksum()
         let newSBData = try superblock.toData()
         try newSBData.withUnsafeBytes { buf in
             try resource.metadataWrite(from: buf, startingAt: 1024, length: buf.count)

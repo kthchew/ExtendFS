@@ -315,6 +315,118 @@ final class Ext4Item: FSItem {
         return attributes
     }
     
+    func setAttributes(_ request: SetAttributesRequest) async throws -> FSItem.Attributes {
+        let attributes = FSItem.Attributes()
+        let readOnlyAttributes: [FSItem.Attribute] = [.fileID, .parentID, .type, .linkCount, .supportsLimitedXAttrs, .inhibitKernelOffloadedIO]
+        for attribute in readOnlyAttributes {
+            guard !request.isValid(attribute) else {
+                throw POSIXError(.EINVAL)
+            }
+        }
+        
+        var newInode = try await indexNode
+        if request.isValid(.mode) {
+            let type: IndexNode.Mode
+            switch await filetype {
+            case .unknown:
+                type = []
+            case .file:
+                type = .regularFileType
+            case .directory:
+                type = .directoryType
+            case .symlink:
+                type = .symbolicLinkType
+            case .fifo:
+                type = .fifoType
+            case .charDevice:
+                type = .characterDeviceType
+            case .blockDevice:
+                type = .blockDeviceType
+            case .socket:
+                type = .socketType
+            @unknown default:
+                type = []
+            }
+            newInode.mode = IndexNode.Mode(rawValue: request.mode).union(type)
+            request.consumedAttributes.insert(.mode)
+            attributes.mode = newInode.mode.rawValue
+        }
+        if request.isValid(.uid) {
+            newInode.uid = request.uid
+            request.consumedAttributes.insert(.uid)
+            attributes.uid = newInode.uid
+        }
+        if request.isValid(.gid) {
+            newInode.gid = request.gid
+            request.consumedAttributes.insert(.gid)
+            attributes.gid = newInode.gid
+        }
+        if request.isValid(.flags) {
+            var flags = newInode.flags
+            if (request.flags | UInt32(SF_IMMUTABLE | UF_IMMUTABLE)) != 0 {
+                flags.insert(.noDump)
+            } else {
+                flags.remove(.noDump)
+            }
+            if (request.flags | UInt32(SF_IMMUTABLE | UF_IMMUTABLE)) != 0 {
+                flags.insert(.immutable)
+            } else {
+                flags.remove(.immutable)
+            }
+            if (request.flags | UInt32(SF_APPEND | UF_APPEND)) != 0 {
+                flags.insert(.appendOnly)
+            } else {
+                flags.remove(.appendOnly)
+            }
+            if (request.flags | UInt32(UF_COMPRESSED)) != 0 {
+                flags.insert(.compressed)
+            } else {
+                flags.remove(.compressed)
+            }
+            
+            // no OPAQUE
+            // no TRACKED
+            // no DATAVAULT
+            // no HIDDEN
+            
+            newInode.flags = flags
+            request.consumedAttributes.insert(.gid)
+            attributes.flags = request.flags
+        }
+        if request.isValid(.size) {
+            
+        }
+        if request.isValid(.allocSize) {
+            
+        }
+        if request.isValid(.accessTime) {
+            newInode.lastAccessTime = request.accessTime
+            request.consumedAttributes.insert(.accessTime)
+            attributes.accessTime = newInode.lastAccessTime
+        }
+        if request.isValid(.modifyTime) {
+            newInode.lastDataModifyTime = request.modifyTime
+            request.consumedAttributes.insert(.modifyTime)
+            attributes.modifyTime = newInode.lastDataModifyTime
+        }
+        if request.isValid(.changeTime) {
+            newInode.lastInodeChangeTime = request.changeTime
+            request.consumedAttributes.insert(.changeTime)
+            attributes.changeTime = newInode.lastInodeChangeTime
+        }
+        if request.isValid(.birthTime) {
+            newInode.fileCreationTime = request.birthTime
+            request.consumedAttributes.insert(.birthTime)
+            attributes.birthTime = request.birthTime
+        }
+        // addedTime and backupTime not supported
+        
+        // TODO: write new inode to disk
+        await cache.setCachedIndexNode(newInode)
+        
+        return attributes
+    }
+    
     func findExtentsCovering(_ fileBlock: UInt64, with blockLength: Int, performAdditionalIO: Bool = true) async throws -> [FileExtentNode] {
         if let extentTreeRoot = try await extentTreeRoot {
             return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength, in: containingVolume, performAdditionalIO: performAdditionalIO)

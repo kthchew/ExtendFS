@@ -794,4 +794,10 @@ struct Superblock {
         
         return data
     }
+    
+    func calculateChecksum() throws -> UInt32 {
+        let data = try self.toData().dropLast(MemoryLayout<UInt32>.size)
+        // TODO: crc32c of data
+        return 0
+    }
 }
