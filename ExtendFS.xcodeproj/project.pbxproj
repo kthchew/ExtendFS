@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		9F283FD22DED6F90005EF8BB /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 9F283FD12DED6F90005EF8BB /* Algorithms */; };
 		9F57A64D2DD6841D00D7E52D /* ExtendFS Extension (ext4).appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = 9F57A6432DD6841D00D7E52D /* ExtendFS Extension (ext4).appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		9FFF96F92F04AA3E006039E7 /* CryptoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 9FFF96F82F04AA3E006039E7 /* CryptoSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -112,6 +113,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9F283FD22DED6F90005EF8BB /* Algorithms in Frameworks */,
+				9FFF96F92F04AA3E006039E7 /* CryptoSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -196,6 +198,7 @@
 			name = "ExtendFS Extension (ext4)";
 			packageProductDependencies = (
 				9F283FD12DED6F90005EF8BB /* Algorithms */,
+				9FFF96F82F04AA3E006039E7 /* CryptoSwift */,
 			);
 			productName = ext4Extension;
 			productReference = 9F57A6432DD6841D00D7E52D /* ExtendFS Extension (ext4).appex */;
@@ -230,6 +233,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				9F283FD02DED6F90005EF8BB /* XCRemoteSwiftPackageReference "swift-algorithms" */,
+				9FFF96F72F04AA3E006039E7 /* XCRemoteSwiftPackageReference "CryptoSwift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9F57A6152DD6835E00D7E52D /* Products */;
@@ -594,6 +598,14 @@
 				minimumVersion = 1.2.1;
 			};
 		};
+		9FFF96F72F04AA3E006039E7 /* XCRemoteSwiftPackageReference "CryptoSwift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/krzyzanowskim/CryptoSwift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.9.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -601,6 +613,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9F283FD02DED6F90005EF8BB /* XCRemoteSwiftPackageReference "swift-algorithms" */;
 			productName = Algorithms;
+		};
+		9FFF96F82F04AA3E006039E7 /* CryptoSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9FFF96F72F04AA3E006039E7 /* XCRemoteSwiftPackageReference "CryptoSwift" */;
+			productName = CryptoSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

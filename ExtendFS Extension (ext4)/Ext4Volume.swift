@@ -123,6 +123,26 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         let blockGroupCount = (Int(resource.blockCount) + Int(superblock.blocksPerGroup) - 1) / Int(superblock.blocksPerGroup)
         self.blockGroupDescriptors = try BlockGroupDescriptorManager(resource: resource, superblock: superblock, offset: firstBlockAfterSuperblockOffset, blockGroupCount: blockGroupCount)
         
+        self.blockSize = blockSize
+        
+        if superblock.incompatibleFeatures.contains(.metadataChecksumSeedInSuperblock) {
+            guard let seed = superblock.checksumSeed else {
+                logger.error("Superblock checksum seed could not be read but seed in superblock is enabled")
+                throw POSIXError(.EIO)
+            }
+            self.metadataChecksumSeed = seed
+        } else if superblock.readOnlyCompatibleFeatures.contains(.supportsMetadataChecksumming) {
+            guard let uuid = superblock.uuid else {
+                logger.error("Mounted volume does not have a valid UUID but checksums are enabled")
+                throw POSIXError(.EIO)
+            }
+            var uuidData = Data()
+            uuidData.append(uuid: uuid)
+            self.metadataChecksumSeed = ~uuidData.byteArray.crc32c()
+        } else {
+            self.metadataChecksumSeed = nil
+        }
+        
         super.init(volumeID: FSVolume.Identifier(uuid: superblock.uuid ?? UUID()), volumeName: FSFileName(string: superblock.volumeName ?? ""))
         
         let root = try await Ext4Item(volume: self, inodeNumber: 2)
@@ -143,6 +163,12 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     let blockGroupDescriptors: BlockGroupDescriptorManager
     
     let cache = VolumeCache()
+    
+    let blockSize: Int
+    /// A value to use as the metadata checksum seed for most data structures.
+    ///
+    /// If the volume doesn't support metadata checksumming, this will be `nil`.
+    let metadataChecksumSeed: UInt32?
     
     /// Returns the block number for the block containing the given inode on disk.
     /// - Parameter inodeNumber: The inode number.

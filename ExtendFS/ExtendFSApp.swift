@@ -113,6 +113,7 @@ struct ExtendFSApp: App {
                 Link("ExtendFS Support", destination: URL(string: "https://github.com/kthchew/ExtendFS/blob/main/SUPPORT.md")!)
                 
                 Section {
+                    Link("Acknowledgments", destination: URL(string: "https://github.com/kthchew/ExtendFS/blob/main/LICENSE.md#third-party-library-acknowledgments")!)
                     Link("Privacy Policy", destination: URL(string: "https://github.com/kthchew/ExtendFS/blob/main/PRIVACY.md")!)
                 }
             }

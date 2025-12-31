@@ -4,6 +4,7 @@
 import Foundation
 import FSKit
 import os.log
+import CryptoSwift
 
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Superblock")
 
@@ -310,6 +311,8 @@ struct Superblock {
         self.checksum = checksum
     }
     
+    var initialData: Data?
+    
     init?(blockDevice: FSBlockDeviceResource, offset: Int64) throws {
         let superblockSize = 1024
         var data = Data(count: superblockSize)
@@ -321,6 +324,7 @@ struct Superblock {
             throw POSIXError(.EIO)
         }
         self.init(from: data)
+        self.initialData = data
     }
     
     struct State: OptionSet {
@@ -797,7 +801,7 @@ struct Superblock {
     
     func calculateChecksum() throws -> UInt32 {
         let data = try self.toData().dropLast(MemoryLayout<UInt32>.size)
-        // TODO: crc32c of data
-        return 0
+        
+        return ~data.byteArray.crc32c()
     }
 }

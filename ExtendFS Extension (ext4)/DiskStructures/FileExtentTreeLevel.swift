@@ -4,18 +4,27 @@
 import Algorithms
 import Foundation
 import os.log
+import CryptoSwift
 
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "FileExtentTree")
 
+/// A value that represents a level of an extent tree.
+///
+/// If this is not a level embedded in an inode, then this represents an extent block.
 struct FileExtentTreeLevel {
     var numberOfEntries: UInt16
     var maxNumberOfEntries: UInt16
     var depth: UInt16
     var generation: UInt32
+    var checksum: UInt32?
     
     var nodes: [FileExtentNode]
     
-    init?(from data: Data) {
+    let inodeChecksumSeed: UInt32?
+    
+    init?(from data: Data, inodeChecksumSeed: UInt32?) {
+        self.inodeChecksumSeed = inodeChecksumSeed
+        
         var iterator = data.makeIterator()
         
         guard let magic: UInt16 = iterator.nextLittleEndian(), magic == 0xF30A else { return nil }
@@ -45,11 +54,45 @@ struct FileExtentTreeLevel {
             return nil
         }
         
-        // TODO: checksum
+        let numberOfEntriesInInode = 4
+        if let inodeChecksumSeed, maxNumberOfEntries > numberOfEntriesInInode {
+            let checksum: UInt32 = data.readLittleEndian(at: off_t(data.endIndex - MemoryLayout<UInt32>.size))
+            self.checksum = checksum
+            guard let calculated = try? self.calculateChecksum(seed: inodeChecksumSeed), checksum == calculated else {
+                logger.error("File extent block had invalid checksum")
+                return nil
+            }
+        } else {
+            self.checksum = maxNumberOfEntries > numberOfEntriesInInode ? 0 : nil
+        }
     }
     
     var isLeaf: Bool {
         depth == 0
+    }
+    
+    func toData() throws -> Data {
+        var data = Data()
+        data.reserveCapacity(12 + Int(maxNumberOfEntries) * 12 + (checksum != nil ? 4 : 0))
+        
+        data.appendLittleEndian(UInt16(0xF30A))
+        data.appendLittleEndian(numberOfEntries)
+        data.appendLittleEndian(maxNumberOfEntries)
+        data.appendLittleEndian(depth)
+        data.appendLittleEndian(generation)
+        
+        for node in nodes {
+            data.append(try node.toData())
+        }
+        
+        let unusedSpace = Data(count: 12 * (Int(maxNumberOfEntries) - nodes.count))
+        data.append(unusedSpace)
+        
+        if let checksum {
+            data.appendLittleEndian(checksum)
+        }
+        
+        return data
     }
     
     /// Fetches a list of extents for this tree.
@@ -94,7 +137,7 @@ struct FileExtentTreeLevel {
             } else if performAdditionalIO {
                 let range = node.physicalBlock..<node.physicalBlock+1
                 let lowerLevelData = try BlockDeviceReader.fetchExtent(from: volume.resource, blockNumbers: range, blockSize: volume.superblock.blockSize)
-                guard let lowerLevel = FileExtentTreeLevel(from: lowerLevelData) else {
+                guard let lowerLevel = FileExtentTreeLevel(from: lowerLevelData, inodeChecksumSeed: inodeChecksumSeed) else {
                     logger.error("Next level down in file extent tree was not vlaid")
                     throw POSIXError(.EIO)
                 }
@@ -109,5 +152,15 @@ struct FileExtentTreeLevel {
         }
         
         return result
+    }
+    
+    /// Calculate the checksum for an extent block.
+    ///
+    /// This is only valid for extent blocks. Extents stored in an inode do not store a checksum, as they are protected by the inode's checksum.
+    /// - Parameter seed: The inode's checksum seed.
+    /// - Returns: The CRC32C checksum value.
+    func calculateChecksum(seed: UInt32) throws -> UInt32 {
+        let data = try self.toData().dropLast(MemoryLayout<UInt32>.size)
+        return ~data.byteArray.crc32c(seed: seed)
     }
 }

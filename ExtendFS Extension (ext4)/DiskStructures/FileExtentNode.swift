@@ -47,6 +47,32 @@ struct FileExtentNode: Hashable, Comparable {
         self.type = type
     }
     
+    func toData() throws -> Data {
+        var data = Data()
+        data.reserveCapacity(12)
+        
+        guard let logicalBlock = UInt32(exactly: logicalBlock) else {
+            throw POSIXError(.EIO)
+        }
+        data.appendLittleEndian(logicalBlock)
+        
+        let logicalBlockLow = UInt64(physicalBlock).lowerHalf
+        guard let logicalBlockHigh = UInt16(exactly: UInt64(physicalBlock).upperHalf) else {
+            throw POSIXError(.EIO)
+        }
+        if let lengthInBlocks, let type { // is leaf
+            data.appendLittleEndian(type == .zeroFill ? lengthInBlocks + 32768 : lengthInBlocks)
+            data.appendLittleEndian(logicalBlockHigh)
+            data.appendLittleEndian(logicalBlockLow)
+        } else {
+            data.appendLittleEndian(logicalBlockLow)
+            data.appendLittleEndian(logicalBlockHigh)
+            data.appendLittleEndian(UInt16(0))
+        }
+        
+        return data
+    }
+    
     /// The extent offset on disk, in blocks, or the block number of the child level.
     var physicalBlock: off_t
     /// The extent offset within the file, in blocks.

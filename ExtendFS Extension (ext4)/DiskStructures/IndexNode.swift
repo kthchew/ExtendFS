@@ -4,6 +4,7 @@
 import Foundation
 import FSKit
 import os.log
+import CryptoSwift
 
 struct IndexNode {
     static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "IndexNode")
@@ -56,7 +57,9 @@ struct IndexNode {
         }
     }
     
-    init?(from data: Data, creator: Superblock.FilesystemCreator) {
+    init?(from data: Data, creator: Superblock.FilesystemCreator, inodeNumber: UInt32, fsMetadataSeed: UInt32?) {
+        self.inodeNumber = inodeNumber
+        
         var iterator = data.makeIterator()
         
         guard let modeRaw: UInt16 = iterator.nextLittleEndian() else { return nil }
@@ -85,6 +88,14 @@ struct IndexNode {
         
         guard let generation: UInt32 = iterator.nextLittleEndian() else { return nil }
         self.generation = generation
+        if let fsMetadataSeed {
+            var seedCsumData = Data()
+            seedCsumData.appendLittleEndian(inodeNumber)
+            seedCsumData.appendLittleEndian(generation)
+            self.metadataChecksumSeed = ~seedCsumData.byteArray.crc32c(seed: fsMetadataSeed)
+        } else {
+            self.metadataChecksumSeed = nil
+        }
         guard let xattrLower: UInt32 = iterator.nextLittleEndian() else { return nil }
         guard let sizeUpper: UInt32 = iterator.nextLittleEndian() else { return nil }
         self.size = UInt64.combine(upper: sizeUpper, lower: sizeLower)
@@ -215,6 +226,8 @@ struct IndexNode {
         static let aggregateUserModifiableMask = Flags(rawValue: 0x4B80FF)
     }
     
+    let inodeNumber: UInt32
+    
     var mode: Mode
     var uid: UInt32
     var size: UInt64
@@ -249,6 +262,11 @@ struct IndexNode {
     var embeddedExtendedAttributes: [ExtendedAttrEntry]?
     var embeddedXattrEntryBytes: UInt16 = 0
     var remainingData: Data = Data()
+    
+    /// A value to use as the metadata checksum seed for data structures that use this inode's number and generation as part of the input.
+    ///
+    /// If the volume doesn't support metadata checksumming, this will be `nil`.
+    let metadataChecksumSeed: UInt32?
     
     var filetype: FSItem.ItemType {
         get throws {

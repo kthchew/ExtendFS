@@ -113,7 +113,7 @@ final class Ext4Item: FSItem {
             fetchedData = try data.subdata(in: Int(inodeBlockOffset)..<Int(inodeBlockOffset)+Int(inodeSize))
         }
         
-        guard let indexNode = IndexNode(from: fetchedData, creator: volume.superblock.creatorOS) else {
+        guard let indexNode = IndexNode(from: fetchedData, creator: volume.superblock.creatorOS, inodeNumber: inodeNumber, fsMetadataSeed: volume.metadataChecksumSeed) else {
             Self.logger.error("Index node \(inodeNumber, privacy: .public) is not well formed")
             throw POSIXError(.EIO)
         }
@@ -146,7 +146,7 @@ final class Ext4Item: FSItem {
         let inodeSize = containingVolume.superblock.inodeSize
         let fetchedData = try data.subdata(in: Int(inodeBlockOffset)..<Int(inodeBlockOffset)+Int(inodeSize))
         
-        guard let inode = IndexNode(from: fetchedData, creator: containingVolume.superblock.creatorOS) else {
+        guard let inode = IndexNode(from: fetchedData, creator: containingVolume.superblock.creatorOS, inodeNumber: inodeNumber, fsMetadataSeed: containingVolume.metadataChecksumSeed) else {
             Self.logger.error("Index node \(self.inodeNumber, privacy: .public) is not well formed")
             throw POSIXError(.EIO)
         }
@@ -196,7 +196,7 @@ final class Ext4Item: FSItem {
     /// If this is used repeatedly, call this once and save the result. The instance can save some cached data.
     private var extentTreeRoot: FileExtentTreeLevel? {
         get async throws {
-            try await indexNode.flags.contains(.usesExtents) ? FileExtentTreeLevel(from: indexNode.block) : nil
+            try await indexNode.flags.contains(.usesExtents) ? FileExtentTreeLevel(from: indexNode.block, inodeChecksumSeed: indexNode.metadataChecksumSeed) : nil
         }
     }
     

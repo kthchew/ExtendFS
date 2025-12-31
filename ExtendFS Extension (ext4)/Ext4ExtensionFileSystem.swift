@@ -155,7 +155,15 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
             }
         }
         
-        // TODO: should probably calculate a checksum
+        if superblock.readOnlyCompatibleFeatures.contains(.supportsMetadataChecksumming) {
+            let calculatedChecksum = try superblock.calculateChecksum()
+            
+            guard let storedChecksum = superblock.checksum, storedChecksum == calculatedChecksum else {
+                Self.logger.error("Checksum found on superblock does not match expected value.")
+                throw POSIXError(.EDEVERR)
+            }
+        }
+        
     }
     
     /// Makes a "shadow file" of the provided volume.
