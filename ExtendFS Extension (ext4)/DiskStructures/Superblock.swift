@@ -377,6 +377,8 @@ struct Superblock {
         static let excludeInode = CompatibleFeatures(rawValue: 1 << 7)
         static let excludeBitmap = CompatibleFeatures(rawValue: 1 << 8)
         static let sparseSuperBlockVersion2 = CompatibleFeatures(rawValue: 1 << 9)
+        static let fastCommits = CompatibleFeatures(rawValue: 0x400)
+        static let orphanFileAllocated = CompatibleFeatures(rawValue: 0x1000)
     }
     
     struct IncompatibleFeatures: OptionSet {
@@ -398,6 +400,7 @@ struct Superblock {
         static let largeDirectory = IncompatibleFeatures(rawValue: 0x4000)
         static let inlineDataInInode = IncompatibleFeatures(rawValue: 0x8000)
         static let encryptedInodes = IncompatibleFeatures(rawValue: 0x10000)
+        static let directoriesCanBeCaseInsensitive = IncompatibleFeatures(rawValue: 0x20000)
         
         /// The set of features supported by the driver.
         ///
@@ -429,6 +432,8 @@ struct Superblock {
         static let supportsReplicas = ReadOnlyCompatibleFeatures(rawValue: 1 << 11)
         static let readOnlyFileSystemImage = ReadOnlyCompatibleFeatures(rawValue: 1 << 12)
         static let tracksProjectQuotas = ReadOnlyCompatibleFeatures(rawValue: 1 << 13)
+        static let verityInodes = ReadOnlyCompatibleFeatures(rawValue: 0x8000)
+        static let orphansPresent = ReadOnlyCompatibleFeatures(rawValue: 0x10000)
         
         /// The set of features supported by the driver.
         ///

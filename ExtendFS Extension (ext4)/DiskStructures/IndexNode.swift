@@ -220,6 +220,7 @@ struct IndexNode {
         static let snapshotShrinkCompleted = Flags(rawValue: 0x08000000)
         static let inodeHasInlineData = Flags(rawValue: 0x10000000)
         static let createChildrenWithSameProjectID = Flags(rawValue: 0x20000000)
+        static let caseInsensitiveDirectoryContents = Flags(rawValue: 0x40000000)
         static let reserved = Flags(rawValue: 0x80000000)
         
         static let aggregateUserVisibleMask = Flags(rawValue: 0x4BDFFF)
