@@ -334,8 +334,8 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         }
         logger.debug("Looking up item with name \(name.string ?? "(unknown)") in directory (inode \(directory.inodeNumber))")
         
-        if let item = try await directory.findItemInDirectory(named: name) {
-            return (item, name)
+        if let (item, realName) = try await directory.findItemInDirectory(named: name) {
+            return (item, realName)
         }
         
         throw POSIXError(.ENOENT)

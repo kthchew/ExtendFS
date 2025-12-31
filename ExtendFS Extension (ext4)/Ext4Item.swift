@@ -203,24 +203,33 @@ final class Ext4Item: FSItem {
     var directoryContents: ([DirectoryEntry], FSDirectoryVerifier)? {
         get async throws {
             guard await filetype == .directory else { return nil }
-            return try await loadDirectoryContentCache()
+            let caseInsensitive = try await indexNode.flags.contains(.caseInsensitiveDirectoryContents)
+            return try await loadDirectoryContentCache(isCaseInsensitive: caseInsensitive)
         }
     }
     
-    func findItemInDirectory(named name: FSFileName) async throws -> Ext4Item? {
-        let (entries, _) = try await loadDirectoryContentCache()
+    func findItemInDirectory(named name: FSFileName) async throws -> (Ext4Item, FSFileName)? {
+        let caseInsensitive = try await indexNode.flags.contains(.caseInsensitiveDirectoryContents)
+        let (entries, _) = try await loadDirectoryContentCache(isCaseInsensitive: caseInsensitive)
         
         if let nameStr = name.string {
-            let dirEntryIndex = entries.partitioningIndex { $0.name >= nameStr }
-            if dirEntryIndex != entries.endIndex, entries[dirEntryIndex].name == nameStr {
-                return try await containingVolume.item(forInode: entries[dirEntryIndex].inodePointee)
+            let dirEntryIndex = entries.partitioningIndex {
+                if caseInsensitive {
+                    let result = $0.name.caseInsensitiveCompare(nameStr)
+                    return result == .orderedDescending || result == .orderedSame
+                } else {
+                    return $0.name >= nameStr
+                }
+            }
+            if dirEntryIndex != entries.endIndex, (caseInsensitive ? entries[dirEntryIndex].name.caseInsensitiveCompare(nameStr) == .orderedSame : entries[dirEntryIndex].name == nameStr) {
+                return try await (containingVolume.item(forInode: entries[dirEntryIndex].inodePointee), FSFileName(string: entries[dirEntryIndex].name))
             }
         }
         
         return nil
     }
     
-    private func loadDirectoryContentCache() async throws -> ([DirectoryEntry], FSDirectoryVerifier) {
+    private func loadDirectoryContentCache(isCaseInsensitive: Bool) async throws -> ([DirectoryEntry], FSDirectoryVerifier) {
         guard await filetype == .directory else { throw POSIXError(.ENOSYS) }
         if let (entries, verifier) = await cache.getDirectoryEntries() {
             return (entries, verifier)
@@ -249,7 +258,13 @@ final class Ext4Item: FSItem {
             }
         }
         
-        let sortedEntries = loadedEntries.sorted(by: { $0.name < $1.name })
+        let sortedEntries = loadedEntries.sorted {
+            if isCaseInsensitive {
+                return $0.name.caseInsensitiveCompare($1.name) == .orderedAscending
+            } else {
+                return $0.name < $1.name
+            }
+        }
         let verifier = FSDirectoryVerifier(UInt64.random(in: 1..<UInt64.max))
         await self.cache.setDirectoryEntries(sortedEntries, withVerifier: verifier)
         return (sortedEntries, verifier)
