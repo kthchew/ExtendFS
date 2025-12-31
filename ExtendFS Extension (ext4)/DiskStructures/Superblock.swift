@@ -405,7 +405,7 @@ struct Superblock {
         /// The set of features supported by the driver.
         ///
         /// If a filesystem enables any features not included in this set, it should not be mounted.
-        static let supportedFeatures: IncompatibleFeatures = [.filetype, .extents, .enable64BitSize, .flexibleBlockGroups, .metadataChecksumSeedInSuperblock, .directoriesCanBeCaseInsensitive]
+        static let supportedFeatures: IncompatibleFeatures = [.filetype, .needsRecovery, .extents, .enable64BitSize, .flexibleBlockGroups, .metadataChecksumSeedInSuperblock, .directoriesCanBeCaseInsensitive]
     }
     
     struct ReadOnlyCompatibleFeatures: OptionSet {

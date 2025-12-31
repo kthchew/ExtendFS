@@ -140,6 +140,11 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
             throw POSIXError(.EDEVERR)
         }
         
+        if superblock.incompatibleFeatures.contains(.needsRecovery) {
+            Self.logger.error("Recovery feature present on disk.")
+            throw POSIXError(.EDEVERR)
+        }
+        
         if superblock.state.contains(.errorsDetected) {
             switch superblock.errorPolicy {
             case .continue:
