@@ -39,7 +39,7 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
                 Self.logger.log("Recognized but not usable")
                 return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
             }
-//            let incompatibleFeaturesForcingReadOnly: [Superblock.IncompatibleFeatures] = [.needsRecovery, .separateJournalDevice]
+//            let incompatibleFeaturesForcingReadOnly: [Superblock.IncompatibleFeatures] = [.needsRecovery, .separateJournalDevice, .multipleMountProtection]
 //            guard superblock.incompatibleFeatures.isDisjoint(with: incompatibleFeaturesForcingReadOnly) else {
 //                Self.logger.log("Usable but limited")
 //                return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
