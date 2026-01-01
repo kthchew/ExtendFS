@@ -92,7 +92,7 @@ struct ContentView: View {
         
         self.ext4ExtensionState = states[ext4ExtensionIdentifier] ?? .notDetermined
         
-        if let shouldAsk = appStoreRatingManager?.shouldAskForRatings, appearsActive && shouldAsk {
+        if ext4ExtensionState == .active, let shouldAsk = appStoreRatingManager?.shouldAskForRatings, appearsActive && shouldAsk {
             appStoreRatingManager?.requestRating()
         }
     }
