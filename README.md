@@ -33,7 +33,7 @@ mount -t ExtendFS /dev/disk15 /tmp/mnt
 
 ## Known Limitations
 
-- Not all ext4 features are supported. The following feature flags _are_ supported: `filetype`, `extents`, `64bit`, `flex_bg`, `csum_seed` [1]. If your volume requires other features, like `inline_data` or `meta_bg`, it won't mount.
+- Not all ext4 features are supported. The following feature flags _are_ supported: `filetype`, `recover` [1], `extents`, `64bit`, `mmp` [2], `flex_bg`, `csum_seed` [3], `largedir`, and `casefold`. If your volume requires other features, like `inline_data` or `meta_bg`, it won't mount.
 - LVM is not currently supported.
 - Performance may be lower than it would be with a kernel extension (e.g. FB21069313). A large part of this is FSKit overhead, but there is also likely some room for improvement in this code.
 - As stated above, this is a read-only implementation. You cannot write data to an ext4 volume using ExtendFS.
@@ -42,7 +42,9 @@ mount -t ExtendFS /dev/disk15 /tmp/mnt
 
 FSKit is still very young and Apple is rapidly adding new features and fixing bugs in the framework in macOS updates. I encourage you to use the latest version of macOS possible if you are encountering issues.
 
-[1] ExtendFS does not currently verify checksums at all.
+[1] ExtendFS currently cannot repair your disk. If it is marked as needing recovery, it will still try to mount, but you may see a warning that the disk could not be repaired. If you see this, you should attempt a repair using `fsck` on a Linux machine.
+[2] MMP does not perform any checks because volumes can currently only be mounted read-only.
+[3] ExtendFS only verifies checksums on some data structures at this time.
 
 ## FAQ
 
