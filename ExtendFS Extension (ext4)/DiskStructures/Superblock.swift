@@ -4,7 +4,6 @@
 import Foundation
 import FSKit
 import os.log
-import CryptoSwift
 
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Superblock")
 
@@ -807,6 +806,6 @@ struct Superblock {
     func calculateChecksum() throws -> UInt32 {
         let data = try self.toData().dropLast(MemoryLayout<UInt32>.size)
         
-        return ~data.byteArray.crc32c()
+        return ~data.crc32c()
     }
 }

@@ -1,0 +1,3 @@
+[submodule "CRC32C/crc32c"]
+	path = CRC32C/crc32c
+	url = git@github.com:kthchew/crc32c.git

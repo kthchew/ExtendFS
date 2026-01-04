@@ -4,7 +4,6 @@
 import Algorithms
 import Foundation
 import os.log
-import CryptoSwift
 
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "FileExtentTree")
 
@@ -161,6 +160,6 @@ struct FileExtentTreeLevel {
     /// - Returns: The CRC32C checksum value.
     func calculateChecksum(seed: UInt32) throws -> UInt32 {
         let data = try self.toData().dropLast(MemoryLayout<UInt32>.size)
-        return ~data.byteArray.crc32c(seed: seed)
+        return ~data.crc32c(seed: seed)
     }
 }

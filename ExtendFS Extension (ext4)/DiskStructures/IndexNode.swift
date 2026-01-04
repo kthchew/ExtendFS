@@ -4,7 +4,6 @@
 import Foundation
 import FSKit
 import os.log
-import CryptoSwift
 
 struct IndexNode {
     static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "IndexNode")
@@ -92,7 +91,7 @@ struct IndexNode {
             var seedCsumData = Data()
             seedCsumData.appendLittleEndian(inodeNumber)
             seedCsumData.appendLittleEndian(generation)
-            self.metadataChecksumSeed = ~seedCsumData.byteArray.crc32c(seed: fsMetadataSeed)
+            self.metadataChecksumSeed = ~seedCsumData.crc32c(seed: fsMetadataSeed)
         } else {
             self.metadataChecksumSeed = nil
         }

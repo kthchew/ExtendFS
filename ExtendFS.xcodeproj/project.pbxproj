@@ -9,7 +9,8 @@
 /* Begin PBXBuildFile section */
 		9F283FD22DED6F90005EF8BB /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 9F283FD12DED6F90005EF8BB /* Algorithms */; };
 		9F57A64D2DD6841D00D7E52D /* ExtendFS Extension (ext4).appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = 9F57A6432DD6841D00D7E52D /* ExtendFS Extension (ext4).appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		9FFF96F92F04AA3E006039E7 /* CryptoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 9FFF96F82F04AA3E006039E7 /* CryptoSwift */; };
+		9FC8DBDD2F0A443E00976568 /* GoogleCRC32C.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9F5B7CA02F0A408A009B095C /* GoogleCRC32C.framework */; };
+		9FC8DBDE2F0A443E00976568 /* GoogleCRC32C.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 9F5B7CA02F0A408A009B095C /* GoogleCRC32C.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -19,6 +20,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 9F57A6422DD6841D00D7E52D;
 			remoteInfo = ext4Extension;
+		};
+		9FC8DBDF2F0A443E00976568 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9F57A60C2DD6835E00D7E52D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9F5B7C9F2F0A408A009B095C;
+			remoteInfo = CRC32C;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -34,11 +42,23 @@
 			name = "Embed ExtensionKit Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		9FC8DBE12F0A443E00976568 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				9FC8DBDE2F0A443E00976568 /* GoogleCRC32C.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		9F57A6142DD6835E00D7E52D /* ExtendFS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ExtendFS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F57A6432DD6841D00D7E52D /* ExtendFS Extension (ext4).appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = "ExtendFS Extension (ext4).appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		9F5B7CA02F0A408A009B095C /* GoogleCRC32C.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = GoogleCRC32C.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		9FBD04872ED38221001E909D /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		9FBD04892ED3B3DC001E909D /* CONTRIBUTING.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CONTRIBUTING.md; sourceTree = "<group>"; };
 		9FBD048B2ED3B9DE001E909D /* SUPPORT.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = SUPPORT.md; sourceTree = "<group>"; };
@@ -71,6 +91,39 @@
 			);
 			target = 9F57A6422DD6841D00D7E52D /* ExtendFS Extension (ext4) */;
 		};
+		9F5B7CA62F0A408A009B095C /* Exceptions for "CRC32C" folder in "GoogleCRC32C" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				crc32c/.clang_complete,
+				"crc32c/.clang-format",
+				crc32c/.github/workflows/build.yml,
+				crc32c/.gitignore,
+				crc32c/.gitmodules,
+				crc32c/.ycm_extra_conf.py,
+				crc32c/AUTHORS,
+				crc32c/CMakeLists.txt,
+				crc32c/CONTRIBUTING.md,
+				crc32c/Crc32cConfig.cmake.in,
+				crc32c/LICENSE,
+				crc32c/README.md,
+				crc32c/src/crc32c_arm64_unittest.cc,
+				crc32c/src/crc32c_benchmark.cc,
+				crc32c/src/crc32c_capi_unittest.c,
+				crc32c/src/crc32c_config.h.in,
+				crc32c/src/crc32c_portable_unittest.cc,
+				crc32c/src/crc32c_prefetch_unittest.cc,
+				crc32c/src/crc32c_read_le_unittest.cc,
+				crc32c/src/crc32c_round_up_unittest.cc,
+				crc32c/src/crc32c_sse42_unittest.cc,
+				crc32c/src/crc32c_test_main.cc,
+				crc32c/src/crc32c_unittest.cc,
+			);
+			publicHeaders = (
+				crc32c/include/crc32c/crc32c.h,
+				GoogleCRC32C.h,
+			);
+			target = 9F5B7C9F2F0A408A009B095C /* GoogleCRC32C */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -88,6 +141,14 @@
 				9F57A64E2DD6841D00D7E52D /* Exceptions for "ExtendFS Extension (ext4)" folder in "ExtendFS Extension (ext4)" target */,
 			);
 			path = "ExtendFS Extension (ext4)";
+			sourceTree = "<group>";
+		};
+		9F5B7CA12F0A408A009B095C /* CRC32C */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				9F5B7CA62F0A408A009B095C /* Exceptions for "CRC32C" folder in "GoogleCRC32C" target */,
+			);
+			path = CRC32C;
 			sourceTree = "<group>";
 		};
 		9FBD048D2ED3BB59001E909D /* .github */ = {
@@ -112,8 +173,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9FC8DBDD2F0A443E00976568 /* GoogleCRC32C.framework in Frameworks */,
 				9F283FD22DED6F90005EF8BB /* Algorithms in Frameworks */,
-				9FFF96F92F04AA3E006039E7 /* CryptoSwift in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9F5B7C9D2F0A408A009B095C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -138,6 +206,7 @@
 				9FBD07DC2ED505C3001E909D /* COPYING */,
 				9F57A6162DD6835E00D7E52D /* ExtendFS */,
 				9F57A6442DD6841D00D7E52D /* ExtendFS Extension (ext4) */,
+				9F5B7CA12F0A408A009B095C /* CRC32C */,
 				9F5787942E3C3EAE001224B5 /* Frameworks */,
 				9F57A6152DD6835E00D7E52D /* Products */,
 			);
@@ -148,11 +217,22 @@
 			children = (
 				9F57A6142DD6835E00D7E52D /* ExtendFS.app */,
 				9F57A6432DD6841D00D7E52D /* ExtendFS Extension (ext4).appex */,
+				9F5B7CA02F0A408A009B095C /* GoogleCRC32C.framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		9F5B7C9B2F0A408A009B095C /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
 		9F57A6132DD6835E00D7E52D /* ExtendFS */ = {
@@ -187,10 +267,12 @@
 				9F57A63F2DD6841D00D7E52D /* Sources */,
 				9F57A6402DD6841D00D7E52D /* Frameworks */,
 				9F57A6412DD6841D00D7E52D /* Resources */,
+				9FC8DBE12F0A443E00976568 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				9FC8DBE02F0A443E00976568 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				9F57A6442DD6841D00D7E52D /* ExtendFS Extension (ext4) */,
@@ -198,11 +280,33 @@
 			name = "ExtendFS Extension (ext4)";
 			packageProductDependencies = (
 				9F283FD12DED6F90005EF8BB /* Algorithms */,
-				9FFF96F82F04AA3E006039E7 /* CryptoSwift */,
 			);
 			productName = ext4Extension;
 			productReference = 9F57A6432DD6841D00D7E52D /* ExtendFS Extension (ext4).appex */;
 			productType = "com.apple.product-type.extensionkit-extension";
+		};
+		9F5B7C9F2F0A408A009B095C /* GoogleCRC32C */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9F5B7CA72F0A408A009B095C /* Build configuration list for PBXNativeTarget "GoogleCRC32C" */;
+			buildPhases = (
+				9F5B7C9B2F0A408A009B095C /* Headers */,
+				9F5B7C9C2F0A408A009B095C /* Sources */,
+				9F5B7C9D2F0A408A009B095C /* Frameworks */,
+				9F5B7C9E2F0A408A009B095C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				9F5B7CA12F0A408A009B095C /* CRC32C */,
+			);
+			name = GoogleCRC32C;
+			packageProductDependencies = (
+			);
+			productName = CRC32C;
+			productReference = 9F5B7CA02F0A408A009B095C /* GoogleCRC32C.framework */;
+			productType = "com.apple.product-type.framework";
 		};
 /* End PBXNativeTarget section */
 
@@ -212,13 +316,16 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1630;
-				LastUpgradeCheck = 2610;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					9F57A6132DD6835E00D7E52D = {
 						CreatedOnToolsVersion = 16.3;
 					};
 					9F57A6422DD6841D00D7E52D = {
 						CreatedOnToolsVersion = 16.3;
+					};
+					9F5B7C9F2F0A408A009B095C = {
+						CreatedOnToolsVersion = 26.2;
 					};
 				};
 			};
@@ -233,7 +340,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				9F283FD02DED6F90005EF8BB /* XCRemoteSwiftPackageReference "swift-algorithms" */,
-				9FFF96F72F04AA3E006039E7 /* XCRemoteSwiftPackageReference "CryptoSwift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9F57A6152DD6835E00D7E52D /* Products */;
@@ -242,6 +348,7 @@
 			targets = (
 				9F57A6132DD6835E00D7E52D /* ExtendFS */,
 				9F57A6422DD6841D00D7E52D /* ExtendFS Extension (ext4) */,
+				9F5B7C9F2F0A408A009B095C /* GoogleCRC32C */,
 			);
 		};
 /* End PBXProject section */
@@ -255,6 +362,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		9F57A6412DD6841D00D7E52D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9F5B7C9E2F0A408A009B095C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -278,6 +392,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		9F5B7C9C2F0A408A009B095C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -285,6 +406,11 @@
 			isa = PBXTargetDependency;
 			target = 9F57A6422DD6841D00D7E52D /* ExtendFS Extension (ext4) */;
 			targetProxy = 9F57A64B2DD6841D00D7E52D /* PBXContainerItemProxy */;
+		};
+		9FC8DBE02F0A443E00976568 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9F5B7C9F2F0A408A009B095C /* GoogleCRC32C */;
+			targetProxy = 9FC8DBDF2F0A443E00976568 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -323,7 +449,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = YN43D87323;
@@ -391,7 +517,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = YN43D87323;
@@ -504,12 +630,19 @@
 		9F57A6502DD6841D00D7E52D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				AUTOMATION_APPLE_EVENTS = NO;
 				CODE_SIGN_ENTITLEMENTS = "ExtendFS Extension (ext4)/ExtendFSExtension.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = YN43D87323;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "ExtendFS Extension (ext4)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "ExtendFS (ext2/3/4)";
@@ -520,9 +653,16 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				"OTHER_CFLAGS[arch=x86_64]" = "-mcrc32";
 				PRODUCT_BUNDLE_IDENTIFIER = com.kpchew.ExtendFS.ext4Extension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -532,12 +672,19 @@
 		9F57A6512DD6841D00D7E52D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				AUTOMATION_APPLE_EVENTS = NO;
 				CODE_SIGN_ENTITLEMENTS = "ExtendFS Extension (ext4)/ExtendFSExtension.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = YN43D87323;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "ExtendFS Extension (ext4)/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "ExtendFS (ext2/3/4)";
@@ -548,12 +695,93 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				"OTHER_CFLAGS[arch=x86_64]" = "-mcrc32";
 				PRODUCT_BUNDLE_IDENTIFIER = com.kpchew.ExtendFS.ext4Extension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		9F5B7CA42F0A408A009B095C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = YN43D87323;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "CRC32C/crc32c/include/**";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 11.5;
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				"OTHER_CFLAGS[arch=x86_64]" = "-mcrc32";
+				PRODUCT_BUNDLE_IDENTIFIER = com.kpchew.GoogleCRC32C;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Debug;
+		};
+		9F5B7CA52F0A408A009B095C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DEVELOPMENT_TEAM = YN43D87323;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "CRC32C/crc32c/include/**";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 11.5;
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				"OTHER_CFLAGS[arch=x86_64]" = "-mcrc32";
+				PRODUCT_BUNDLE_IDENTIFIER = com.kpchew.GoogleCRC32C;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
 			};
 			name = Release;
 		};
@@ -587,6 +815,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		9F5B7CA72F0A408A009B095C /* Build configuration list for PBXNativeTarget "GoogleCRC32C" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9F5B7CA42F0A408A009B095C /* Debug */,
+				9F5B7CA52F0A408A009B095C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -598,14 +835,6 @@
 				minimumVersion = 1.2.1;
 			};
 		};
-		9FFF96F72F04AA3E006039E7 /* XCRemoteSwiftPackageReference "CryptoSwift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/krzyzanowskim/CryptoSwift";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.9.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -613,11 +842,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9F283FD02DED6F90005EF8BB /* XCRemoteSwiftPackageReference "swift-algorithms" */;
 			productName = Algorithms;
-		};
-		9FFF96F82F04AA3E006039E7 /* CryptoSwift */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9FFF96F72F04AA3E006039E7 /* XCRemoteSwiftPackageReference "CryptoSwift" */;
-			productName = CryptoSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

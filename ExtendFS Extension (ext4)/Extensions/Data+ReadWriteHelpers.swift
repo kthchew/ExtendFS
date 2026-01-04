@@ -2,6 +2,7 @@
 // See the LICENSE file in the root of the repository for full license details.
 
 import Foundation
+import GoogleCRC32C
 
 extension Data.Iterator {
     mutating func nextLittleEndian<T: FixedWidthInteger>() -> T? {
@@ -153,5 +154,16 @@ extension Data {
         self.append(contentsOf: bytes)
         let padding = [UInt8](repeating: 0, count: length - bytes.count)
         self.append(contentsOf: padding)
+    }
+    
+    func crc32c(seed: UInt32? = nil) -> UInt32 {
+        self.withUnsafeBytes { buf in
+            guard let base = buf.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return 0 }
+            if let seed {
+                return crc32c_extend(seed, base, buf.count)
+            } else {
+                return crc32c_value(base, buf.count)
+            }
+        }
     }
 }
