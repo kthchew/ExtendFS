@@ -34,8 +34,9 @@ struct SequoiaEnablementTutorialView: View {
                     )
                     .accessibilityAddTraits([.isHeader])
                 
-                Text("Select \(Image(systemName: "info.circle")) next to File System Extensions.")
-                    .accessibilityLabel("Select the Show Detail button next to File System Extensions.")
+                Text("Select \(Image(systemName: "info.circle")) next to File System Extensions.",
+                     comment: "The placeholder contains an icon that looks like an info circle, which is the button to be pressed.")
+                .accessibilityLabel("Select the Show Detail button next to File System Extensions.")
                 
                 Image(decorative: "sequoia_loginextension")
                     .resizable()

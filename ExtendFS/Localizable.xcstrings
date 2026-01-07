@@ -1,0 +1,414 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "1" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1"
+          }
+        }
+      },
+      "shouldTranslate" : false
+    },
+    "2" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2"
+          }
+        }
+      },
+      "shouldTranslate" : false
+    },
+    "3" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3"
+          }
+        }
+      },
+      "shouldTranslate" : false
+    },
+    "Acknowledgments" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acknowledgments"
+          }
+        },
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acknowledgements"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agradecimientos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remerciements"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "致谢"
+          }
+        }
+      }
+    },
+    "An error occurred while determining whether the extension is enabled." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An error occurred while determining whether the extension is enabled."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se ha producido un error al determinar si la extensión está habilitada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une erreur s'est produite lors de la vérification de l'activation de l'extension."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确定文件系统扩展是否已启用时发生错误。"
+          }
+        }
+      }
+    },
+    "Enable ExtendFS's extensions." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable ExtendFS's extensions."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Habilitar las extensiones de ExtendFS."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activer les extensions d'ExtendFS."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用 ExtendFS 的扩展。"
+          }
+        }
+      }
+    },
+    "ExtendFS" : {
+      "shouldTranslate" : false
+    },
+    "ExtendFS Support" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ExtendFS Support"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soporte de ExtendFS"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Assistance ExtendFS"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ExtendFS 支持"
+          }
+        }
+      }
+    },
+    "Open Login Items & Extensions in System Settings." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Login Items & Extensions in System Settings."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir “Elementos de inicio y extensiones” en “Configuración del Sistema”. "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez « Ouverture et extensions » dans « Réglages Système »."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“系统设置”中打开“登录项与扩展”。"
+          }
+        }
+      }
+    },
+    "Open System Settings" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open System Settings"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Configuración del Sistema"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir Réglages Système"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开“系统设置”"
+          }
+        }
+      }
+    },
+    "Privacy Policy" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy Policy"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Política de privacidad"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confidentialité"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐私政策"
+          }
+        }
+      }
+    },
+    "Select %@ next to File System Extensions." : {
+      "comment" : "The placeholder contains an icon that looks like an info circle, which is the button to be pressed.",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select %@ next to File System Extensions."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seleccione %@ junto a Extensiones del sistema de archivos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sélectionnez %@ à côté de « Extensions du système de fichiers »."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“文件系统扩展”旁选择 %@。"
+          }
+        }
+      }
+    },
+    "Select the %@ next to File System Extensions.\n\n_Note that in current versions of macOS, you may need to first look at extensions 'by category' in order to enable FSKit extensions. Enabling the toggle while sorted 'by app' might not work._" : {
+      "comment" : "The placeholder contains an icon that looks like an info circle, which is the button to be pressed.",
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select the %@ next to File System Extensions.\n\n_Note that in current versions of macOS, you may need to first look at extensions 'by category' in order to enable FSKit extensions. Enabling the toggle while sorted 'by app' might not work._"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seleccione el %@ junto a Extensiones del sistema de archivos.\n\n_Ten en cuenta que en las versiones actuales de macOS, es posible que primero tengas que buscar las extensiones “por categoría” para poder habilitar las extensiones FSKit. Es posible que no funcione habilitar el interruptor mientras se ordenan “por app”._"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sélectionnez le %@ à côté de « Extensions du système de fichiers ».\n\nNotez que dans les versions actuelles de macOS, vous devrez peut-être d'abord consulter les extensions « par catégorie » afin d'activer les extensions FSKit. L'activation du bouton bascule lorsque les extensions sont triées « par app » peut ne pas fonctionner."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“文件系统扩展”旁选择 %@。\n\n_请注意，在当前版本的 macOS 中，您可能需要先“按类别”查看扩展才能启用 FSKit 扩展。如果以“按App”排序，启用该切换可能无效。_"
+          }
+        }
+      }
+    },
+    "Select the Show Detail button next to File System Extensions." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select the Show Detail button next to File System Extensions."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Seleccione el botón Mostrar detalles junto a Extensiones del sistema de archivos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Sélectionnez le bouton « Afficher les détails » à côté de « Extensions du système de fichiers »."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "在“文件系统扩展”旁选择“显示详细信息”按钮。"
+          }
+        }
+      }
+    },
+    "The ExtendFS filesystem extension is enabled and ready to use. This app does not need to be running to mount disks." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The ExtendFS filesystem extension is enabled and ready to use. This app does not need to be running to mount disks."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La extensión del sistema de archivos ExtendFS está habilitada y lista para usar. No es necesario que esta aplicación esté en ejecución para montar discos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'extension du système de fichiers ExtendFS est activée et prête à l'emploi. Cette application n'a pas besoin d'être exécutée pour monter les disques."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ExtendFS 文件系统扩展已启用并可使用。此应用无需运行即可挂载磁盘。"
+          }
+        }
+      }
+    },
+    "The file system extension needs to be enabled in System Settings." : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file system extension needs to be enabled in System Settings."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La extensión del sistema de archivos debe estar habilitada en Configuración del Sistema."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'extension du système de fichiers doit être activée dans Réglages Système."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件系统扩展需在“系统设置”中启用。"
+          }
+        }
+      }
+    },
+    "The file system extension needs to be enabled in System Settings.\n\n_This app cannot automatically detect if the extension has been properly enabled on versions of macOS before macOS Tahoe 26.0. However, it will still function if enabled._" : {
+      "localizations" : {
+        "en-GB" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file system extension needs to be enabled in System Settings.\n\n_This app cannot automatically detect if the extension has been properly enabled on versions of macOS before macOS Tahoe 26.0. However, it will still function if enabled._"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La extensión del sistema de archivos debe estar habilitada en Configuración del Sistema.\n\n_Esta aplicación no puede detectar automáticamente si la extensión se ha habilitado correctamente en versiones de macOS anteriores a macOS Tahoe 26.0. Sin embargo, seguirá funcionando si está habilitada._"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'extension du système de fichiers doit être activée dans Réglages Système.\n\n_Cette application ne peut pas détecter automatiquement si l'extension a été correctement activée sur les versions de macOS antérieures à macOS Tahoe 26.0. Cependant, elle fonctionnera tout de même si elle est activée._"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件系统扩展需在“系统设置”中启用。\n\n_本应用无法在 macOS Tahoe 26.0 之前的版本上自动检测该扩展是否已正确启用，但如果已启用，应用仍可正常工作。_"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.1"
+}

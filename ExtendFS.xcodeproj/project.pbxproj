@@ -335,6 +335,10 @@
 			knownRegions = (
 				en,
 				Base,
+				"en-GB",
+				"zh-Hans",
+				fr,
+				es,
 			);
 			mainGroup = 9F57A60B2DD6835E00D7E52D;
 			minimizedProjectReferenceProxies = 1;
@@ -479,6 +483,7 @@
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -540,6 +545,7 @@
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
 			name = Release;
 		};

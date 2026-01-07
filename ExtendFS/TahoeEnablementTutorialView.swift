@@ -34,13 +34,14 @@ struct TahoeEnablementTutorialView: View {
                     )
                     .accessibilityAddTraits([.isHeader])
                 
-                    Text(
+                Text(
                         """
                         Select the \(Image(systemName: "info.circle")) next to File System Extensions.
                         
                         _Note that in current versions of macOS, you may need to first look at extensions 'by category' in order to enable FSKit extensions. Enabling the toggle while sorted 'by app' might not work._
-                        """
-                    )
+                        """,
+                        comment: "The placeholder contains an icon that looks like an info circle, which is the button to be pressed."
+                )
                 
                 Image(decorative: "tahoe_loginextension_category")
                     .resizable()
