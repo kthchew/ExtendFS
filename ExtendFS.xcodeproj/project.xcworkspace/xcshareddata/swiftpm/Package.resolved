@@ -1,5 +1,5 @@
 {
-  "originHash" : "a1dfe6fc899c8b4a96511e2fe86f9587cfb13951614a4bbb737bfec67b3d870e",
+  "originHash" : "0ec32e866094e819273e1073b4ed2197c494e3931f9e7e65dbcfd2b592d57750",
   "pins" : [
     {
       "identity" : "swift-algorithms",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-numerics.git",
       "state" : {
-        "revision" : "e0ec0f5f3af6f3e4d5e7a19d2af26b481acb6ba8",
-        "version" : "1.0.3"
+        "revision" : "0c0290ff6b24942dadb83a929ffaaa1481df04a2",
+        "version" : "1.1.1"
       }
     }
   ],
