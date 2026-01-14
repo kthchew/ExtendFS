@@ -39,6 +39,7 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
                 Self.logger.log("Recognized but not usable")
                 return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
             }
+            // FIXME: once FB19241327 is fixed, uncomment these and apply them to the fixed OS version
 //            let incompatibleFeaturesForcingReadOnly: [Superblock.IncompatibleFeatures] = [.needsRecovery, .separateJournalDevice, .multipleMountProtection]
 //            guard superblock.incompatibleFeatures.isDisjoint(with: incompatibleFeaturesForcingReadOnly) else {
 //                Self.logger.log("Usable but limited")
@@ -58,7 +59,9 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
                     break
                 case .remountReadOnly:
                     Self.logger.log("Error policy set to remount as read-only, indicating usable but limited.")
-                    return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+                    // FIXME: once FB19241327 is fixed, use usableButLimited and apply them to the fixed OS version
+//                    return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+                    return .usable(name: name, containerID: FSContainerIdentifier(uuid: uuid))
                 case .panic:
                     Self.logger.log("Error policy set to panic, indicating recognized but not usable.")
                     return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
