@@ -160,10 +160,10 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
             case .remountReadOnly:
                 break
             case .panic:
-                Self.logger.error("Errors deteched on disk, and error policy is to panic.")
+                Self.logger.error("Errors detected on disk, and error policy is to panic.")
                 throw POSIXError(.EDEVERR)
             case .unknown:
-                Self.logger.error("Errors deteched on disk, and error policy is unknown.")
+                Self.logger.error("Errors detected on disk, and error policy is unknown.")
                 throw POSIXError(.EDEVERR)
             }
         }
