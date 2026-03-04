@@ -57,7 +57,10 @@ class DiskWatcher {
     }
     
     private func startWatchingIfMounted() -> Bool {
-        let cfDesc = DADiskCopyDescription(disk) as! [String: Any]
+        guard let cfDesc = DADiskCopyDescription(disk) as? [String: Any] else {
+            logger.error("Failed to get disk description while creating watcher")
+            return false
+        }
         guard let diskMountPath = cfDesc[String(kDADiskDescriptionVolumePathKey)] as? URL else {
             return false
         }
