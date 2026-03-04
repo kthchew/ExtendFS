@@ -62,7 +62,6 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
                 sendNotification(title: "Unsupported Disk", body: "Disk \(resource.bsdName) can't be mounted because it uses LVM, which is currently unsupported.")
             } else {
                 Self.logger.error("Disk can't be mounted - not ext2/3/4")
-                sendNotification(title: "Unsupported Disk", body: "Disk \(resource.bsdName) is not a valid ext2/3/4 volume.")
             }
             
             return .notRecognized
