@@ -3,6 +3,7 @@
 
 import Foundation
 import FSKit
+import UserNotifications
 
 @objc
 final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperations {
@@ -20,6 +21,23 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
         self.containerStatus = status
     }
     
+    func sendNotification(title: String, body: String, interruptionLevel: UNNotificationInterruptionLevel = .active) {
+        Task.detached {
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            content.interruptionLevel = interruptionLevel
+            let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+            let notificationCenter = UNUserNotificationCenter.current()
+            do {
+                try await notificationCenter.requestAuthorization(options: [.alert])
+                try await notificationCenter.add(request)
+            } catch {
+                Self.logger.error("Couldn't send notification: \(error)")
+            }
+        }
+    }
+    
     func probeResource(resource: FSResource) async throws -> FSProbeResult {
         Self.logger.log("Probing resource")
         guard let resource = resource as? FSBlockDeviceResource else {
@@ -29,6 +47,24 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
         
         guard let superblock = try Superblock(blockDevice: resource, offset: 1024) else {
             Self.logger.error("Could not read superblock from resource")
+            
+            var data = Data(count: 1024)
+            let readCount = try data.withUnsafeMutableBytes { buffer in
+                return try resource.read(into: buffer, startingAt: 0, length: 1024)
+            }
+            let potentialLuksSignature = String(data: data.subdata(in: 0..<4), encoding: .ascii)
+            let potentialLVMSignature = String(data: data.subdata(in: 536..<544), encoding: .ascii)
+            if readCount >= 6 && potentialLuksSignature == "LUKS" && data[4] == 0xBA && data[5] == 0xBE {
+                Self.logger.error("Disk can't be mounted - LUKS")
+                sendNotification(title: "Unsupported Disk", body: "Disk \(resource.bsdName) can't be mounted because it is encrypted with LUKS, which is currently unsupported.")
+            } else if readCount >= 1024 && potentialLVMSignature == "LVM2 001" {
+                Self.logger.error("Disk can't be mounted - LVM")
+                sendNotification(title: "Unsupported Disk", body: "Disk \(resource.bsdName) can't be mounted because it uses LVM, which is currently unsupported.")
+            } else {
+                Self.logger.error("Disk can't be mounted - not ext2/3/4")
+                sendNotification(title: "Unsupported Disk", body: "Disk \(resource.bsdName) is not a valid ext2/3/4 volume.")
+            }
+            
             return .notRecognized
         }
         if superblock.magic == 0xEF53 {
@@ -37,18 +73,22 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
             // seems like recognized and usableButLimited are treated like notRecognized as of macOS 15.6 (24G84)
             guard superblock.incompatibleFeatures.isSubset(of: Superblock.IncompatibleFeatures.supportedFeatures) else {
                 Self.logger.log("Recognized but not usable")
+                Self.logger.error("Disk can't be mounted - incompatible features")
+                sendNotification(title: "Unsupported Disk", body: "Disk \"\(name)\" was recognized as an ext2/3/4 volume, but can't be mounted because it uses incompatible features.")
                 return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
             }
-            // FIXME: once FB19241327 is fixed, uncomment these and apply them to the fixed OS version
-//            let incompatibleFeaturesForcingReadOnly: [Superblock.IncompatibleFeatures] = [.needsRecovery, .separateJournalDevice, .multipleMountProtection]
-//            guard superblock.incompatibleFeatures.isDisjoint(with: incompatibleFeaturesForcingReadOnly) else {
-//                Self.logger.log("Usable but limited")
-//                return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
-//            }
-//            guard superblock.readOnlyCompatibleFeatures.isSubset(of: Superblock.ReadOnlyCompatibleFeatures.supportedFeatures) else {
-//                Self.logger.log("Usable but limited")
-//                return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
-//            }
+            
+            if #available(macOS 26.4, *) {
+                let incompatibleFeaturesForcingReadOnly: Superblock.IncompatibleFeatures = [.needsRecovery, .separateJournalDevice, .multipleMountProtection]
+                guard superblock.incompatibleFeatures.isDisjoint(with: incompatibleFeaturesForcingReadOnly) else {
+                    Self.logger.log("Usable but limited")
+                    return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+                }
+                guard superblock.readOnlyCompatibleFeatures.isSubset(of: Superblock.ReadOnlyCompatibleFeatures.supportedFeatures) else {
+                    Self.logger.log("Usable but limited")
+                    return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+                }
+            }
             
             if superblock.state.contains(.errorsDetected) {
                 Self.logger.log("Errors detected on volume.")
@@ -59,20 +99,26 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
                     break
                 case .remountReadOnly:
                     Self.logger.log("Error policy set to remount as read-only, indicating usable but limited.")
-                    // FIXME: once FB19241327 is fixed, use usableButLimited and apply them to the fixed OS version
-//                    return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
-                    return .usable(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+                    if #available(macOS 26.4, *) {
+                        return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+                    } else {
+                        return .usable(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+                    }
                 case .panic:
-                    Self.logger.log("Error policy set to panic, indicating recognized but not usable.")
+                    Self.logger.error("Error policy set to panic, indicating recognized but not usable.")
+                    sendNotification(title: "Unsupported Disk", body: "Disk \"\(name)\" can't be mounted because it contains errors and the error policy is set to panic.")
                     return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
                 case .unknown:
-                    Self.logger.log("Error policy is not recognized.")
+                    Self.logger.error("Error policy is not recognized.")
+                    sendNotification(title: "Unsupported Disk", body: "Disk \"\(name)\" can't be mounted because the error policy is unknown.")
                     return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
                 }
             }
             
             return .usable(name: name, containerID: FSContainerIdentifier(uuid: uuid))
         } else {
+            Self.logger.error("Disk can't be mounted - invalid superblock magic")
+            sendNotification(title: "Unsupported Disk", body: "Disk \(resource.bsdName) is not a valid ext2/3/4 volume.")
             return .notRecognized
         }
     }
