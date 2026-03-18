@@ -80,17 +80,18 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
                 return .recognized(name: name, containerID: FSContainerIdentifier(uuid: uuid))
             }
             
-            if #available(macOS 26.4, *) {
-                let incompatibleFeaturesForcingReadOnly: Superblock.IncompatibleFeatures = [.needsRecovery, .separateJournalDevice, .multipleMountProtection]
-                guard superblock.incompatibleFeatures.isDisjoint(with: incompatibleFeaturesForcingReadOnly) else {
-                    Self.logger.log("Usable but limited")
-                    return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
-                }
-                guard superblock.readOnlyCompatibleFeatures.isSubset(of: Superblock.ReadOnlyCompatibleFeatures.supportedFeatures) else {
-                    Self.logger.log("Usable but limited")
-                    return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
-                }
-            }
+            // FIXME: once FB19241327 is fixed, uncomment these and apply them to the fixed OS version
+//            if #available(macOS 26.4, *) {
+//                let incompatibleFeaturesForcingReadOnly: Superblock.IncompatibleFeatures = [.needsRecovery, .separateJournalDevice, .multipleMountProtection]
+//                guard superblock.incompatibleFeatures.isDisjoint(with: incompatibleFeaturesForcingReadOnly) else {
+//                    Self.logger.log("Usable but limited")
+//                    return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+//                }
+//                guard superblock.readOnlyCompatibleFeatures.isSubset(of: Superblock.ReadOnlyCompatibleFeatures.supportedFeatures) else {
+//                    Self.logger.log("Usable but limited")
+//                    return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+//                }
+//            }
             
             if superblock.state.contains(.errorsDetected) {
                 Self.logger.log("Errors detected on volume.")
@@ -101,11 +102,12 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
                     break
                 case .remountReadOnly:
                     Self.logger.log("Error policy set to remount as read-only, indicating usable but limited.")
-                    if #available(macOS 26.4, *) {
-                        return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
-                    } else {
-                        return .usable(name: name, containerID: FSContainerIdentifier(uuid: uuid))
-                    }
+//                    if #available(macOS 26.4, *) {
+//                        return .usableButLimited(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+//                    } else {
+//                        return .usable(name: name, containerID: FSContainerIdentifier(uuid: uuid))
+//                    }
+                    return .usable(name: name, containerID: FSContainerIdentifier(uuid: uuid))
                 case .panic:
                     Self.logger.error("Error policy set to panic, indicating recognized but not usable.")
                     sendNotification(title: "Unsupported Disk", body: "Disk \"\(name)\" can't be mounted because it contains errors and the error policy is set to panic.")
