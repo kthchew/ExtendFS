@@ -92,6 +92,7 @@ struct ExtendFSApp: App {
                         return
                     }
                     do {
+                        try await Task.sleep(for: .milliseconds(100))
                         try Task.checkCancellation()
                         logger.log("Normal app launch")
                         delegate.wasStartedForGUI = true
@@ -102,7 +103,7 @@ struct ExtendFSApp: App {
                             // either this will activate the GUI, or a background process which is setup to then activate the GUI
                             let appURL = Bundle.main.bundleURL
                             let config = NSWorkspace.OpenConfiguration()
-                            NSWorkspace.shared.openApplication(at: appURL, configuration: config)
+                            try await NSWorkspace.shared.openApplication(at: appURL, configuration: config)
                         }
                     } catch {}
                 }
