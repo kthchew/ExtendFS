@@ -22,6 +22,8 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
     }
     
     func sendNotification(title: String, body: String, interruptionLevel: UNNotificationInterruptionLevel = .active) {
+        // TODO: not in release build for now until user-accessible settings are available for this
+        #if DEBUG
         Task.detached {
             let content = UNMutableNotificationContent()
             content.title = title
@@ -36,6 +38,7 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
                 Self.logger.error("Couldn't send notification: \(error)")
             }
         }
+        #endif
     }
     
     func probeResource(resource: FSResource) async throws -> FSProbeResult {
