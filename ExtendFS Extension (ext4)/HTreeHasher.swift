@@ -1,20 +1,21 @@
-//
-//  HTreeHasher.swift
-//  ExtendFS Extension (ext4)
-//
-//  Created by Kenneth Chew on 11/30/25.
-//
+// This file is part of ExtendFS which is released under the GNU GPL v3 or later license with an app store exception.
+// See the LICENSE file in the root of the repository for full license details.
 
 import Foundation
-import CommonCrypto
 
 struct HTreeHasher {
-    static func halfMD4(_ name: String) -> UInt64 {
-        name.utf8CString.withUnsafeBytes { buf in
-            var md = [UInt8](repeating: 0, count: 16)
-            CC_MD4(buf.baseAddress, CC_LONG(buf.count), &md)
-            // take lower half of the 16 bytes (8 bytes total)
-            return (UInt64(md[8]) << 56) | (UInt64(md[9]) << 48) | (UInt64(md[10]) << 40) | (UInt64(md[11]) << 32) | (UInt64(md[12]) << 24) | (UInt64(md[13]) << 16) | (UInt64(md[14]) << 8) | UInt64(md[15])
+    /// Returns the hash value for the provided file name for use in a hash tree directory.
+    /// - Parameters:
+    ///   - name: The file name. The UTF-8 encoding will be used to create the hash.
+    ///   - hashType: The hash version to use.
+    /// - Returns: The hash as a 64-bit integer, where the upper half is the major part and the lower half is the minor part. `nil` if hashing fails (such as if the provided hash algorithm is unsupported).
+    static func hash(name: String, hashType: Superblock.HashVersion) -> UInt64? {
+        var major: UInt32 = 0
+        var minor: UInt32 = 0
+        let result = name.withCString { strPtr in
+            ext2_htree_hash(strPtr, Int32(name.lengthOfBytes(using: .utf8)), nil, Int32(hashType.rawValue), &major, &minor)
         }
+        guard result == 0 else { return nil }
+        return UInt64.combine(upper: major, lower: minor)
     }
 }

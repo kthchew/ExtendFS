@@ -323,6 +323,7 @@
 					};
 					9F57A6422DD6841D00D7E52D = {
 						CreatedOnToolsVersion = 16.3;
+						LastSwiftMigration = 2630;
 					};
 					9F5B7C9F2F0A408A009B095C = {
 						CreatedOnToolsVersion = 26.2;
@@ -637,6 +638,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				AUTOMATION_APPLE_EVENTS = NO;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "ExtendFS Extension (ext4)/ExtendFSExtension.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -671,6 +673,8 @@
 				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "ExtendFS Extension (ext4)/ExtendFS Extension (ext4)-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -679,6 +683,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				AUTOMATION_APPLE_EVENTS = NO;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "ExtendFS Extension (ext4)/ExtendFSExtension.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -713,6 +718,7 @@
 				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "ExtendFS Extension (ext4)/ExtendFS Extension (ext4)-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
