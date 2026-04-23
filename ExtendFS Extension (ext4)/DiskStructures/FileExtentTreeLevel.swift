@@ -17,7 +17,14 @@ struct FileExtentTreeLevel {
     var generation: UInt32
     var checksum: UInt32?
     
-    var nodes: [FileExtentNode]
+    /// A list of extent nodes contained in this level.
+    ///
+    /// > Important: This array contains ``maxNumberOfEntries`` nodes, but only the first ``numberOfEntries`` nodes are valid.
+    fileprivate var allNodes: [FileExtentNode]
+    
+    var nodes: ArraySlice<FileExtentNode> {
+        allNodes.prefix(Int(numberOfEntries))
+    }
     
     let inodeChecksumSeed: UInt32?
     
@@ -40,16 +47,16 @@ struct FileExtentTreeLevel {
         var currentData = data.advanced(by: headerSize)
         
         let nodeSize = 12
-        self.nodes = []
-        self.nodes.reserveCapacity(Int(numberOfEntries))
-        for _ in 0..<numberOfEntries {
+        self.allNodes = []
+        self.allNodes.reserveCapacity(Int(maxNumberOfEntries))
+        for _ in 0..<maxNumberOfEntries {
             let nodeData = currentData.subdata(in: 0..<nodeSize)
             guard let node = FileExtentNode(from: nodeData, isLeaf: isLeaf) else { return nil }
-            self.nodes.append(node)
+            self.allNodes.append(node)
             currentData = currentData.advanced(by: nodeSize)
         }
-        guard numberOfEntries == self.nodes.count else {
-            logger.error("numberOfEntries did not match node count!")
+        guard maxNumberOfEntries == self.allNodes.count else {
+            logger.error("maxNumberOfEntries did not match node count!")
             return nil
         }
         
@@ -80,11 +87,11 @@ struct FileExtentTreeLevel {
         data.appendLittleEndian(depth)
         data.appendLittleEndian(generation)
         
-        for node in nodes {
+        for node in allNodes {
             data.append(try node.toData())
         }
         
-        let unusedSpace = Data(count: 12 * (Int(maxNumberOfEntries) - nodes.count))
+        let unusedSpace = Data(count: 12 * (Int(maxNumberOfEntries) - allNodes.count))
         data.append(unusedSpace)
         
         if let checksum {
@@ -106,7 +113,8 @@ struct FileExtentTreeLevel {
         let lastBlock = Int(fileBlock) + blockLength - 1
         
         var result: [FileExtentNode] = []
-        guard nodes.count > 0 else {
+        let nodes = nodes
+        guard nodes.count > 0 && numberOfEntries > 0 else {
             return result
         }
         let lastPotentialChildIndex = -1 + nodes.partitioningIndex { element in

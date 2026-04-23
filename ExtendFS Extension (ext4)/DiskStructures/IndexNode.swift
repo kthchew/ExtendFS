@@ -91,7 +91,7 @@ struct IndexNode {
             var seedCsumData = Data()
             seedCsumData.appendLittleEndian(inodeNumber)
             seedCsumData.appendLittleEndian(generation)
-            self.metadataChecksumSeed = ~seedCsumData.crc32c(seed: fsMetadataSeed)
+            self.metadataChecksumSeed = seedCsumData.crc32c(seed: fsMetadataSeed)
         } else {
             self.metadataChecksumSeed = nil
         }

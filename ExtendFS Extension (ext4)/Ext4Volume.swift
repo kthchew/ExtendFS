@@ -138,7 +138,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
             }
             var uuidData = Data()
             uuidData.append(uuid: uuid)
-            self.metadataChecksumSeed = ~uuidData.crc32c()
+            self.metadataChecksumSeed = uuidData.crc32c()
         } else {
             self.metadataChecksumSeed = nil
         }
