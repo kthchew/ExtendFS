@@ -67,24 +67,6 @@ struct ExtendFSApp: App {
     var body: some Scene {
         Window("ExtendFS", id: "main") {
             ContentView()
-                .onOpenURL { url in
-                    guard !delegate.wasStartedForGUI, url.scheme == "extendfs-internal-diskwatch" else { return }
-                    
-                    logger.log("Got request to monitor disk \(url.lastPathComponent, privacy: .public)")
-                    
-                    dismissWindow(id: "main")
-                    let devNode = url.path(percentEncoded: false)
-                    NSApp.hide(nil)
-                    NSApplication.shared.setActivationPolicy(.prohibited)
-                    guard let watcher = DiskWatcher(blockDevice: devNode) else {
-                        logger.error("Couldn't make watcher for \(devNode, privacy: .public)")
-                        NSApp.terminate(nil)
-                        return
-                    }
-                    self.delegate.diskWatcher = watcher
-                    self.delegate.hasFirstActivated = true
-                    hasOpenedURL = true
-                }
                 .task {
                     guard !delegate.wasStartedForGUI else { return }
                     guard !hasOpenedURL else {
@@ -92,7 +74,6 @@ struct ExtendFSApp: App {
                         return
                     }
                     do {
-                        try await Task.sleep(for: .milliseconds(100))
                         try Task.checkCancellation()
                         logger.log("Normal app launch")
                         delegate.wasStartedForGUI = true
@@ -119,5 +100,45 @@ struct ExtendFSApp: App {
                 }
             }
         }
+        
+        // URL handler scene - should never be user-visible
+        UtilityWindow("ExtendFS", id: "empty") {
+            SelfDismisses()
+                .onOpenURL { url in
+                    guard !delegate.wasStartedForGUI, url.scheme == "extendfs-internal-diskwatch" else { return }
+                    
+                    logger.log("Got request to monitor disk \(url.lastPathComponent, privacy: .public)")
+                    
+                    dismissWindow(id: "main")
+                    let devNode = url.path(percentEncoded: false)
+                    NSApp.hide(nil)
+                    NSApplication.shared.setActivationPolicy(.prohibited)
+                    guard let watcher = DiskWatcher(blockDevice: devNode) else {
+                        logger.error("Couldn't make watcher for \(devNode, privacy: .public)")
+                        NSApp.terminate(nil)
+                        return
+                    }
+                    self.delegate.diskWatcher = watcher
+                    self.delegate.hasFirstActivated = true
+                    hasOpenedURL = true
+                }
+        }
+        .commandsRemoved()
+        .windowLevel(.desktop)
+        .windowResizability(.contentSize)
+        .defaultLaunchBehavior(.suppressed)
+        .handlesExternalEvents(matching: ["extendfs-internal-diskwatch:"])
+    }
+}
+
+private struct SelfDismisses: View {
+    @Environment(\.dismiss) private var dismiss
+
+
+    var body: some View {
+        EmptyView()
+            .onAppear {
+                dismiss()
+            }
     }
 }
