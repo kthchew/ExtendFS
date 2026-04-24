@@ -139,7 +139,7 @@ struct IndexNode {
         
         var possibleExtAttr = data.advanced(by: 128 + Int(extraINodeSize))
         guard possibleExtAttr.count >= 4 else { return }
-        let magic: UInt32 = possibleExtAttr.readLittleEndian(at: 0)
+        let magic: UInt32 = (try? possibleExtAttr.readLittleEndian(at: 0)) ?? 0
         guard magic == 0xEA020000 else { return }
         
         possibleExtAttr = possibleExtAttr.advanced(by: 4)

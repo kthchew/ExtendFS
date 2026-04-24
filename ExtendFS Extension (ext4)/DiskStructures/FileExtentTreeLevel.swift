@@ -62,7 +62,10 @@ struct FileExtentTreeLevel {
         
         let numberOfEntriesInInode = 4
         if let inodeChecksumSeed, maxNumberOfEntries > numberOfEntriesInInode {
-            let checksum: UInt32 = data.readLittleEndian(at: data.endIndex - MemoryLayout<UInt32>.size)
+            guard let checksum: UInt32 = try? data.readLittleEndian(at: data.endIndex - MemoryLayout<UInt32>.size) else {
+                logger.error("Couldn't fetch checksum from extent tree")
+                return nil
+            }
             self.checksum = checksum
             guard let calculated = try? self.calculateChecksum(seed: inodeChecksumSeed), checksum == calculated else {
                 logger.error("File extent block had invalid checksum")

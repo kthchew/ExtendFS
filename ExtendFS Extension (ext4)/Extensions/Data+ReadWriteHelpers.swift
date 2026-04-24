@@ -84,24 +84,21 @@ extension Data.Iterator {
 }
 
 extension Data {
-    func readSmallSection<T>(at offset: Self.Index) -> T {
+    func readSmallSection<T>(at offset: Self.Index) throws -> T {
         let size = MemoryLayout<T>.size
-        let alignment = MemoryLayout<T>.alignment
+        guard offset + size <= count else { throw POSIXError(.EIO) }
         return self.withUnsafeBytes { ptr in
-            return withUnsafeTemporaryAllocation(byteCount: size, alignment: alignment) { itemPtr in
-                itemPtr.copyMemory(from: UnsafeRawBufferPointer(rebasing: ptr[Int(offset)..<Int(Int(offset) + size)]))
-                return itemPtr.load(as: T.self)
-            }
+            ptr.loadUnaligned(fromByteOffset: offset, as: T.self)
         }
     }
     
-    func readLittleEndian<T: FixedWidthInteger>(at offset: Self.Index) -> T {
-        let number: T = self.readSmallSection(at: offset)
-        return number.littleEndian
+    func readLittleEndian<T: FixedWidthInteger>(at offset: Self.Index) throws -> T {
+        let number: T = try self.readSmallSection(at: offset)
+        return T(littleEndian: number)
     }
     
-    func readUUID(at offset: Self.Index) -> UUID {
-        let uuid: uuid_t = self.readSmallSection(at: offset)
+    func readUUID(at offset: Self.Index) throws -> UUID {
+        let uuid: uuid_t = try self.readSmallSection(at: offset)
         return UUID(uuid: uuid)
     }
     
