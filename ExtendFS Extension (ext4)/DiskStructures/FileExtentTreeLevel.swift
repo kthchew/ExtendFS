@@ -31,29 +31,25 @@ struct FileExtentTreeLevel {
     init?(from data: Data, inodeChecksumSeed: UInt32?) {
         self.inodeChecksumSeed = inodeChecksumSeed
         
-        var iterator = data.makeIterator()
+        var offset = 0
         
-        guard let magic: UInt16 = iterator.nextLittleEndian(), magic == 0xF30A else { return nil }
-        guard let numberOfEntries: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let magic: UInt16 = try? data.readLittleEndian(at: &offset), magic == 0xF30A else { return nil }
+        guard let numberOfEntries: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.numberOfEntries = numberOfEntries
-        guard let maxNumberOfEntries: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let maxNumberOfEntries: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.maxNumberOfEntries = maxNumberOfEntries
-        guard let depth: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let depth: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.depth = depth
-        guard let generation: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let generation: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.generation = generation
-        
-        let headerSize = 12
-        var currentData = data.advanced(by: headerSize)
         
         let nodeSize = 12
         self.allNodes = []
         self.allNodes.reserveCapacity(Int(maxNumberOfEntries))
         for _ in 0..<maxNumberOfEntries {
-            let nodeData = currentData.subdata(in: 0..<nodeSize)
+            guard let nodeData = try? data.readSection(at: &offset, length: nodeSize) else { return nil }
             guard let node = FileExtentNode(from: nodeData, isLeaf: isLeaf) else { return nil }
             self.allNodes.append(node)
-            currentData = currentData.advanced(by: nodeSize)
         }
         guard maxNumberOfEntries == self.allNodes.count else {
             logger.error("maxNumberOfEntries did not match node count!")

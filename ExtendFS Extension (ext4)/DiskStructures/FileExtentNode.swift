@@ -11,12 +11,12 @@ struct FileExtentNode: Hashable, Comparable {
     }
     
     init?(from data: Data, isLeaf: Bool) {
-        var iterator = data.makeIterator()
+        var offset = 0
         
-        guard let logicalBlock: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let logicalBlock: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.logicalBlock = off_t(logicalBlock)
         if isLeaf {
-            guard let length: UInt16 = iterator.nextLittleEndian() else { return nil }
+            guard let length: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
             if length > 32768 {
                 self.lengthInBlocks = length - 32768
                 self.type = .zeroFill
@@ -24,12 +24,12 @@ struct FileExtentNode: Hashable, Comparable {
                 self.lengthInBlocks = length
                 self.type = .data
             }
-            guard let upperStartBlock: UInt16 = iterator.nextLittleEndian() else { return nil }
-            guard let lowerStartBlock: UInt32 = iterator.nextLittleEndian() else { return nil }
+            guard let upperStartBlock: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
+            guard let lowerStartBlock: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
             self.physicalBlock = off_t(UInt64.combine(upper: upperStartBlock, lower: lowerStartBlock))
         } else {
-            guard let lowerStartBlock: UInt32 = iterator.nextLittleEndian() else { return nil }
-            guard let upperStartBlock: UInt16 = iterator.nextLittleEndian() else { return nil }
+            guard let lowerStartBlock: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
+            guard let upperStartBlock: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
             self.physicalBlock = off_t(UInt64.combine(upper: upperStartBlock, lower: lowerStartBlock))
         }
     }

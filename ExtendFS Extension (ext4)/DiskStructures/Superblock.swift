@@ -9,55 +9,64 @@ fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", 
 
 struct Superblock {
     init?(from data: Data) {
-        var iterator = data.makeIterator()
+        var offset = 0
+        func nextLE<T: FixedWidthInteger>() -> T? {
+            try? data.readLittleEndian(at: &offset)
+        }
+        func nextUUID() -> UUID? {
+            try? data.readUUID(at: &offset)
+        }
+        func nextString(maxLength: Int) -> String? {
+            try? data.readString(at: &offset, maxLength: maxLength)
+        }
         
-        guard let inodeCount: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let inodeCount: UInt32 = nextLE() else { return nil }
         self.inodeCount = inodeCount
-        guard let blockCountLow: UInt32 = iterator.nextLittleEndian() else { return nil }
-        guard let superUserBlockCountLow: UInt32 = iterator.nextLittleEndian() else { return nil }
-        guard let freeBlockCountLow: UInt32 = iterator.nextLittleEndian() else { return nil }
-        guard let freeInodeCount: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let blockCountLow: UInt32 = nextLE() else { return nil }
+        guard let superUserBlockCountLow: UInt32 = nextLE() else { return nil }
+        guard let freeBlockCountLow: UInt32 = nextLE() else { return nil }
+        guard let freeInodeCount: UInt32 = nextLE() else { return nil }
         self.freeInodeCount = freeInodeCount
-        guard let firstDataBlock: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let firstDataBlock: UInt32 = nextLE() else { return nil }
         self.firstDataBlock = firstDataBlock
-        guard let logBlockSize: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let logBlockSize: UInt32 = nextLE() else { return nil }
         self.logBlockSize = logBlockSize
-        guard let logClusterSize: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let logClusterSize: UInt32 = nextLE() else { return nil }
         self.logClusterSize = logClusterSize
-        guard let blocksPerGroup: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let blocksPerGroup: UInt32 = nextLE() else { return nil }
         self.blocksPerGroup = blocksPerGroup
-        guard let clustersPerGroup: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let clustersPerGroup: UInt32 = nextLE() else { return nil }
         self.clustersPerGroup = clustersPerGroup
-        guard let inodesPerGroup: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let inodesPerGroup: UInt32 = nextLE() else { return nil }
         self.inodesPerGroup = inodesPerGroup
-        guard let mountTimeLow: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let mountTimeLow: UInt32 = nextLE() else { return nil }
         self.mountTime = UInt64(mountTimeLow)
-        guard let writeTimeLow: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let writeTimeLow: UInt32 = nextLE() else { return nil }
         self.writeTime = UInt64(writeTimeLow)
-        guard let mountsSinceLastFsck: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let mountsSinceLastFsck: UInt16 = nextLE() else { return nil }
         self.mountsSinceLastFsck = mountsSinceLastFsck
-        guard let maxMountsSinceLastFsck: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let maxMountsSinceLastFsck: UInt16 = nextLE() else { return nil }
         self.maxMountsSinceLastFsck = maxMountsSinceLastFsck
-        guard let magic: UInt16 = iterator.nextLittleEndian(), magic == 0xEF53 else { return nil }
+        guard let magic: UInt16 = nextLE(), magic == 0xEF53 else { return nil }
         self.magic = magic
-        guard let state: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let state: UInt16 = nextLE() else { return nil }
         self.state = State(rawValue: state)
-        guard let errorPolicy: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let errorPolicy: UInt16 = nextLE() else { return nil }
         self.errorPolicy = ErrorPolicy(rawValue: errorPolicy) ?? .unknown
-        guard let minorRevisionLevel: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let minorRevisionLevel: UInt16 = nextLE() else { return nil }
         self.minorRevisionLevel = minorRevisionLevel
-        guard let lastCheckTime: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let lastCheckTime: UInt32 = nextLE() else { return nil }
         self.lastCheckTime = lastCheckTime
-        guard let maxSecondsBetweenChecks: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let maxSecondsBetweenChecks: UInt32 = nextLE() else { return nil }
         self.maxSecondsBetweenChecks = maxSecondsBetweenChecks
-        guard let creatorOS: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let creatorOS: UInt32 = nextLE() else { return nil }
         self.creatorOS = FilesystemCreator(rawValue: creatorOS) ?? .unknown
-        guard let revisionLevelRaw: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let revisionLevelRaw: UInt32 = nextLE() else { return nil }
         let revisionLevel = Revision(rawValue: revisionLevelRaw) ?? .unknown
         self.revisionLevel = revisionLevel
-        guard let defaultUidForReservedBlocks: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let defaultUidForReservedBlocks: UInt16 = nextLE() else { return nil }
         self.defaultUidForReservedBlocks = defaultUidForReservedBlocks
-        guard let defaultGidForReservedBlocks: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let defaultGidForReservedBlocks: UInt16 = nextLE() else { return nil }
         self.defaultGidForReservedBlocks = defaultGidForReservedBlocks
 
         // MARK: - EXT4_DYNAMIC_REV fields
@@ -74,95 +83,95 @@ struct Superblock {
             self.readOnlyCompatibleFeatures = ReadOnlyCompatibleFeatures()
             return
         }
-        guard let firstNonReservedInode: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let firstNonReservedInode: UInt32 = nextLE() else { return nil }
         self.firstNonReservedInode = firstNonReservedInode
-        guard let inodeSize: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let inodeSize: UInt16 = nextLE() else { return nil }
         self.inodeSize = inodeSize
-        guard let blockGroupNumber: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let blockGroupNumber: UInt16 = nextLE() else { return nil }
         self.blockGroupNumber = blockGroupNumber
-        guard let compatibleFeaturesRaw: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let compatibleFeaturesRaw: UInt32 = nextLE() else { return nil }
         let compatibleFeatures = CompatibleFeatures(rawValue: compatibleFeaturesRaw)
         self.compatibleFeatures = compatibleFeatures
-        guard let incompatibleFeaturesRaw: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let incompatibleFeaturesRaw: UInt32 = nextLE() else { return nil }
         let incompatibleFeatures = IncompatibleFeatures(rawValue: incompatibleFeaturesRaw)
         self.incompatibleFeatures = incompatibleFeatures
-        guard let readOnlyCompatibleFeaturesRaw: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let readOnlyCompatibleFeaturesRaw: UInt32 = nextLE() else { return nil }
         let readOnlyCompatibleFeatures = ReadOnlyCompatibleFeatures(rawValue: readOnlyCompatibleFeaturesRaw)
         self.readOnlyCompatibleFeatures = readOnlyCompatibleFeatures
 
-        guard let uuid = iterator.nextUUID() else { return nil }
+        guard let uuid = nextUUID() else { return nil }
         self.uuid = uuid
 
-        guard let volumeName = iterator.nextString(ofMaximumLength: 16) else { return nil }
+        guard let volumeName = nextString(maxLength: 16) else { return nil }
         self.volumeName = volumeName
 
-        guard let lastMountDirectory = iterator.nextString(ofMaximumLength: 64) else { return nil }
+        guard let lastMountDirectory = nextString(maxLength: 64) else { return nil }
         self.lastMountDirectory = lastMountDirectory
 
-        guard let compressionAlgorithmUsageBitmap: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let compressionAlgorithmUsageBitmap: UInt32 = nextLE() else { return nil }
         self.compressionAlgorithmUsageBitmap = compressionAlgorithmUsageBitmap
         
         // MARK: - Performance hints
-        guard let preallocateBlocks: UInt8 = iterator.nextLittleEndian() else { return nil }
-        guard let preallocateDirectoryBlocks: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let preallocateBlocks: UInt8 = nextLE() else { return nil }
+        guard let preallocateDirectoryBlocks: UInt8 = nextLE() else { return nil }
         if compatibleFeatures.contains(.directoryPreallocation) {
             self.preallocateBlocks = preallocateBlocks
             self.preallocateDirectoryBlocks = preallocateDirectoryBlocks
         }
-        guard let reservedGDTBlocks: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let reservedGDTBlocks: UInt16 = nextLE() else { return nil }
         self.reservedGDTBlocks = reservedGDTBlocks
         
-        guard let journalUUID = iterator.nextUUID() else { return nil }
-        guard let journalInodeNumber: UInt32 = iterator.nextLittleEndian() else { return nil }
-        guard let journalDeviceNumber: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let journalUUID = nextUUID() else { return nil }
+        guard let journalInodeNumber: UInt32 = nextLE() else { return nil }
+        guard let journalDeviceNumber: UInt32 = nextLE() else { return nil }
         if compatibleFeatures.contains(.journal) {
             self.journalUUID = journalUUID
             self.journalInodeNumber = journalInodeNumber
             self.journalDeviceNumber = journalDeviceNumber
         }
-        guard let lastOrphan: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let lastOrphan: UInt32 = nextLE() else { return nil }
         self.lastOrphan = lastOrphan
 
         var hashSeed: [UInt32] = []
         hashSeed.reserveCapacity(4)
         for _ in 0..<4 {
-            guard let v: UInt32 = iterator.nextLittleEndian() else { return nil }
+            guard let v: UInt32 = nextLE() else { return nil }
             hashSeed.append(v)
         }
         self.hashSeed = hashSeed
 
-        guard let defaultHashAlgorithmRaw: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let defaultHashAlgorithmRaw: UInt8 = nextLE() else { return nil }
         let defaultHashAlgorithm = HashVersion(rawValue: defaultHashAlgorithmRaw) ?? .unknown
         self.defaultHashAlgorithm = defaultHashAlgorithm
-        guard let journalBackupType: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let journalBackupType: UInt8 = nextLE() else { return nil }
         if compatibleFeatures.contains(.journal) {
             self.journalBackupType = journalBackupType
         }
-        guard let groupDescriptorSizeInBytes: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let groupDescriptorSizeInBytes: UInt16 = nextLE() else { return nil }
         if incompatibleFeatures.contains(.enable64BitSize) {
             self.groupDescriptorSizeInBytes = groupDescriptorSizeInBytes
         }
-        guard let defaultMountOptions: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let defaultMountOptions: UInt32 = nextLE() else { return nil }
         self.defaultMountOptions = defaultMountOptions
-        guard let firstMetablockBlockGroup: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let firstMetablockBlockGroup: UInt32 = nextLE() else { return nil }
         if incompatibleFeatures.contains(.metaBlockGroups) {
             self.firstMetablockBlockGroup = firstMetablockBlockGroup
         }
-        guard let mkfsTime: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let mkfsTime: UInt32 = nextLE() else { return nil }
         self.mkfsTime = mkfsTime
 
         var backupJournalBlocks: [UInt32] = []
         backupJournalBlocks.reserveCapacity(17)
         for _ in 0..<17 {
-            guard let v: UInt32 = iterator.nextLittleEndian() else { return nil }
+            guard let v: UInt32 = nextLE() else { return nil }
             backupJournalBlocks.append(v)
         }
         self.backupJournalBlocks = backupJournalBlocks
 
         // MARK: - 64-bit support
-        guard let blockCountHigh: UInt32 = iterator.nextLittleEndian() else { return nil }
-        guard let superUserBlockCountHigh: UInt32 = iterator.nextLittleEndian() else { return nil }
-        guard let freeBlockCountHigh: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let blockCountHigh: UInt32 = nextLE() else { return nil }
+        guard let superUserBlockCountHigh: UInt32 = nextLE() else { return nil }
+        guard let freeBlockCountHigh: UInt32 = nextLE() else { return nil }
         if incompatibleFeatures.contains(.enable64BitSize) {
             self.blockCount = UInt64.combine(upper: blockCountHigh, lower: blockCountLow)
             self.superUserBlockCount = UInt64.combine(upper: superUserBlockCountHigh, lower: superUserBlockCountLow)
@@ -172,76 +181,76 @@ struct Superblock {
             self.superUserBlockCount = UInt64(superUserBlockCountLow)
             self.freeBlockCount = UInt64(freeBlockCountLow)
         }
-        guard let minimumExtraInodeSize: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let minimumExtraInodeSize: UInt16 = nextLE() else { return nil }
         self.minimumExtraInodeSize = minimumExtraInodeSize
-        guard let wantExtraInodeSize: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let wantExtraInodeSize: UInt16 = nextLE() else { return nil }
         self.wantExtraInodeSize = wantExtraInodeSize
-        guard let flags: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let flags: UInt32 = nextLE() else { return nil }
         self.flags = flags
-        guard let raidStride: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let raidStride: UInt16 = nextLE() else { return nil }
         self.raidStride = raidStride
-        guard let mmpIntervalInSeconds: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let mmpIntervalInSeconds: UInt16 = nextLE() else { return nil }
         self.mmpIntervalInSeconds = mmpIntervalInSeconds
-        guard let mmpBlock: UInt64 = iterator.nextLittleEndian() else { return nil }
+        guard let mmpBlock: UInt64 = nextLE() else { return nil }
         self.mmpBlock = mmpBlock
-        guard let raidStripeWidth: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let raidStripeWidth: UInt32 = nextLE() else { return nil }
         self.raidStripeWidth = raidStripeWidth
-        guard let logGroupsPerFlexibleGroup: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let logGroupsPerFlexibleGroup: UInt8 = nextLE() else { return nil }
         if incompatibleFeatures.contains(.flexibleBlockGroups) {
             self.logGroupsPerFlexibleGroup = logGroupsPerFlexibleGroup
         }
-        guard let checksumType: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let checksumType: UInt8 = nextLE() else { return nil }
         self.checksumType = checksumType
-        guard let reservedPad: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let reservedPad: UInt16 = nextLE() else { return nil }
         self.reservedPad = reservedPad
-        guard let kbytesWritten: UInt64 = iterator.nextLittleEndian() else { return nil }
+        guard let kbytesWritten: UInt64 = nextLE() else { return nil }
         self.kbytesWritten = kbytesWritten
-        guard let snapshotInodeNumber: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let snapshotInodeNumber: UInt32 = nextLE() else { return nil }
         self.snapshotInodeNumber = snapshotInodeNumber
-        guard let snapshotId: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let snapshotId: UInt32 = nextLE() else { return nil }
         self.snapshotId = snapshotId
-        guard let snapshotReservedBlockCount: UInt64 = iterator.nextLittleEndian() else { return nil }
+        guard let snapshotReservedBlockCount: UInt64 = nextLE() else { return nil }
         self.snapshotReservedBlockCount = snapshotReservedBlockCount
-        guard let snapshotListInodeNumber: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let snapshotListInodeNumber: UInt32 = nextLE() else { return nil }
         self.snapshotListInodeNumber = snapshotListInodeNumber
 
-        guard let errorCount: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let errorCount: UInt32 = nextLE() else { return nil }
         self.errorCount = errorCount
-        guard let firstErrorTime: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let firstErrorTime: UInt32 = nextLE() else { return nil }
         self.firstErrorTime = firstErrorTime
-        guard let firstErrorInode: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let firstErrorInode: UInt32 = nextLE() else { return nil }
         self.firstErrorInode = firstErrorInode
-        guard let firstErrorBlock: UInt64 = iterator.nextLittleEndian() else { return nil }
+        guard let firstErrorBlock: UInt64 = nextLE() else { return nil }
         self.firstErrorBlock = firstErrorBlock
-        guard let firstErrorFunctionName = iterator.nextString(ofMaximumLength: 32) else { return nil }
+        guard let firstErrorFunctionName = nextString(maxLength: 32) else { return nil }
         self.firstErrorFunctionName = firstErrorFunctionName
-        guard let firstErrorLineNumber: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let firstErrorLineNumber: UInt32 = nextLE() else { return nil }
         self.firstErrorLineNumber = firstErrorLineNumber
-        guard let lastErrorTime: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let lastErrorTime: UInt32 = nextLE() else { return nil }
         self.lastErrorTime = lastErrorTime
-        guard let lastErrorInodeNumber: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let lastErrorInodeNumber: UInt32 = nextLE() else { return nil }
         self.lastErrorInodeNumber = lastErrorInodeNumber
-        guard let lastErrorLine: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let lastErrorLine: UInt32 = nextLE() else { return nil }
         self.lastErrorLine = lastErrorLine
-        guard let lastErrorBlock: UInt64 = iterator.nextLittleEndian() else { return nil }
+        guard let lastErrorBlock: UInt64 = nextLE() else { return nil }
         self.lastErrorBlock = lastErrorBlock
-        guard let lastErrorFunctionName = iterator.nextString(ofMaximumLength: 32) else { return nil }
+        guard let lastErrorFunctionName = nextString(maxLength: 32) else { return nil }
         self.lastErrorFunctionName = lastErrorFunctionName
 
-        guard let mountOptions = iterator.nextString(ofMaximumLength: 64) else { return nil }
+        guard let mountOptions = nextString(maxLength: 64) else { return nil }
         self.mountOptions = mountOptions
 
-        guard let userQuotaInode: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let userQuotaInode: UInt32 = nextLE() else { return nil }
         self.userQuotaInode = userQuotaInode
-        guard let groupQuotaInode: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let groupQuotaInode: UInt32 = nextLE() else { return nil }
         self.groupQuotaInode = groupQuotaInode
-        guard let overheadBlocks: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let overheadBlocks: UInt32 = nextLE() else { return nil }
         self.overheadBlocks = overheadBlocks
 
         var superblockBackupGroups: [UInt32] = []
         superblockBackupGroups.reserveCapacity(2)
         for _ in 0..<2 {
-            guard let v: UInt32 = iterator.nextLittleEndian() else { return nil }
+            guard let v: UInt32 = nextLE() else { return nil }
             superblockBackupGroups.append(v)
         }
         self.superblockBackupGroups = superblockBackupGroups
@@ -249,7 +258,7 @@ struct Superblock {
         var encryptionAlgorithms: [UInt8] = []
         encryptionAlgorithms.reserveCapacity(4)
         for _ in 0..<4 {
-            guard let b: UInt8 = iterator.nextLittleEndian() else { return nil }
+            guard let b: UInt8 = nextLE() else { return nil }
             encryptionAlgorithms.append(b)
         }
         self.encryptionAlgorithms = encryptionAlgorithms
@@ -257,56 +266,56 @@ struct Superblock {
         var encryptionSalt: [UInt8] = []
         encryptionSalt.reserveCapacity(16)
         for _ in 0..<16 {
-            guard let b: UInt8 = iterator.nextLittleEndian() else { return nil }
+            guard let b: UInt8 = nextLE() else { return nil }
             encryptionSalt.append(b)
         }
         self.encryptionSalt = encryptionSalt
 
-        guard let lostAndFoundInode: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let lostAndFoundInode: UInt32 = nextLE() else { return nil }
         self.lostAndFoundInode = lostAndFoundInode
-        guard let projectQuotaInode: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let projectQuotaInode: UInt32 = nextLE() else { return nil }
         self.projectQuotaInode = projectQuotaInode
-        guard let checksumSeed: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let checksumSeed: UInt32 = nextLE() else { return nil }
         self.checksumSeed = checksumSeed
 
-        guard let writeTimeHigh: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let writeTimeHigh: UInt8 = nextLE() else { return nil }
         self.writeTimeHigh = writeTimeHigh
-        guard let mountTimeHigh: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let mountTimeHigh: UInt8 = nextLE() else { return nil }
         self.mountTimeHigh = mountTimeHigh
-        guard let mkfsTimeHigh: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let mkfsTimeHigh: UInt8 = nextLE() else { return nil }
         self.mkfsTimeHigh = mkfsTimeHigh
-        guard let lastCheckTimeHigh: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let lastCheckTimeHigh: UInt8 = nextLE() else { return nil }
         self.lastCheckTimeHigh = lastCheckTimeHigh
-        guard let firstErrorTimeHigh: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let firstErrorTimeHigh: UInt8 = nextLE() else { return nil }
         self.firstErrorTimeHigh = firstErrorTimeHigh
-        guard let lastErrorTimeHigh: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let lastErrorTimeHigh: UInt8 = nextLE() else { return nil }
         self.lastErrorTimeHigh = lastErrorTimeHigh
         
         var pad: [UInt8] = []
         pad.reserveCapacity(2)
         for _ in 0..<2 {
-            guard let v: UInt8 = iterator.nextLittleEndian() else { return nil }
+            guard let v: UInt8 = nextLE() else { return nil }
             pad.append(v)
         }
         self.pad = pad
         
-        guard let encoding: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let encoding: UInt16 = nextLE() else { return nil }
         self.encoding = encoding
-        guard let encodingFlags: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let encodingFlags: UInt16 = nextLE() else { return nil }
         self.encodingFlags = encodingFlags
-        guard let orphanFileInodeNumber: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let orphanFileInodeNumber: UInt32 = nextLE() else { return nil }
         self.orphanFileInodeNumber = orphanFileInodeNumber
 
         // zero padding
         var reservedPadding: [UInt32] = []
         reservedPadding.reserveCapacity(94)
         for _ in 0..<94 {
-            guard let v: UInt32 = iterator.nextLittleEndian() else { return nil }
+            guard let v: UInt32 = nextLE() else { return nil }
             reservedPadding.append(v)
         }
         self.reservedPadding = reservedPadding
 
-        guard let checksum: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let checksum: UInt32 = nextLE() else { return nil }
         self.checksum = checksum
     }
     

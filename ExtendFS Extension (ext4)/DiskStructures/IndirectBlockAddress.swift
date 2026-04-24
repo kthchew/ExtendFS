@@ -18,19 +18,19 @@ struct IndirectBlockMap {
     var tripleIndirectBlockLocation: UInt32
     
     init?(from data: Data) {
-        var iterator = data.makeIterator()
+        var offset = 0
         
         directMap = []
         directMap.reserveCapacity(12)
         for _ in 0...11 {
-            guard let blk: UInt32 = iterator.nextLittleEndian() else { return nil }
+            guard let blk: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
             directMap.append(blk)
         }
-        guard let indirectBlockLocation: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let indirectBlockLocation: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.indirectBlockLocation = indirectBlockLocation
-        guard let doubleIndirectBlockLocation: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let doubleIndirectBlockLocation: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.doubleIndirectBlockLocation = doubleIndirectBlockLocation
-        guard let tripleIndirectBlockLocation: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let tripleIndirectBlockLocation: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.tripleIndirectBlockLocation = tripleIndirectBlockLocation
     }
     
@@ -102,11 +102,11 @@ struct IndirectBlock {
     
     init(from data: Data, startingAt startingBlock: UInt32, depth: UInt) {
         self.startingBlock = startingBlock
-        
-        var iterator = data.makeIterator()
+
+        var offset = 0
         var nums: [UInt32] = []
         nums.reserveCapacity(data.count / MemoryLayout<UInt32>.size)
-        while let num: UInt32 = iterator.nextLittleEndian() {
+        while let num: UInt32 = try? data.readLittleEndian(at: &offset) {
             nums.append(num)
         }
         

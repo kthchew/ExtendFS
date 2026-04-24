@@ -4,86 +4,20 @@
 import Foundation
 import GoogleCRC32C
 
-extension Data.Iterator {
-    mutating func nextLittleEndian<T: FixedWidthInteger>() -> T? {
-        let size = MemoryLayout<T>.size
-        var value: T = 0
-        for i in 0..<size {
-            guard let nextVal = self.next() else { return nil }
-            let next = T(nextVal) << (i*8)
-            value |= next
-        }
-        return value
-    }
-    
-    mutating func nextBigEndian<T: FixedWidthInteger>() -> T? {
-        let size = MemoryLayout<T>.size
-        var value: T = 0
-        for i in 0..<size {
-            guard let nextVal = self.next() else { return nil }
-            let next = T(nextVal) << ((size-i-1)*8)
-            value |= next
-        }
-        return value
-    }
-    
-    mutating func nextLittleEndian<T: FixedWidthInteger>(as: T.Type) -> T? {
-        let size = MemoryLayout<T>.size
-        var value: T = 0
-        for i in 0..<size {
-            guard let nextVal = self.next() else { return nil }
-            let next = T(nextVal) << (i*8)
-            value |= next
-        }
-        return value
-    }
-    
-    mutating func nextBigEndian<T: FixedWidthInteger>(as: T.Type) -> T? {
-        let size = MemoryLayout<T>.size
-        var value: T = 0
-        for i in 0..<size {
-            guard let nextVal = self.next() else { return nil }
-            let next = T(nextVal) << ((size-i-1)*8)
-            value |= next
-        }
-        return value
-    }
-    
-    mutating func nextString<Encoding>(ofMaximumLength length: Int, as encoding: Encoding.Type = UTF8.self) -> String? where Encoding : _UnicodeEncoding, UInt8 == Encoding.CodeUnit {
-        guard length > 0 else { return "" }
-        var chars: [UInt8] = []
-        chars.reserveCapacity(length)
-        
-        var reachedEnd = false
-        for _ in 0..<length {
-            guard let nextVal = self.next() else { return nil }
-            
-            if nextVal == 0 {
-                reachedEnd = true
-            }
-            
-            if !reachedEnd {
-                chars.append(nextVal)
-            }
-        }
-        return String(decoding: chars, as: encoding)
-    }
-    
-    mutating func nextUUID() -> UUID? {
-        var uuidArray: [UInt8] = []
-        uuidArray.reserveCapacity(16)
-        for _ in 0..<16 {
-            guard let b: UInt8 = self.next() else { return nil }
-            uuidArray.append(b)
-        }
-        return uuidArray.withUnsafeBytes { buf in
-            let uuidStruct = buf.load(as: uuid_t.self)
-            return UUID(uuid: uuidStruct)
-        }
-    }
-}
-
 extension Data {
+    func readSection(at offset: Self.Index, length: Int) throws -> Data {
+        guard length >= 0, offset >= 0, offset + length <= count else {
+            throw POSIXError(.EIO)
+        }
+        return self.subdata(in: offset..<(offset + length))
+    }
+
+    func readSection(at offset: inout Self.Index, length: Int) throws -> Data {
+        let section = try readSection(at: offset, length: length)
+        offset += length
+        return section
+    }
+
     func readSmallSection<T>(at offset: Self.Index) throws -> T {
         let size = MemoryLayout<T>.size
         guard offset + size <= count else { throw POSIXError(.EIO) }
@@ -92,17 +26,47 @@ extension Data {
         }
     }
     
+    func readSmallSection<T>(at offset: inout Self.Index) throws -> T {
+        let value: T = try readSmallSection(at: offset)
+        offset += MemoryLayout<T>.size
+        return value
+    }
+    
     func readLittleEndian<T: FixedWidthInteger>(at offset: Self.Index) throws -> T {
         let number: T = try self.readSmallSection(at: offset)
         return T(littleEndian: number)
+    }
+
+    func readLittleEndian<T: FixedWidthInteger>(at offset: inout Self.Index) throws -> T {
+        let number: T = try readLittleEndian(at: offset)
+        offset += MemoryLayout<T>.size
+        return number
+    }
+
+    func readBigEndian<T: FixedWidthInteger>(at offset: Self.Index) throws -> T {
+        let number: T = try self.readSmallSection(at: offset)
+        return T(bigEndian: number)
+    }
+
+    func readBigEndian<T: FixedWidthInteger>(at offset: inout Self.Index) throws -> T {
+        let number: T = try readBigEndian(at: offset)
+        offset += MemoryLayout<T>.size
+        return number
     }
     
     func readUUID(at offset: Self.Index) throws -> UUID {
         let uuid: uuid_t = try self.readSmallSection(at: offset)
         return UUID(uuid: uuid)
     }
+
+    func readUUID(at offset: inout Self.Index) throws -> UUID {
+        let uuid = try readUUID(at: offset)
+        offset += MemoryLayout<uuid_t>.size
+        return uuid
+    }
     
     func readString(at offset: Self.Index, maxLength: Int) -> String {
+        guard maxLength >= 0, offset >= 0, offset + maxLength <= count else { return "" }
         return self.withUnsafeBytes { ptr in
             guard let stringStart = ptr.baseAddress?.assumingMemoryBound(to: CChar.self).advanced(by: Int(offset)) else {
                 return ""
@@ -120,6 +84,15 @@ extension Data {
             
             return String(cString: cString, encoding: .utf8) ?? ""
         }
+    }
+
+    func readString(at offset: inout Self.Index, maxLength: Int) throws -> String {
+        guard maxLength >= 0, offset >= 0, offset + maxLength <= count else {
+            throw POSIXError(.EIO)
+        }
+        let result = readString(at: offset, maxLength: maxLength)
+        offset += maxLength
+        return result
     }
     
     mutating func appendLittleEndian<T: FixedWidthInteger>(_ number: T) {

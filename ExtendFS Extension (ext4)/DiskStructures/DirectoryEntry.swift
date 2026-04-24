@@ -22,19 +22,19 @@ struct DirectoryEntry {
     }
     
     init?(from data: Data) {
-        var iterator = data.makeIterator()
+        var offset = 0
         
-        guard let inodePointee: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let inodePointee: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.inodePointee = inodePointee
-        guard let directoryEntryLength: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let directoryEntryLength: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.directoryEntryLength = directoryEntryLength
-        guard let nameLength: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let nameLength: UInt8 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.nameLength = nameLength
         // FIXME: may be part of the name length
-        guard let fileTypeRaw: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let fileTypeRaw: UInt8 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.fileType = Filetype(rawValue: fileTypeRaw)
         
-        guard let name = iterator.nextString(ofMaximumLength: Int(nameLength)) else { return nil }
+        guard let name = try? data.readString(at: &offset, maxLength: Int(nameLength)) else { return nil }
         self.name = name
     }
     

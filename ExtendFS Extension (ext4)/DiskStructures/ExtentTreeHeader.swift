@@ -6,16 +6,16 @@ import Foundation
 struct ExtentTreeHeader {
     
     init?(from data: Data) {
-        var iterator = data.makeIterator()
+        var offset = 0
         
-        guard let magic: UInt16 = iterator.nextLittleEndian(), magic == 0xF30A else { return nil }
-        guard let numEntries: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let magic: UInt16 = try? data.readLittleEndian(at: &offset), magic == 0xF30A else { return nil }
+        guard let numEntries: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.numberOfEntries = numEntries
-        guard let maxEntries: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let maxEntries: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.maximumEntries = maxEntries
-        guard let depth: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let depth: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.depth = depth
-        guard let gen: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let gen: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.generation = gen
     }
     

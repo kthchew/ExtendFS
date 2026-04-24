@@ -5,21 +5,21 @@ import Foundation
 
 struct ExtendedAttrEntry {
     init?(from data: Data) {
-        var iterator = data.makeIterator()
+        var offset = 0
         
-        guard let nameLen: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let nameLen: UInt8 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.nameLength = nameLen
-        guard let namePrefixRaw: UInt8 = iterator.nextLittleEndian() else { return nil }
+        guard let namePrefixRaw: UInt8 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.namePrefix = NamePrefix(rawValue: namePrefixRaw) ?? .none
-        guard let valueOffset: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let valueOffset: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.valueOffset = valueOffset
-        guard let valueInodeNumber: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let valueInodeNumber: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.valueInodeNumber = valueInodeNumber
-        guard let valueLength: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let valueLength: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.valueLength = valueLength
-        guard let hash: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let hash: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.hash = hash
-        guard let storedName = iterator.nextString(ofMaximumLength: Int(nameLen)) else { return nil }
+        guard let storedName = try? data.readString(at: &offset, maxLength: Int(nameLen)) else { return nil }
         self.storedName = storedName
     }
     

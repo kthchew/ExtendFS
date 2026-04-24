@@ -18,33 +18,36 @@ struct IndexNode {
         var author: UInt32 = 0
         
         init?(from data: Data, creator: Superblock.FilesystemCreator) {
-            var iterator = data.makeIterator()
+            var offset = 0
+            func nextLE<T: FixedWidthInteger>() -> T? {
+                try? data.readLittleEndian(at: &offset)
+            }
             
             switch creator {
             case .linux:
-                guard let blockCountUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                guard let blockCountUpper: UInt16 = nextLE() else { return nil }
                 self.blockCountUpper = blockCountUpper
-                guard let extAttrBlockUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                guard let extAttrBlockUpper: UInt16 = nextLE() else { return nil }
                 self.extAttrBlockUpper = extAttrBlockUpper
-                guard let uidUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                guard let uidUpper: UInt16 = nextLE() else { return nil }
                 self.uidUpper = uidUpper
-                guard let gidUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                guard let gidUpper: UInt16 = nextLE() else { return nil }
                 self.gidUpper = gidUpper
-                guard let checksumLower: UInt16 = iterator.nextLittleEndian() else { return nil }
+                guard let checksumLower: UInt16 = nextLE() else { return nil }
                 self.checksumLower = checksumLower
             case .hurd:
-                guard let _: UInt16 = iterator.nextLittleEndian() else { return nil }
-                guard let modeUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                guard let _: UInt16 = nextLE() else { return nil }
+                guard let modeUpper: UInt16 = nextLE() else { return nil }
                 self.modeUpper = modeUpper
-                guard let uidUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                guard let uidUpper: UInt16 = nextLE() else { return nil }
                 self.uidUpper = uidUpper
-                guard let gidUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                guard let gidUpper: UInt16 = nextLE() else { return nil }
                 self.gidUpper = gidUpper
-                guard let author: UInt32 = iterator.nextLittleEndian() else { return nil }
+                guard let author: UInt32 = nextLE() else { return nil }
                 self.author = author
             case .masix:
-                guard let _: UInt16 = iterator.nextLittleEndian() else { return nil }
-                guard let extAttrBlockUpper: UInt16 = iterator.nextLittleEndian() else { return nil }
+                guard let _: UInt16 = nextLE() else { return nil }
+                guard let extAttrBlockUpper: UInt16 = nextLE() else { return nil }
                 self.extAttrBlockUpper = extAttrBlockUpper
             case .freeBSD:
                 return nil
@@ -59,33 +62,36 @@ struct IndexNode {
     init?(from data: Data, creator: Superblock.FilesystemCreator, inodeNumber: UInt32, fsMetadataSeed: UInt32?) {
         self.inodeNumber = inodeNumber
         
-        var iterator = data.makeIterator()
-        
-        guard let modeRaw: UInt16 = iterator.nextLittleEndian() else { return nil }
-        guard let uidLower: UInt16 = iterator.nextLittleEndian() else { return nil }
-        guard let sizeLower: UInt32 = iterator.nextLittleEndian() else { return nil }
-        guard let accessLower: UInt32 = iterator.nextLittleEndian() else { return nil }
-        guard let changeLower: UInt32 = iterator.nextLittleEndian() else { return nil }
-        guard let modifyLower: UInt32 = iterator.nextLittleEndian() else { return nil }
-        guard let deletion: UInt32 = iterator.nextLittleEndian() else { return nil }
-        // unlike the other times, deletion time is not widened to 64 bits
-        self.deletionTime = timespec(tv_sec: __darwin_time_t(deletion), tv_nsec: 0)
-        guard let gidLower: UInt16 = iterator.nextLittleEndian() else { return nil }
-        guard let hardLinks: UInt16 = iterator.nextLittleEndian() else { return nil }
-        self.hardLinkCount = hardLinks
-        guard let blockCountLower: UInt32 = iterator.nextLittleEndian() else { return nil }
-        guard let flags: UInt32 = iterator.nextLittleEndian() else { return nil }
-        self.flags = Flags(rawValue: flags)
-        guard let osd: UInt32 = iterator.nextLittleEndian() else { return nil }
-        self.osd = osd
-        
-        self.block = Data(capacity: 60)
-        for _ in 0..<60 {
-            guard let next = iterator.next() else { return nil }
-            self.block.append(next)
+        var offset = 0
+        func nextLE<T: FixedWidthInteger>() -> T? {
+            try? data.readLittleEndian(at: &offset)
+        }
+        func nextSection(length: Int) -> Data? {
+            try? data.readSection(at: &offset, length: length)
         }
         
-        guard let generation: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let modeRaw: UInt16 = nextLE() else { return nil }
+        guard let uidLower: UInt16 = nextLE() else { return nil }
+        guard let sizeLower: UInt32 = nextLE() else { return nil }
+        guard let accessLower: UInt32 = nextLE() else { return nil }
+        guard let changeLower: UInt32 = nextLE() else { return nil }
+        guard let modifyLower: UInt32 = nextLE() else { return nil }
+        guard let deletion: UInt32 = nextLE() else { return nil }
+        // unlike the other times, deletion time is not widened to 64 bits
+        self.deletionTime = timespec(tv_sec: __darwin_time_t(deletion), tv_nsec: 0)
+        guard let gidLower: UInt16 = nextLE() else { return nil }
+        guard let hardLinks: UInt16 = nextLE() else { return nil }
+        self.hardLinkCount = hardLinks
+        guard let blockCountLower: UInt32 = nextLE() else { return nil }
+        guard let flags: UInt32 = nextLE() else { return nil }
+        self.flags = Flags(rawValue: flags)
+        guard let osd: UInt32 = nextLE() else { return nil }
+        self.osd = osd
+        
+        guard let block = nextSection(length: 60) else { return nil }
+        self.block = block
+        
+        guard let generation: UInt32 = nextLE() else { return nil }
         self.generation = generation
         if let fsMetadataSeed {
             var seedCsumData = Data()
@@ -95,17 +101,13 @@ struct IndexNode {
         } else {
             self.metadataChecksumSeed = nil
         }
-        guard let xattrLower: UInt32 = iterator.nextLittleEndian() else { return nil }
-        guard let sizeUpper: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let xattrLower: UInt32 = nextLE() else { return nil }
+        guard let sizeUpper: UInt32 = nextLE() else { return nil }
         self.size = UInt64.combine(upper: sizeUpper, lower: sizeLower)
-        guard let fragmentAddress: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let fragmentAddress: UInt32 = nextLE() else { return nil }
         self.fragmentAddress = fragmentAddress
         
-        var osd2Data = Data(capacity: 12)
-        for _ in 0..<12 {
-            guard let next = iterator.next() else { return nil }
-            osd2Data.append(next)
-        }
+        guard let osd2Data = nextSection(length: 12) else { return nil }
         if let osd2 = Osd2(from: osd2Data, creator: creator) {
             self.osd2 = osd2
         }
@@ -115,27 +117,27 @@ struct IndexNode {
         self.xattrBlock = UInt64.combine(upper: osd2?.extAttrBlockUpper ?? 0, lower: xattrLower)
         self.mode = Mode(rawValue: UInt32.combine(upper: osd2?.modeUpper ?? 0, lower: modeRaw))
         
-        self.extraINodeSize = iterator.nextLittleEndian() ?? 0
+        self.extraINodeSize = nextLE() ?? 0
         if extraINodeSize >= 4 {
-            upperChecksum = iterator.nextLittleEndian()
+            upperChecksum = nextLE()
         }
         
         // in these cases, upper half only uses the lowest 2 bits, then uses the other 30 bits for nanosecond accuracy
-        let changeUpper: UInt32? = extraINodeSize >= 8 ? iterator.nextLittleEndian() : nil
+        let changeUpper: UInt32? = extraINodeSize >= 8 ? nextLE() : nil
         self.lastInodeChangeTime = timespec(tv_sec: __darwin_time_t(UInt64.combine(upper: (changeUpper ?? 0) & 0b11, lower: changeLower)), tv_nsec: Int(changeUpper ?? 0) >> 2)
-        let modifyUpper: UInt32? = extraINodeSize >= 12 ? iterator.nextLittleEndian() : nil
+        let modifyUpper: UInt32? = extraINodeSize >= 12 ? nextLE() : nil
         self.lastDataModifyTime = timespec(tv_sec: __darwin_time_t(UInt64.combine(upper: (modifyUpper ?? 0) & 0b11, lower: modifyLower)), tv_nsec: Int(modifyUpper ?? 0) >> 2)
-        let accessUpper: UInt32? = extraINodeSize >= 16 ? iterator.nextLittleEndian() : nil
+        let accessUpper: UInt32? = extraINodeSize >= 16 ? nextLE() : nil
         self.lastAccessTime = timespec(tv_sec: __darwin_time_t(UInt64.combine(upper: (accessUpper ?? 0) & 0b11, lower: accessLower)), tv_nsec: Int(accessUpper ?? 0) >> 2)
-        let creationLower: UInt32? = extraINodeSize >= 20 ? iterator.nextLittleEndian() : nil
-        let creationUpper: UInt32? = extraINodeSize >= 24 ? iterator.nextLittleEndian() : nil
+        let creationLower: UInt32? = extraINodeSize >= 20 ? nextLE() : nil
+        let creationUpper: UInt32? = extraINodeSize >= 24 ? nextLE() : nil
         if let creationLower {
             self.fileCreationTime = timespec(tv_sec: __darwin_time_t(UInt64.combine(upper: (creationUpper ?? 0) & 0b11, lower: creationLower)), tv_nsec: Int(creationUpper ?? 0) >> 2)
         }
-        let versionUpper: UInt32? = extraINodeSize >= 32 ? iterator.nextLittleEndian() : nil
+        let versionUpper: UInt32? = extraINodeSize >= 32 ? nextLE() : nil
         // FIXME: completely wrong
         self.version = UInt64(versionUpper ?? 0)
-        self.projectID = extraINodeSize >= 32 ? iterator.nextLittleEndian() : nil
+        self.projectID = extraINodeSize >= 32 ? nextLE() : nil
         
         var possibleExtAttr = data.advanced(by: 128 + Int(extraINodeSize))
         guard possibleExtAttr.count >= 4 else { return }
@@ -293,7 +295,7 @@ struct IndexNode {
     }
     
     /// Get attributes for the file based on this index node.
-    /// 
+    ///
     /// The following attributes can't be found based purely on the index node: `fileID` and `parentID`.
     /// - Parameter request: The attributes requested.
     /// - Parameter superblock: The superblock of the filesystem.

@@ -16,53 +16,53 @@ struct BlockGroupDescriptor {
     }
     
     init?(from data: Data) {
-        var iterator = data.makeIterator()
+        var offset = 0
         
-        guard let lowerBlockBitmapLocation: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let lowerBlockBitmapLocation: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.lowerBlockBitmapLocation = lowerBlockBitmapLocation
-        guard let lowerInodeBitmapLocation: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let lowerInodeBitmapLocation: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.lowerInodeBitmapLocation = lowerInodeBitmapLocation
-        guard let lowerInodeTableLocation: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let lowerInodeTableLocation: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.lowerInodeTableLocation = lowerInodeTableLocation
-        guard let lowerFreeBlockCountLocation: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let lowerFreeBlockCountLocation: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.lowerFreeBlockCountLocation = lowerFreeBlockCountLocation
-        guard let lowerFreeInodeCountLocation: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let lowerFreeInodeCountLocation: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.lowerFreeInodeCountLocation = lowerFreeInodeCountLocation
-        guard let lowerUsedDirectoryCountLocation: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let lowerUsedDirectoryCountLocation: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.lowerUsedDirectoryCountLocation = lowerUsedDirectoryCountLocation
-        guard let flags: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let flags: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.flags = Flags(rawValue: flags)
-        guard let lowerSnapshotExclusionBitmapLocation: UInt32 = iterator.nextLittleEndian() else { return nil }
+        guard let lowerSnapshotExclusionBitmapLocation: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.lowerSnapshotExclusionBitmapLocation = lowerSnapshotExclusionBitmapLocation
-        guard let lowerBlockBitmapChecksum: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let lowerBlockBitmapChecksum: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.lowerBlockBitmapChecksum = lowerBlockBitmapChecksum
-        guard let lowerInodeBitmapChecksum: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let lowerInodeBitmapChecksum: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.lowerInodeBitmapChecksum = lowerInodeBitmapChecksum
-        guard let lowerUnusedInodeCount: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let lowerUnusedInodeCount: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.lowerUnusedInodeCount = lowerUnusedInodeCount
-        guard let checksum: UInt16 = iterator.nextLittleEndian() else { return nil }
+        guard let checksum: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.checksum = checksum
         
         // MARK: - 64-bit only
-        guard let upperBlockBitmapLocation: UInt32 = iterator.nextLittleEndian() else { return }
+        guard let upperBlockBitmapLocation: UInt32 = try? data.readLittleEndian(at: &offset) else { return }
         self.upperBlockBitmapLocation = upperBlockBitmapLocation
-        guard let upperInodeBitmapLocation: UInt32 = iterator.nextLittleEndian() else { return }
+        guard let upperInodeBitmapLocation: UInt32 = try? data.readLittleEndian(at: &offset) else { return }
         self.upperInodeBitmapLocation = upperInodeBitmapLocation
-        guard let upperInodeTableLocation: UInt32 = iterator.nextLittleEndian() else { return }
+        guard let upperInodeTableLocation: UInt32 = try? data.readLittleEndian(at: &offset) else { return }
         self.upperInodeTableLocation = upperInodeTableLocation
-        guard let upperFreeBlockCountLocation: UInt16 = iterator.nextLittleEndian() else { return }
+        guard let upperFreeBlockCountLocation: UInt16 = try? data.readLittleEndian(at: &offset) else { return }
         self.upperFreeBlockCountLocation = upperFreeBlockCountLocation
-        guard let upperFreeInodeCountLocation: UInt16 = iterator.nextLittleEndian() else { return }
+        guard let upperFreeInodeCountLocation: UInt16 = try? data.readLittleEndian(at: &offset) else { return }
         self.upperFreeInodeCountLocation = upperFreeInodeCountLocation
-        guard let upperUsedDirectoryCountLocation: UInt16 = iterator.nextLittleEndian() else { return }
+        guard let upperUsedDirectoryCountLocation: UInt16 = try? data.readLittleEndian(at: &offset) else { return }
         self.upperUsedDirectoryCountLocation = upperUsedDirectoryCountLocation
-        guard let upperUnusedInodeCount: UInt16 = iterator.nextLittleEndian() else { return }
+        guard let upperUnusedInodeCount: UInt16 = try? data.readLittleEndian(at: &offset) else { return }
         self.upperUnusedInodeCount = upperUnusedInodeCount
-        guard let upperSnapshotExclusionBitmapLocation: UInt32 = iterator.nextLittleEndian() else { return }
+        guard let upperSnapshotExclusionBitmapLocation: UInt32 = try? data.readLittleEndian(at: &offset) else { return }
         self.upperSnapshotExclusionBitmapLocation = upperSnapshotExclusionBitmapLocation
-        guard let upperBlockBitmapChecksum: UInt16 = iterator.nextLittleEndian() else { return }
+        guard let upperBlockBitmapChecksum: UInt16 = try? data.readLittleEndian(at: &offset) else { return }
         self.upperBlockBitmapChecksum = upperBlockBitmapChecksum
-        guard let upperInodeBitmapChecksum: UInt16 = iterator.nextLittleEndian() else { return }
+        guard let upperInodeBitmapChecksum: UInt16 = try? data.readLittleEndian(at: &offset) else { return }
         self.upperInodeBitmapChecksum = upperInodeBitmapChecksum
     }
     
