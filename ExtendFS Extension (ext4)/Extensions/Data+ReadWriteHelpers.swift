@@ -84,7 +84,7 @@ extension Data.Iterator {
 }
 
 extension Data {
-    func readSmallSection<T>(at offset: off_t) -> T {
+    func readSmallSection<T>(at offset: Self.Index) -> T {
         let size = MemoryLayout<T>.size
         let alignment = MemoryLayout<T>.alignment
         return self.withUnsafeBytes { ptr in
@@ -95,17 +95,17 @@ extension Data {
         }
     }
     
-    func readLittleEndian<T: FixedWidthInteger>(at offset: off_t) -> T {
+    func readLittleEndian<T: FixedWidthInteger>(at offset: Self.Index) -> T {
         let number: T = self.readSmallSection(at: offset)
         return number.littleEndian
     }
     
-    func readUUID(at offset: off_t) -> UUID {
+    func readUUID(at offset: Self.Index) -> UUID {
         let uuid: uuid_t = self.readSmallSection(at: offset)
         return UUID(uuid: uuid)
     }
     
-    func readString(at offset: off_t, maxLength: Int) -> String {
+    func readString(at offset: Self.Index, maxLength: Int) -> String {
         return self.withUnsafeBytes { ptr in
             guard let stringStart = ptr.baseAddress?.assumingMemoryBound(to: CChar.self).advanced(by: Int(offset)) else {
                 return ""
