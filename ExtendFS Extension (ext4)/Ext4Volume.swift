@@ -9,15 +9,39 @@ import FSKit
 actor VolumeCache {
     static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Volume")
     
+    init() {
+        self.unclaimedItems.countLimit = 30000
+    }
+    
     /// The key is the inode number.
     var items = [UInt32: Ext4Item]()
+    
+    /// A cache of items that have not yet been sent to the system, but are kept in case they are needed "soon."
+    let unclaimedItems = NSCache<NSNumber, Ext4Item>()
+    
+    func setUnclaimedItem(_ item: Ext4Item, forInodeNumber inodeNumber: UInt32) {
+        unclaimedItems.setObject(item, forKey: NSNumber(value: inodeNumber))
+    }
     func setItem(_ item: Ext4Item?, forInodeNumber inodeNumber: UInt32) {
+        unclaimedItems.removeObject(forKey: NSNumber(value: inodeNumber))
         items[inodeNumber] = item
     }
-    func fetchItem(forInodeNumber inodeNumber: UInt32) -> Ext4Item? {
-        return items[inodeNumber]
+    func fetchItem(forInodeNumber inodeNumber: UInt32, toSendToSystem: Bool) -> Ext4Item? {
+        if let item = items[inodeNumber] {
+            return item
+        }
+        
+        if let item = unclaimedItems.object(forKey: NSNumber(value: inodeNumber)) {
+            if toSendToSystem {
+                setItem(item, forInodeNumber: inodeNumber)
+            }
+            return item
+        }
+        
+        return nil
     }
     func reclaimItem(forInodeNumber inodeNumber: UInt32) {
+        unclaimedItems.removeObject(forKey: NSNumber(value: inodeNumber))
         setItem(nil, forInodeNumber: inodeNumber)
     }
     
@@ -211,7 +235,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     }
     
     func item(forInode inodeNumber: UInt32) async throws -> Ext4Item {
-        if let item = await cache.fetchItem(forInodeNumber: inodeNumber) {
+        if let item = await cache.fetchItem(forInodeNumber: inodeNumber, toSendToSystem: true) {
             return item
         }
         
@@ -417,16 +441,16 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
             } else if let attributes {
                 let blockNumber = try self.blockNumber(forBlockContainingInode: content.inodePointee)
                 let item: Ext4Item
-                if let cachedItem = await cache.fetchItem(forInodeNumber: content.inodePointee) {
+                if let cachedItem = await cache.fetchItem(forInodeNumber: content.inodePointee, toSendToSystem: false) {
                     item = cachedItem
                 } else if let items = itemsInBlock[blockNumber.0] {
                     item = items[Int(blockNumber.1)]
-                    await cache.setItem(item, forInodeNumber: content.inodePointee)
+                    await cache.setUnclaimedItem(item, forInodeNumber: content.inodePointee)
                 } else {
                     let items = try await loadItems(from: UInt64(blockNumber.0), inodeNumberIn: nil)
                     itemsInBlock[blockNumber.0] = items
                     item = items[Int(blockNumber.1)]
-                    await cache.setItem(item, forInodeNumber: content.inodePointee)
+                    await cache.setUnclaimedItem(item, forInodeNumber: content.inodePointee)
                 }
                 fileAttributes = try await item.getAttributes(attributes)
                 
