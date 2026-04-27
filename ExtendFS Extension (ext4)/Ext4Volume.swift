@@ -626,7 +626,7 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
         let blockSize = superblock.blockSize
         
         let blockOffset = Int(offset) / blockSize
-        let blockLength = (Int(offset) + length) / blockSize - blockOffset + 1
+        let blockLength = Int((Double(Int(offset) + length) / Double(blockSize)).rounded(.up)) - blockOffset
         let extents = try await file.findExtentsCovering(UInt64(blockOffset), with: blockLength)
         
         let end = Int(offset) + length
@@ -634,6 +634,7 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
         for extent in extents {
             let extentStartInBytes = extent.logicalBlock * Int64(blockSize)
             let extentLengthInBytes = Int(extent.lengthInBlocks ?? 1) * Int(blockSize)
+            let extentEndInBytes = extentStartInBytes + Int64(extentLengthInBytes)
             if current < extentStartInBytes {
                 if flags.contains(.write) {
                     throw POSIXError(.EROFS)
@@ -646,7 +647,16 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
                 }
             }
             
-            guard packer.packExtent(resource: resource, type: extent.type!, logicalOffset: extentStartInBytes, physicalOffset: extent.physicalBlock * Int64(blockSize), length: extentLengthInBytes) else {
+            // There's a bug(?) where sending an extent of length with a very long length can cause I/O to silently fail for a latter portion of the mapping.
+            // The point at which this happens does not seem to be easy to predict, so only give what was asked for (even if the extent is larger) to avoid this.
+            let cutOffFromStart = max(offset - off_t(extentStartInBytes), 0)
+            let cutOffFromEnd = max(off_t(extentEndInBytes) - (offset + off_t(length)), 0)
+            let lengthToSend = extentLengthInBytes - Int(cutOffFromStart) - Int(cutOffFromEnd)
+            guard lengthToSend > 0 else {
+                logger.error("Extent from range had 0 length after cutoffs?")
+                continue
+            }
+            guard packer.packExtent(resource: resource, type: extent.type!, logicalOffset: extentStartInBytes + cutOffFromStart, physicalOffset: extent.physicalBlock * Int64(blockSize) + cutOffFromStart, length: lengthToSend) else {
                 return
             }
             
