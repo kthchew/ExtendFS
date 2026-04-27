@@ -614,21 +614,7 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
 }
 
 extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
-    func blockmapFile(_ file: FSItem, offset: off_t, length: Int, flags: FSBlockmapFlags, operationID: FSOperationID, packer: FSExtentPacker) async throws {
-        logger.debug("blockmapFile")
-        guard let file = file as? Ext4Item else {
-            throw POSIXError(.EIO)
-        }
-        if flags.contains(.write) && readOnly {
-            throw POSIXError(.EROFS)
-        }
-        
-        let blockSize = superblock.blockSize
-        
-        let blockOffset = Int(offset) / blockSize
-        let blockLength = Int((Double(Int(offset) + length) / Double(blockSize)).rounded(.up)) - blockOffset
-        let extents = try await file.findExtentsCovering(UInt64(blockOffset), with: blockLength)
-        
+    func sendExtents(_ extents: any Collection<FileExtentNode>, using packer: FSExtentPacker, offset: off_t, length: Int) {
         let end = Int(offset) + length
         var current = offset
         for extent in extents {
@@ -636,15 +622,11 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
             let extentLengthInBytes = Int(extent.lengthInBlocks ?? 1) * Int(blockSize)
             let extentEndInBytes = extentStartInBytes + Int64(extentLengthInBytes)
             if current < extentStartInBytes {
-                if flags.contains(.write) {
-                    throw POSIXError(.EROFS)
-                } else {
-                    let zeros = Int(extentStartInBytes - current)
-                    guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: zeros) else {
-                        return
-                    }
-                    current += Int64(zeros)
+                let zeros = Int(extentStartInBytes - current)
+                guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: zeros) else {
+                    return
                 }
+                current += Int64(zeros)
             }
             
             // There's a bug(?) where sending an extent of length with a very long length can cause I/O to silently fail for a latter portion of the mapping.
@@ -663,14 +645,27 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
             current += Int64(extentLengthInBytes)
         }
         if current < end {
-            if flags.contains(.write) {
-                throw POSIXError(.EROFS)
-            } else {
-                guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: end - Int(current)) else {
-                    return
-                }
+            guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: end - Int(current)) else {
+                return
             }
         }
+    }
+    
+    func blockmapFile(_ file: FSItem, offset: off_t, length: Int, flags: FSBlockmapFlags, operationID: FSOperationID, packer: FSExtentPacker) async throws {
+        guard let file = file as? Ext4Item else {
+            throw POSIXError(.EIO)
+        }
+        if flags.contains(.write) && readOnly {
+            throw POSIXError(.EROFS)
+        }
+        
+        let blockSize = superblock.blockSize
+        
+        let blockOffset = Int(offset) / blockSize
+        let blockLength = Int((Double(Int(offset) + length) / Double(blockSize)).rounded(.up)) - blockOffset
+        let extents = try await file.findExtentsCovering(UInt64(blockOffset), with: blockLength)
+        
+        sendExtents(extents, using: packer, offset: offset, length: length)
     }
     
     func completeIO(for file: FSItem, offset: off_t, length: Int, status: any Error, flags: FSCompleteIOFlags, operationID: FSOperationID) async throws {
@@ -691,17 +686,11 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
             throw POSIXError(.EIO)
         }
         do {
-            let extents = try await item.findExtentsCovering(0, with: Int(item.indexNode.size) / superblock.blockSize, performAdditionalIO: false)
-            for extent in extents {
-                guard let type = extent.type, let lengthInBlocks = extent.lengthInBlocks else {
-                    logger.fault("Got extent while looking up item, but it had no type and/or length")
-                    continue
-                }
-                
-                guard packer.packExtent(resource: resource, type: type, logicalOffset: extent.logicalBlock, physicalOffset: extent.physicalBlock, length: Int(lengthInBlocks)) else {
-                    break
-                }
-            }
+            let req = FSItem.GetAttributesRequest()
+            req.wantedAttributes.insert(.allocSize)
+            let allocSize = try await item.getAttributes(req).allocSize
+            let extents = try await item.findExtentsCovering(0, with: Int(clamping: allocSize), performAdditionalIO: false)
+            sendExtents(extents, using: packer, offset: 0, length: Int(clamping: allocSize))
         } catch {
             logger.error("Failed to prefetch extents while looking up item: \(error)")
         }
