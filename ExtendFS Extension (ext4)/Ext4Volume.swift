@@ -128,7 +128,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
                 logger.error("Superblock checksum seed could not be read but seed in superblock is enabled")
                 throw POSIXError(.EIO)
             }
-            self.metadataChecksumSeed = seed
+            self.metadataChecksumSeed = ~seed
         } else if superblock.readOnlyCompatibleFeatures.contains(.supportsMetadataChecksumming) {
             guard let uuid = superblock.uuid else {
                 logger.error("Mounted volume does not have a valid UUID but checksums are enabled")
