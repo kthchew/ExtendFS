@@ -617,10 +617,14 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
     func sendExtents(_ extents: any Collection<FileExtentNode>, using packer: FSExtentPacker, offset: off_t, length: Int) {
         let end = Int(offset) + length
         var current = offset
+        var sentSomething = false
         for extent in extents {
             let extentStartInBytes = extent.logicalBlock * Int64(blockSize)
             let extentLengthInBytes = Int(extent.lengthInBlocks ?? 1) * Int(blockSize)
             let extentEndInBytes = extentStartInBytes + Int64(extentLengthInBytes)
+            defer {
+                current += Int64(extentLengthInBytes)
+            }
             if current < extentStartInBytes {
                 let zeros = Int(extentStartInBytes - current)
                 guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: zeros) else {
@@ -635,14 +639,15 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
             let cutOffFromEnd = max(off_t(extentEndInBytes) - (offset + off_t(length)), 0)
             let lengthToSend = extentLengthInBytes - Int(cutOffFromStart) - Int(cutOffFromEnd)
             guard lengthToSend > 0 else {
-                logger.error("Extent from range had 0 length after cutoffs?")
                 continue
             }
             guard packer.packExtent(resource: resource, type: extent.type!, logicalOffset: extentStartInBytes + cutOffFromStart, physicalOffset: extent.physicalBlock * Int64(blockSize) + cutOffFromStart, length: lengthToSend) else {
                 return
             }
-            
-            current += Int64(extentLengthInBytes)
+            sentSomething = true
+        }
+        if !sentSomething {
+            logger.error("Called sendExtents, but no valid extents within range to send?")
         }
         if current < end {
             guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: end - Int(current)) else {

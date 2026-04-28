@@ -40,7 +40,7 @@ struct IndirectBlockMap {
     ///   - blockDevice: The block device containing the volume.
     ///   - blockSize: The size of a logical block used by the file system.
     /// - Returns: The physical block number. 0 means that a block is not allocated.
-    mutating func getPhysicalBlockLocations(for logicalBlock: UInt64, blockDevice: FSBlockDeviceResource, blockSize: Int) throws -> UInt64 {
+    mutating func getIndirectBlockForPhysicalBlockLocation(for logicalBlock: UInt64, blockDevice: FSBlockDeviceResource, blockSize: Int) throws -> IndirectBlock {
         guard let logicalBlock = UInt32(exactly: logicalBlock) else {
             logger.error("Trying to use indirect block map to get logical block number \(logicalBlock, privacy: .public), which is too large")
             throw POSIXError(.EFBIG)
@@ -53,13 +53,13 @@ struct IndirectBlockMap {
         let level4End = level3End + UInt32(pow(Double(coveredPerLevelOfIndirection), 3)) + 1
         switch logicalBlock {
         case 0...level1End:
-            return UInt64(directMap[Int(logicalBlock)])
+            return IndirectBlock(from: directMap, startingAt: 0, depth: 0)
         case (level1End + 1)...(level2End):
             if singleIndirectBlock == nil {
                 let data = try BlockDeviceReader.fetchExtent(from: blockDevice, blockNumbers: off_t(indirectBlockLocation)..<Int64(indirectBlockLocation)+1, blockSize: blockSize)
                 self.singleIndirectBlock = IndirectBlock(from: data, startingAt: UInt32(level1End) + 1, depth: 0)
             }
-            guard let location = try singleIndirectBlock?.getPhysicalBlockLocation(for: UInt64(logicalBlock), blockDevice: blockDevice, blockSize: blockSize) else {
+            guard let location = try singleIndirectBlock?.getIndirectBlockForPhysicalBlockLocation(for: UInt64(logicalBlock), blockDevice: blockDevice, blockSize: blockSize) else {
                 logger.fault("Single indirect block was nil even after setting it")
                 throw POSIXError(.EIO)
             }
@@ -69,7 +69,7 @@ struct IndirectBlockMap {
                 let data = try BlockDeviceReader.fetchExtent(from: blockDevice, blockNumbers: off_t(doubleIndirectBlockLocation)..<Int64(doubleIndirectBlockLocation)+1, blockSize: blockSize)
                 self.doubleIndirectBlock = IndirectBlock(from: data, startingAt: UInt32(level2End) + 1, depth: 1)
             }
-            guard let location = try doubleIndirectBlock?.getPhysicalBlockLocation(for: UInt64(logicalBlock), blockDevice: blockDevice, blockSize: blockSize) else {
+            guard let location = try doubleIndirectBlock?.getIndirectBlockForPhysicalBlockLocation(for: UInt64(logicalBlock), blockDevice: blockDevice, blockSize: blockSize) else {
                 logger.fault("Double indirect block was nil even after setting it")
                 throw POSIXError(.EIO)
             }
@@ -79,7 +79,7 @@ struct IndirectBlockMap {
                 let data = try BlockDeviceReader.fetchExtent(from: blockDevice, blockNumbers: off_t(tripleIndirectBlockLocation)..<Int64(tripleIndirectBlockLocation)+1, blockSize: blockSize)
                 self.tripleIndirectBlock = IndirectBlock(from: data, startingAt: UInt32(level3End) + 1, depth: 2)
             }
-            guard let location = try tripleIndirectBlock?.getPhysicalBlockLocation(for: UInt64(logicalBlock), blockDevice: blockDevice, blockSize: blockSize) else {
+            guard let location = try tripleIndirectBlock?.getIndirectBlockForPhysicalBlockLocation(for: UInt64(logicalBlock), blockDevice: blockDevice, blockSize: blockSize) else {
                 logger.fault("Triple indirect block was nil even after setting it")
                 throw POSIXError(.EIO)
             }
@@ -117,21 +117,20 @@ struct IndirectBlock {
         }
     }
     
-    mutating func getPhysicalBlockLocation(for logicalBlock: UInt64, blockDevice: FSBlockDeviceResource, blockSize: Int) throws -> UInt64 {
+    init(from blocks: [UInt32], startingAt startingBlock: UInt32, depth: UInt) {
+        self.blockNumbers = blocks
+        self.depth = depth
+        self.startingBlock = startingBlock
+    }
+    
+    mutating func getIndirectBlockForPhysicalBlockLocation(for logicalBlock: UInt64, blockDevice: FSBlockDeviceResource, blockSize: Int) throws -> IndirectBlock {
         guard logicalBlock >= startingBlock else {
             let startingBlock = self.startingBlock
             logger.fault("Tried to get physical block location for logical block \(logicalBlock, privacy: .public), but it is smaller than the starting block \(startingBlock, privacy: .public)")
             throw POSIXError(.EIO)
         }
-        if depth <= 0 {
-            let blockOffset = Int(logicalBlock) - Int(startingBlock)
-            guard blockOffset < blockNumbers.count else {
-                let count = blockNumbers.count
-                let startingBlock = self.startingBlock
-                logger.error("Block offset \(blockOffset, privacy: .public) is out of range for block numbers (count \(count, privacy: .public)) for indirect block starting at \(startingBlock, privacy: .public)")
-                throw POSIXError(.EIO)
-            }
-            return UInt64(blockNumbers[blockOffset])
+        guard depth > 0 else {
+            return self
         }
         
         let coveredPerLevelOfIndirection = blockSize / 4
@@ -158,6 +157,26 @@ struct IndirectBlock {
             indirectBlock = IndirectBlock(from: lowerLevelData, startingAt: startingBlock + blockIndex, depth: depth - 1)
             self.indirectBlocks?[index] = indirectBlock
         }
-        return try indirectBlock.getPhysicalBlockLocation(for: logicalBlock, blockDevice: blockDevice, blockSize: blockSize)
+        return try indirectBlock.getIndirectBlockForPhysicalBlockLocation(for: logicalBlock, blockDevice: blockDevice, blockSize: blockSize)
+    }
+    
+    mutating func getPhysicalBlockLocation(for logicalBlock: UInt64, blockDevice: FSBlockDeviceResource, blockSize: Int) throws -> UInt64 {
+        guard logicalBlock >= startingBlock else {
+            let startingBlock = self.startingBlock
+            logger.fault("Tried to get physical block location for logical block \(logicalBlock, privacy: .public), but it is smaller than the starting block \(startingBlock, privacy: .public)")
+            throw POSIXError(.EIO)
+        }
+        guard depth <= 0 else {
+            logger.fault("Called getPhysicalBlockLocation on a indirect block with depth > 0, which should not happen")
+            throw POSIXError(.EIO)
+        }
+        let blockOffset = Int(logicalBlock) - Int(startingBlock)
+        guard blockOffset < blockNumbers.count else {
+            let count = blockNumbers.count
+            let startingBlock = self.startingBlock
+            logger.error("Block offset \(blockOffset, privacy: .public) is out of range for block numbers (count \(count, privacy: .public)) for indirect block starting at \(startingBlock, privacy: .public)")
+            throw POSIXError(.EIO)
+        }
+        return UInt64(blockNumbers[blockOffset])
     }
 }
