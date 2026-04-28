@@ -56,17 +56,17 @@ struct FileExtentNode: Hashable, Comparable {
         }
         data.appendLittleEndian(logicalBlock)
         
-        let logicalBlockLow = UInt64(physicalBlock).lowerHalf
-        guard let logicalBlockHigh = UInt16(exactly: UInt64(physicalBlock).upperHalf) else {
+        let physicalBlockLow = UInt64(physicalBlock).lowerHalf
+        guard let physicalBlockHigh = UInt16(exactly: UInt64(physicalBlock).upperHalf) else {
             throw POSIXError(.EIO)
         }
         if let lengthInBlocks, let type { // is leaf
             data.appendLittleEndian(type == .zeroFill ? lengthInBlocks + 32768 : lengthInBlocks)
-            data.appendLittleEndian(logicalBlockHigh)
-            data.appendLittleEndian(logicalBlockLow)
+            data.appendLittleEndian(physicalBlockHigh)
+            data.appendLittleEndian(physicalBlockLow)
         } else {
-            data.appendLittleEndian(logicalBlockLow)
-            data.appendLittleEndian(logicalBlockHigh)
+            data.appendLittleEndian(physicalBlockLow)
+            data.appendLittleEndian(physicalBlockHigh)
             data.appendLittleEndian(UInt16(0))
         }
         

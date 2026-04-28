@@ -144,7 +144,7 @@ struct FileExtentTreeLevel {
                 let range = node.physicalBlock..<node.physicalBlock+1
                 let lowerLevelData = try BlockDeviceReader.fetchExtent(from: volume.resource, blockNumbers: range, blockSize: volume.superblock.blockSize)
                 guard let lowerLevel = FileExtentTreeLevel(from: lowerLevelData, inodeChecksumSeed: inodeChecksumSeed) else {
-                    logger.error("Next level down in file extent tree was not vlaid")
+                    logger.error("Next level down in file extent tree was not valid")
                     throw POSIXError(.EIO)
                 }
                 let childResult = try lowerLevel.findExtentsCovering(fileBlock, with: blockLength, in: volume)
