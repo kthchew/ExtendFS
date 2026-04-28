@@ -77,7 +77,7 @@ struct IndirectBlockMap {
         case (level3End + 1)...(level4End):
             if tripleIndirectBlock == nil {
                 let data = try BlockDeviceReader.fetchExtent(from: blockDevice, blockNumbers: off_t(tripleIndirectBlockLocation)..<Int64(tripleIndirectBlockLocation)+1, blockSize: blockSize)
-                self.tripleIndirectBlock = IndirectBlock(from: data, startingAt: UInt32(level3End) + 1, depth: 0)
+                self.tripleIndirectBlock = IndirectBlock(from: data, startingAt: UInt32(level3End) + 1, depth: 2)
             }
             guard let location = try tripleIndirectBlock?.getPhysicalBlockLocation(for: UInt64(logicalBlock), blockDevice: blockDevice, blockSize: blockSize) else {
                 logger.fault("Triple indirect block was nil even after setting it")
