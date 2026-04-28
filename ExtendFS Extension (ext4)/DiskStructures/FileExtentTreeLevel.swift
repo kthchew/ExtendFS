@@ -120,8 +120,8 @@ struct FileExtentTreeLevel {
             element.logicalBlock > firstBlock
         }
         guard lastPotentialChildIndex >= 0 else {
-            logger.fault("Last potential child index was invalid")
-            throw POSIXError(.EIO)
+            logger.debug("Last potential child index was invalid, assuming this file is sparse within the requested range")
+            return result
         }
         
         for node in nodes[lastPotentialChildIndex..<(Int(numberOfEntries))] {

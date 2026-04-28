@@ -647,7 +647,7 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
             sentSomething = true
         }
         if !sentSomething {
-            logger.error("Called sendExtents, but no valid extents within range to send?")
+            logger.info("Called sendExtents, but no valid extents within range to send? This can be valid, but is unusual.")
         }
         if current < end {
             guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: end - Int(current)) else {
