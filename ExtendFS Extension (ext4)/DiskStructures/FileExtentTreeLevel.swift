@@ -116,15 +116,12 @@ struct FileExtentTreeLevel {
         guard nodes.count > 0 && numberOfEntries > 0 else {
             return result
         }
-        let lastPotentialChildIndex = -1 + nodes.partitioningIndex { element in
+        // note: can't simply check (first block + length) or last block here because non-leaf nodes don't store a length
+        let firstPotentialChildIndex = max(0, -1 + nodes.partitioningIndex { element in
             element.logicalBlock > firstBlock
-        }
-        guard lastPotentialChildIndex >= 0 else {
-            logger.debug("Last potential child index was invalid, assuming this file is sparse within the requested range")
-            return result
-        }
+        })
         
-        for node in nodes[lastPotentialChildIndex..<(Int(numberOfEntries))] {
+        for node in nodes[firstPotentialChildIndex..<(Int(numberOfEntries))] {
             if isLeaf {
                 guard let lengthInBlocks = node.lengthInBlocks else {
                     logger.fault("Extent node's length was nil, but it is apparently a leaf node")
