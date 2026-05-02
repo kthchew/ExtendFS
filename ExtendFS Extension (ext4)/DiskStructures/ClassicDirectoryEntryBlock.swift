@@ -7,7 +7,7 @@ import os.log
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "ClassicDirectoryEntryBlock")
 
 struct ClassicDirectoryEntryBlock {
-    var entries: [DirectoryEntry]
+    var entries: ContiguousArray<DirectoryEntry>
     var checksum: UInt32 {
         // TODO: actual checksum
         return 0

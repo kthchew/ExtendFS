@@ -13,7 +13,7 @@ public final class DirectoryCache: Sendable {
     struct CacheState {
         var map: [DirectoryCacheKey: DirectoryEntry] = [:]
         /// A set of directory inodes for which we have a complete list of entries, allowing full scans for those directories to be skipped, since we know that if an entry isn't in the cache, it doesn't exist. It also contains a number that changes if the contents of the directory change.
-        var completeDirectoryMapping: [UInt32: ([DirectoryEntry], UInt64)] = [:]
+        var completeDirectoryMapping: [UInt32: (ContiguousArray<DirectoryEntry>, UInt64)] = [:]
         
         var lruHead: DirectoryEntry?
         var lruTail: DirectoryEntry?
@@ -90,9 +90,9 @@ public final class DirectoryCache: Sendable {
         }
     }
     
-    public func insert(completeEntryList: [DirectoryEntry], forParentDirectoryInode parentInode: UInt32, caseInsensitive: Bool) -> [DirectoryEntry] {
+    public func insert(completeEntryList: ContiguousArray<DirectoryEntry>, forParentDirectoryInode parentInode: UInt32, caseInsensitive: Bool) -> ContiguousArray<DirectoryEntry> {
         state.withLock { state in
-            var insertedEntries = [DirectoryEntry]()
+            var insertedEntries = ContiguousArray<DirectoryEntry>()
             insertedEntries.reserveCapacity(completeEntryList.count)
             for requestedEntry in completeEntryList {
                 let key = DirectoryCacheKey(parentInode: parentInode, pathComponent: (caseInsensitive ? requestedEntry.name.lowercased() : requestedEntry.name).data(using: .utf8)!)
@@ -120,8 +120,8 @@ public final class DirectoryCache: Sendable {
         }
     }
     
-    public func fetchAllEntriesInDirectory(directoryInode: UInt32) -> ([DirectoryEntry], UInt64)? {
-        return state.withLock { (state) -> ([DirectoryEntry], UInt64)? in // why does this need an explicit return type...
+    public func fetchAllEntriesInDirectory(directoryInode: UInt32) -> (ContiguousArray<DirectoryEntry>, UInt64)? {
+        return state.withLock { (state) -> (ContiguousArray<DirectoryEntry>, UInt64)? in // why does this need an explicit return type...
             guard let (entries, version) = state.completeDirectoryMapping[directoryInode] else { return nil }
             for entry in entries {
                 markAsUsed(entry, state: &state)

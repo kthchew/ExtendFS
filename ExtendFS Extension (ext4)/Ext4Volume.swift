@@ -190,7 +190,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     /// - Parameter blockNumber: The block number of part of the inode table to load.
     /// - Parameter range: A range of inode numbers to fetch. If `nil`, load all items.
     /// - Returns: An array of the items.
-    func loadItems(from blockNumber: UInt64, inodeNumberIn range: ClosedRange<UInt32>?) async throws -> [Ext4Item] {
+    func loadItems(from blockNumber: UInt64, inodeNumberIn range: ClosedRange<UInt32>?) async throws -> ContiguousArray<Ext4Item> {
         guard let blockGroup = UInt32(exactly: blockNumber / UInt64(superblock.blocksPerGroup)) else {
             logger.error("Block group for \(blockNumber) is too large to fit in a 32-bit integer - should not happen")
             throw POSIXError(.EIO)
@@ -221,7 +221,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         
         logger.debug("Loading inodes \(firstToLoad, privacy: .public) through \(lastToLoad, privacy: .public) at block number \(blockNumber, privacy: .public) from disk")
         var data = try BlockDeviceReader.fetchExtent(from: resource, blockNumbers: off_t(blockNumber)..<Int64(blockNumber)+1, blockSize: superblock.blockSize)
-        var items: [Ext4Item] = []
+        var items: ContiguousArray<Ext4Item> = []
         let inodesToSkip = Int(firstToLoad - firstInodeInBlock)
         data = data.advanced(by: inodesToSkip * Int(superblock.inodeSize))
         for inode in firstToLoad...lastToLoad {
@@ -424,7 +424,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         
         let attributesAccessibleWithoutLoading: FSItem.Attribute = [.type, .fileID, .parentID]
         let startIndex = cookie == .initial ? contents.startIndex : Int(cookie.rawValue)
-        var itemsInBlock = [UInt64: [Ext4Item]]()
+        var itemsInBlock = [UInt64: ContiguousArray<Ext4Item>]()
         for i in startIndex..<contents.endIndex {
             let content = contents[i]
             if attributes != nil && (content.name == "." || content.name == "..") {

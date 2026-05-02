@@ -236,7 +236,7 @@ final class Ext4Item: FSItem {
         return nil
     }
     
-    func fetchAllDirectoryEntries(cache: DirectoryCache) async throws -> ([DirectoryEntry], FSDirectoryVerifier) {
+    func fetchAllDirectoryEntries(cache: DirectoryCache) async throws -> (ContiguousArray<DirectoryEntry>, FSDirectoryVerifier) {
         guard await filetype == .directory else { throw POSIXError(.ENOSYS) }
         let caseInsensitive = try await indexNode.flags.contains(.caseInsensitiveDirectoryContents)
         
@@ -244,7 +244,7 @@ final class Ext4Item: FSItem {
             return (entries, FSDirectoryVerifier(version))
         }
         
-        var loadedEntries: [DirectoryEntry] = []
+        var loadedEntries: ContiguousArray<DirectoryEntry> = []
         
         let extents = try await findExtentsCovering(0, with: Int.max)
         for extent in extents {
@@ -267,10 +267,10 @@ final class Ext4Item: FSItem {
             }
         }
         
-        let sortedEntries = loadedEntries.sorted { entry1, entry2 in
+        loadedEntries.sort { entry1, entry2 in
             entry1.inodePointee < entry2.inodePointee
         }
-        let realEntries = cache.insert(completeEntryList: sortedEntries, forParentDirectoryInode: inodeNumber, caseInsensitive: caseInsensitive)
+        let realEntries = cache.insert(completeEntryList: loadedEntries, forParentDirectoryInode: inodeNumber, caseInsensitive: caseInsensitive)
         
         let verifier = FSDirectoryVerifier(UInt64.random(in: 1..<UInt64.max))
         return (realEntries, verifier)
