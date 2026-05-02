@@ -7,7 +7,7 @@ import os.log
 
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Superblock")
 
-struct Superblock {
+public struct Superblock {
     init?(from data: Data) {
         var offset = 0
         func nextLE<T: FixedWidthInteger>() -> T? {

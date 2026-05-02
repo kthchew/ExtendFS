@@ -314,7 +314,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         }
         logger.debug("attributes for \(item.inodeNumber, privacy: .public)")
         
-        let attrs = try await item.getAttributes(desiredAttributes)
+        let attrs = item.getAttributes(desiredAttributes)
         if desiredAttributes.isAttributeWanted(.parentID) {
             attrs.parentID = .invalid
         }
@@ -420,7 +420,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
             throw POSIXError(.ENOSYS)
         }
         
-        let (contents, currentVerifier) = try await directory.fetchAllDirectoryEntries(cache: directoryCache)
+        let (contents, currentVerifier) = try directory.fetchAllDirectoryEntries(cache: directoryCache)
         
         let attributesAccessibleWithoutLoading: FSItem.Attribute = [.type, .fileID, .parentID]
         let startIndex = cookie == .initial ? contents.startIndex : Int(cookie.rawValue)
@@ -450,7 +450,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
                     item = items[Int(blockNumber.1)]
                     await cache.setUnclaimedItem(item, forInodeNumber: content.inodePointee)
                 }
-                fileAttributes = try await item.getAttributes(attributes)
+                fileAttributes = item.getAttributes(attributes)
                 
                 fileAttributes?.fileID = FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid
                 fileAttributes?.parentID = FSItem.Identifier(rawValue: UInt64(directory.inodeNumber)) ?? .invalid
@@ -560,10 +560,10 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
         let blockSize = superblock.blockSize
         let blockOffset = Int(offset) / blockSize
         let blockLength = Int((Double(length) / Double(blockSize)).rounded(.up))
-        let extents = try await item.findExtentsCovering(UInt64(blockOffset), with: blockLength)
+        let extents = try item.findExtentsCovering(UInt64(blockOffset), with: blockLength)
         let firstLogicalBlock = offset / Int64(blockSize)
         var amountRead = 0
-        let remainingLengthInFile = await off_t(try item.indexNode.size) - offset
+        let remainingLengthInFile: off_t = item.indexNode.withLock { off_t($0.size) - offset }
         let actualLengthToRead = min(length, Int(remainingLengthInFile.roundUp(toMultipleOf: off_t(blockSize))))
         for extent in extents {
             let startingAtLogicalBlock = min(max(firstLogicalBlock, extent.logicalBlock), Int64(actualLengthToRead - amountRead))
@@ -666,7 +666,7 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
         
         let blockOffset = Int(offset) / blockSize
         let blockLength = Int((Double(Int(offset) + length) / Double(blockSize)).rounded(.up)) - blockOffset
-        let extents = try await file.findExtentsCovering(UInt64(blockOffset), with: blockLength)
+        let extents = try file.findExtentsCovering(UInt64(blockOffset), with: blockLength)
         
         sendExtents(extents, using: packer, offset: offset, length: length)
     }
@@ -691,8 +691,8 @@ extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
         do {
             let req = FSItem.GetAttributesRequest()
             req.wantedAttributes.insert(.allocSize)
-            let allocSize = try await item.getAttributes(req).allocSize
-            let extents = try await item.findExtentsCovering(0, with: Int(clamping: allocSize), performAdditionalIO: false)
+            let allocSize = item.getAttributes(req).allocSize
+            let extents = try item.findExtentsCovering(0, with: Int(clamping: allocSize), performAdditionalIO: false)
             sendExtents(extents, using: packer, offset: 0, length: Int(clamping: allocSize))
         } catch {
             logger.error("Failed to prefetch extents while looking up item: \(error)")
@@ -733,16 +733,15 @@ extension Ext4Volume: FSVolume.XattrOperations {
         guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
         guard let toFind = name.string else { throw POSIXError(.EINVAL) }
         
-        if let embeddedEntries = try await item.indexNode.embeddedExtendedAttributes {
-            let found = embeddedEntries.filter { entry in
-                entry.name == toFind
-            }
-            if let first = found.first {
-                return try await item.getValueForEmbeddedAttribute(first) ?? Data()
-            }
+        let embeddedEntries = item.indexNode.withLock { $0.embeddedExtendedAttributes }
+        let found = embeddedEntries?.filter { entry in
+            entry.name == toFind
+        }
+        if let first = found?.first {
+            return try item.getValueForEmbeddedAttribute(first) ?? Data()
         }
         
-        if let block = try await item.extendedAttributeBlock {
+        if let block = try item.extendedAttributeBlock {
             let index = block.entries.partitioningIndex { entry in
                 entry.name >= toFind
             }
@@ -765,12 +764,12 @@ extension Ext4Volume: FSVolume.XattrOperations {
         guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
         
         var attrs: [String] = []
-        if let embeddedEntries = try await item.indexNode.embeddedExtendedAttributes {
+        if let embeddedEntries = item.indexNode.withLock({ $0.embeddedExtendedAttributes }) {
             let names = embeddedEntries.map { $0.name }
             attrs.append(contentsOf: names)
         }
         
-        if let block = try await item.extendedAttributeBlock {
+        if let block = try item.extendedAttributeBlock {
             attrs.append(contentsOf: try block.extendedAttributes.keys)
         }
         

@@ -5,17 +5,17 @@ import Foundation
 import FSKit
 import os.log
 
-struct IndexNode {
+public struct IndexNode {
     static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "IndexNode")
     
-    struct Osd2 {
-        var blockCountUpper: UInt16 = 0
-        var extAttrBlockUpper: UInt16 = 0
-        var uidUpper: UInt16 = 0
-        var gidUpper: UInt16 = 0
-        var checksumLower: UInt16 = 0
-        var modeUpper: UInt16 = 0
-        var author: UInt32 = 0
+    public struct Osd2 {
+        public var blockCountUpper: UInt16 = 0
+        public var extAttrBlockUpper: UInt16 = 0
+        public var uidUpper: UInt16 = 0
+        public var gidUpper: UInt16 = 0
+        public var checksumLower: UInt16 = 0
+        public var modeUpper: UInt16 = 0
+        public var author: UInt32 = 0
         
         init?(from data: Data, creator: Superblock.FilesystemCreator) {
             var offset = 0
@@ -57,6 +57,29 @@ struct IndexNode {
                 return nil
             }
         }
+    }
+    
+    init() {
+        self.inodeNumber = 0
+        self.mode = Mode()
+        self.uid = 0
+        self.size = 0
+        self.lastAccessTime = timespec()
+        self.lastInodeChangeTime = timespec()
+        self.lastDataModifyTime = timespec()
+        self.deletionTime = timespec()
+        self.gid = 0
+        self.hardLinkCount = 0
+        self.blockCount = 0
+        self.flags = Flags()
+        self.osd = 0
+        self.block = Data()
+        self.generation = 0
+        self.xattrBlock = 0
+        self.fragmentAddress = 0
+        self.extraINodeSize = 0
+        self.version = 0
+        self.metadataChecksumSeed = nil
     }
     
     init?(from data: Data, creator: Superblock.FilesystemCreator, inodeNumber: UInt32, fsMetadataSeed: UInt32?) {
@@ -166,111 +189,119 @@ struct IndexNode {
         self.remainingData = possibleExtAttr
     }
     
-    struct Mode: OptionSet {
-        let rawValue: UInt32
+    public struct Mode: OptionSet {
+        public let rawValue: UInt32
         
-        static let otherExecute = Mode(rawValue: 1 << 0)
-        static let otherWrite = Mode(rawValue: 1 << 1)
-        static let otherRead = Mode(rawValue: 1 << 2)
-        static let groupExecute = Mode(rawValue: 1 << 3)
-        static let groupWrite = Mode(rawValue: 1 << 4)
-        static let groupRead = Mode(rawValue: 1 << 5)
-        static let ownerExecute = Mode(rawValue: 1 << 6)
-        static let ownerWrite = Mode(rawValue: 1 << 7)
-        static let ownerRead = Mode(rawValue: 1 << 8)
-        static let sticky = Mode(rawValue: 1 << 9)
-        static let setGID = Mode(rawValue: 1 << 10)
-        static let setUID = Mode(rawValue: 1 << 11)
+        public init(rawValue: UInt32) {
+            self.rawValue = rawValue
+        }
+        
+        static public let otherExecute = Mode(rawValue: 1 << 0)
+        static public let otherWrite = Mode(rawValue: 1 << 1)
+        static public let otherRead = Mode(rawValue: 1 << 2)
+        static public let groupExecute = Mode(rawValue: 1 << 3)
+        static public let groupWrite = Mode(rawValue: 1 << 4)
+        static public let groupRead = Mode(rawValue: 1 << 5)
+        static public let ownerExecute = Mode(rawValue: 1 << 6)
+        static public let ownerWrite = Mode(rawValue: 1 << 7)
+        static public let ownerRead = Mode(rawValue: 1 << 8)
+        static public let sticky = Mode(rawValue: 1 << 9)
+        static public let setGID = Mode(rawValue: 1 << 10)
+        static public let setUID = Mode(rawValue: 1 << 11)
         
         // MARK: - Mutually exclusive file types
-        static let fifoType = Mode(rawValue: 0x1000)
-        static let characterDeviceType = Mode(rawValue: 0x2000)
-        static let directoryType = Mode(rawValue: 0x4000)
-        static let blockDeviceType = Mode(rawValue: 0x6000)
-        static let regularFileType = Mode(rawValue: 0x8000)
-        static let symbolicLinkType = Mode(rawValue: 0xA000)
-        static let socketType = Mode(rawValue: 0xC000)
+        static public let fifoType = Mode(rawValue: 0x1000)
+        static public let characterDeviceType = Mode(rawValue: 0x2000)
+        static public let directoryType = Mode(rawValue: 0x4000)
+        static public let blockDeviceType = Mode(rawValue: 0x6000)
+        static public let regularFileType = Mode(rawValue: 0x8000)
+        static public let symbolicLinkType = Mode(rawValue: 0xA000)
+        static public let socketType = Mode(rawValue: 0xC000)
     }
-    struct Flags: OptionSet {
-        let rawValue: UInt32
+    public struct Flags: OptionSet {
+        public let rawValue: UInt32
         
-        static let requiresSecureDeletion = Flags(rawValue: 1 << 0)
-        static let shouldPreserve = Flags(rawValue: 1 << 1)
-        static let compressed = Flags(rawValue: 1 << 2)
-        static let allWritesAreSynchronous = Flags(rawValue: 1 << 3)
-        static let immutable = Flags(rawValue: 1 << 4)
-        static let appendOnly = Flags(rawValue: 1 << 5)
-        static let noDump = Flags(rawValue: 1 << 6)
-        static let noAccessTime = Flags(rawValue: 1 << 7)
-        static let dirtyCompressedFile = Flags(rawValue: 1 << 8)
-        static let hasCompressedClusters = Flags(rawValue: 1 << 9)
-        static let doNotCompress = Flags(rawValue: 1 << 10)
-        static let encrypted = Flags(rawValue: 1 << 11)
-        static let hashedIndices = Flags(rawValue: 1 << 12)
-        static let afsMagicDirectory = Flags(rawValue: 1 << 13)
-        static let writeFileDataThroughJournal = Flags(rawValue: 1 << 14)
-        static let tailMustNotBeMerged = Flags(rawValue: 1 << 15)
-        static let directoryEntryDataWritesAreSynchronoous = Flags(rawValue: 1 << 16)
-        static let topOfDirectoryHierarchy = Flags(rawValue: 1 << 17)
-        static let hugeFile = Flags(rawValue: 1 << 18)
-        static let usesExtents = Flags(rawValue: 1 << 19)
-        static let largeXattrInDataBlocks = Flags(rawValue: 0x200000)
-        static let blocksAllocatedPastEOF = Flags(rawValue: 0x400000)
-        static let isSnapshot = Flags(rawValue: 0x01000000)
-        static let snapshotIsBeingDeleted = Flags(rawValue: 0x04000000)
-        static let snapshotShrinkCompleted = Flags(rawValue: 0x08000000)
-        static let inodeHasInlineData = Flags(rawValue: 0x10000000)
-        static let createChildrenWithSameProjectID = Flags(rawValue: 0x20000000)
-        static let caseInsensitiveDirectoryContents = Flags(rawValue: 0x40000000)
-        static let reserved = Flags(rawValue: 0x80000000)
+        public init(rawValue: UInt32) {
+            self.rawValue = rawValue
+        }
         
-        static let aggregateUserVisibleMask = Flags(rawValue: 0x4BDFFF)
-        static let aggregateUserModifiableMask = Flags(rawValue: 0x4B80FF)
+        static public let requiresSecureDeletion = Flags(rawValue: 1 << 0)
+        static public let shouldPreserve = Flags(rawValue: 1 << 1)
+        static public let compressed = Flags(rawValue: 1 << 2)
+        static public let allWritesAreSynchronous = Flags(rawValue: 1 << 3)
+        static public let immutable = Flags(rawValue: 1 << 4)
+        static public let appendOnly = Flags(rawValue: 1 << 5)
+        static public let noDump = Flags(rawValue: 1 << 6)
+        static public let noAccessTime = Flags(rawValue: 1 << 7)
+        static public let dirtyCompressedFile = Flags(rawValue: 1 << 8)
+        static public let hasCompressedClusters = Flags(rawValue: 1 << 9)
+        static public let doNotCompress = Flags(rawValue: 1 << 10)
+        static public let encrypted = Flags(rawValue: 1 << 11)
+        static public let hashedIndices = Flags(rawValue: 1 << 12)
+        static public let afsMagicDirectory = Flags(rawValue: 1 << 13)
+        static public let writeFileDataThroughJournal = Flags(rawValue: 1 << 14)
+        static public let tailMustNotBeMerged = Flags(rawValue: 1 << 15)
+        static public let directoryEntryDataWritesAreSynchronoous = Flags(rawValue: 1 << 16)
+        static public let topOfDirectoryHierarchy = Flags(rawValue: 1 << 17)
+        static public let hugeFile = Flags(rawValue: 1 << 18)
+        static public let usesExtents = Flags(rawValue: 1 << 19)
+        static public let largeXattrInDataBlocks = Flags(rawValue: 0x200000)
+        static public let blocksAllocatedPastEOF = Flags(rawValue: 0x400000)
+        static public let isSnapshot = Flags(rawValue: 0x01000000)
+        static public let snapshotIsBeingDeleted = Flags(rawValue: 0x04000000)
+        static public let snapshotShrinkCompleted = Flags(rawValue: 0x08000000)
+        static public let inodeHasInlineData = Flags(rawValue: 0x10000000)
+        static public let createChildrenWithSameProjectID = Flags(rawValue: 0x20000000)
+        static public let caseInsensitiveDirectoryContents = Flags(rawValue: 0x40000000)
+        static public let reserved = Flags(rawValue: 0x80000000)
+        
+        static public let aggregateUserVisibleMask = Flags(rawValue: 0x4BDFFF)
+        static public let aggregateUserModifiableMask = Flags(rawValue: 0x4B80FF)
     }
     
-    let inodeNumber: UInt32
+    public let inodeNumber: UInt32
     
-    var mode: Mode
-    var uid: UInt32
-    var size: UInt64
+    public var mode: Mode
+    public var uid: UInt32
+    public var size: UInt64
     /// Last access time, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
-    var lastAccessTime: timespec
+    public var lastAccessTime: timespec
     /// Last inode change time, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
-    var lastInodeChangeTime: timespec
+    public var lastInodeChangeTime: timespec
     /// Last data modification time, or the checksum of the value if the `largeXattrInDataBlocks` flag is set.
-    var lastDataModifyTime: timespec
-    var deletionTime: timespec
-    var gid: UInt32
+    public var lastDataModifyTime: timespec
+    public var deletionTime: timespec
+    public var gid: UInt32
     /// Hard link count.
     ///
     /// Normally, ext4 does not permit an inode to have more than 65,000 hard links. This applies to files as well as directories, which means that there cannot be more than 64,998 subdirectories in a directory (each subdirectory’s `..` entry counts as a hard link, as does the `.` entry in the directory itself). With the `DIR_NLINK` feature enabled, ext4 supports more than 64,998 subdirectories by setting this field to 1 to indicate that the number of hard links is not known.
-    var hardLinkCount: UInt16
-    var blockCount: UInt64
-    var flags: Flags
-    var osd: UInt32
-    var block: Data
-    var generation: UInt32
-    var xattrBlock: UInt64
+    public var hardLinkCount: UInt16
+    public var blockCount: UInt64
+    public var flags: Flags
+    public var osd: UInt32
+    public var block: Data
+    public var generation: UInt32
+    public var xattrBlock: UInt64
     /// Obsolete.
-    var fragmentAddress: UInt32
-    var osd2: Osd2?
+    public var fragmentAddress: UInt32
+    public var osd2: Osd2?
     /// The amount of space, in bytes, that this inode occupies past the original ext2 inode size (128 bytes), including this field.
-    var extraINodeSize: UInt16
-    var upperChecksum: UInt16?
-    var fileCreationTime: timespec?
-    var version: UInt64
-    var projectID: UInt32?
+    public var extraINodeSize: UInt16
+    public var upperChecksum: UInt16?
+    public var fileCreationTime: timespec?
+    public var version: UInt64
+    public var projectID: UInt32?
     
     var embeddedExtendedAttributes: [ExtendedAttrEntry]?
-    var embeddedXattrEntryBytes: UInt16 = 0
-    var remainingData: Data = Data()
+    public var embeddedXattrEntryBytes: UInt16 = 0
+    public var remainingData: Data = Data()
     
     /// A value to use as the metadata checksum seed for data structures that use this inode's number and generation as part of the input.
     ///
     /// If the volume doesn't support metadata checksumming, this will be `nil`.
-    let metadataChecksumSeed: UInt32?
+    public let metadataChecksumSeed: UInt32?
     
-    var filetype: FSItem.ItemType {
+    public var filetype: FSItem.ItemType {
         get throws {
             // cases must be in descending order of value because they are mutually exclusive but can still overlap
             switch mode {
@@ -301,7 +332,7 @@ struct IndexNode {
     /// - Parameter superblock: The superblock of the filesystem.
     /// - Parameter readOnlySystem: Whether the file system is mounted read-only.
     /// - Returns: The requested attributes, minus those stated above.
-    func getAttributes(_ request: FSItem.GetAttributesRequest, superblock: Superblock, readOnlySystem: Bool = false) -> FSItem.Attributes {
+    public func getAttributes(_ request: FSItem.GetAttributesRequest, superblock: Superblock, readOnlySystem: Bool = false) -> FSItem.Attributes {
         let attributes = FSItem.Attributes()
         
         if request.isAttributeWanted(.uid) {
