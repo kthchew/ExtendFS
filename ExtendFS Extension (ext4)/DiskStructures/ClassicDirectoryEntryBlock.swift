@@ -13,11 +13,11 @@ struct ClassicDirectoryEntryBlock {
         return 0
     }
     
-    init?(from data: Data) {
+    init?(from data: Data, withParentInode parent: UInt32?) {
         self.entries = []
         var data = data
         while data.count > 0 {
-            guard let entry = DirectoryEntry(from: data) else { break }
+            guard let entry = DirectoryEntry(from: data, withParentInode: parent) else { break }
             guard entry.directoryEntryLength > 0 else {
                 logger.error("Directory entry had length of 0")
                 break

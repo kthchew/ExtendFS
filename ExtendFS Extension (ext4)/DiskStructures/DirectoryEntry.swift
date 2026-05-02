@@ -6,8 +6,8 @@ import Foundation
 import FSKit
 #endif
 
-struct DirectoryEntry {
-    enum Filetype: UInt8 {
+public class DirectoryEntry {
+    public enum Filetype: UInt8, Hashable {
         case unknown = 0
         case regular
         case directory
@@ -21,7 +21,7 @@ struct DirectoryEntry {
         case checksum = 0xDE
     }
     
-    init?(from data: Data) {
+    public init?(from data: Data, withParentInode parent: UInt32?) {
         var offset = 0
         
         guard let inodePointee: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
@@ -36,6 +36,24 @@ struct DirectoryEntry {
         
         guard let name = try? data.readString(at: &offset, maxLength: Int(nameLength)) else { return nil }
         self.name = name
+        
+        self.parentInode = parent
+    }
+    
+    private init() {
+        self.inodePointee = 0
+        self.directoryEntryLength = 0
+        self.nameLength = 0
+        self.fileType = .unknown
+        self.name = ""
+        self.referenceCount = 0
+        self.parentInode = nil
+    }
+    
+    static public func createEmptyEntry(with name: String) -> DirectoryEntry {
+        let entry = DirectoryEntry()
+        entry.name = name
+        return entry
     }
     
     var inodePointee: UInt32
@@ -70,4 +88,18 @@ struct DirectoryEntry {
     var name: String
     
     var checksum: UInt32?
+    
+    // MARK: - dcache properties
+    var parentInode: UInt32?
+    
+    var referenceCount: Int = 0
+    
+    /// The previous node in the linked list of entries in the cache.
+    ///
+    /// This value must only be read or modified when you hold the dcache's ``DirectoryCache/state`` lock.
+    var lruPrevious: DirectoryEntry?
+    /// The previous node in the linked list of entries in the cache.
+    ///
+    /// This value must only be read or modified when you hold the dcache's ``DirectoryCache/state`` lock.
+    var lruNext: DirectoryEntry?
 }

@@ -12,23 +12,6 @@ actor ItemCache {
     func setCachedIndexNode(_ node: IndexNode) {
         indexNode = node
     }
-    
-    /// An array of directory entries, if this item is a directory and they have been queried.
-    ///
-    /// This list is sorted by the entry names.
-    private var directoryContentsInodes: [DirectoryEntry]? = nil
-    /// A value that changes if the contents of the directory changes.
-    private var directoryVerifier: FSDirectoryVerifier? = nil
-    func getDirectoryEntries() -> ([DirectoryEntry], FSDirectoryVerifier)? {
-        if let directoryVerifier, let directoryContentsInodes {
-            return (directoryContentsInodes, directoryVerifier)
-        }
-        return nil
-    }
-    func setDirectoryEntries(_ entries: [DirectoryEntry], withVerifier verifier: FSDirectoryVerifier) {
-        directoryContentsInodes = entries
-        directoryVerifier = verifier
-    }
 }
 
 final class Ext4Item: FSItem {
@@ -37,6 +20,8 @@ final class Ext4Item: FSItem {
     let containingVolume: Ext4Volume
     /// The number of the index node for this item.
     let inodeNumber: UInt32
+    /// If this is a directory, this is the directory entry for this item in its parent directory, if it has one and if it has been loaded. Otherwise, this is `nil`.
+//    let directoryEntry: DirectoryEntry?
     
     let cache = ItemCache()
     
@@ -200,41 +185,65 @@ final class Ext4Item: FSItem {
         }
     }
     
-    var directoryContents: ([DirectoryEntry], FSDirectoryVerifier)? {
-        get async throws {
-            guard await filetype == .directory else { return nil }
-            let caseInsensitive = try await indexNode.flags.contains(.caseInsensitiveDirectoryContents)
-            return try await loadDirectoryContentCache(isCaseInsensitive: caseInsensitive)
-        }
-    }
-    
-    func findItemInDirectory(named name: FSFileName) async throws -> (Ext4Item, FSFileName)? {
+    func findItemInDirectory(named name: FSFileName, cache: DirectoryCache) async throws -> (Ext4Item, FSFileName)? {
         let caseInsensitive = try await indexNode.flags.contains(.caseInsensitiveDirectoryContents)
-        let (entries, _) = try await loadDirectoryContentCache(isCaseInsensitive: caseInsensitive)
-        
-        if let nameStr = name.string {
-            let dirEntryIndex = entries.partitioningIndex {
-                if caseInsensitive {
-                    let result = $0.name.caseInsensitiveCompare(nameStr)
-                    return result == .orderedDescending || result == .orderedSame
-                } else {
-                    return $0.name >= nameStr
-                }
+        let keyComponent = caseInsensitive ? FSFileName(string: name.string?.lowercased() ?? "") : name
+        let key = DirectoryCacheKey(parentInode: inodeNumber, pathComponent: keyComponent.data)
+        let (cachedEntry, negativeIsCorrect) = cache.lookup(forKey: key)
+        if let cachedEntry = cachedEntry {
+            if cachedEntry.inodePointee == 0 {
+                return nil
+            } else {
+                return try await (containingVolume.item(forInode: cachedEntry.inodePointee), FSFileName(string: cachedEntry.name))
             }
-            if dirEntryIndex != entries.endIndex, (caseInsensitive ? entries[dirEntryIndex].name.caseInsensitiveCompare(nameStr) == .orderedSame : entries[dirEntryIndex].name == nameStr) {
-                return try await (containingVolume.item(forInode: entries[dirEntryIndex].inodePointee), FSFileName(string: entries[dirEntryIndex].name))
+        } else if negativeIsCorrect {
+            let inserted = cache.insertEmptyEntry(forKey: key)
+            if !inserted {
+                Self.logger.warning("Empty entry supposedly inserted for negative lookup was not inserted")
             }
+            return nil
         }
         
+        let (entries, _) = try await fetchAllDirectoryEntries(cache: cache)
+        let (secondCachedEntry, secondNegativeIsCorrect) = cache.lookup(forKey: key)
+        if let secondCachedEntry {
+            if secondCachedEntry.inodePointee == 0 {
+                return nil
+            } else {
+                return try await (containingVolume.item(forInode: secondCachedEntry.inodePointee), FSFileName(string: secondCachedEntry.name))
+            }
+        } else if secondNegativeIsCorrect {
+            let inserted = cache.insertEmptyEntry(forKey: key)
+            if !inserted {
+                Self.logger.warning("Empty entry supposedly inserted for negative lookup was not inserted")
+            }
+            return nil
+        }
+        if let entry = entries.first(where: { entry in
+            if caseInsensitive {
+                return entry.name.caseInsensitiveCompare(name.string ?? "") == .orderedSame
+            } else {
+                return entry.name == name.string
+            }
+        }) {
+            return try await (containingVolume.item(forInode: entry.inodePointee), FSFileName(string: entry.name))
+        }
+        
+        let inserted = cache.insertEmptyEntry(forKey: key)
+        if !inserted {
+            Self.logger.warning("Empty entry supposedly inserted for negative lookup was not inserted")
+        }
         return nil
     }
     
-    private func loadDirectoryContentCache(isCaseInsensitive: Bool) async throws -> ([DirectoryEntry], FSDirectoryVerifier) {
+    func fetchAllDirectoryEntries(cache: DirectoryCache) async throws -> ([DirectoryEntry], FSDirectoryVerifier) {
         guard await filetype == .directory else { throw POSIXError(.ENOSYS) }
-        if let (entries, verifier) = await cache.getDirectoryEntries() {
-            return (entries, verifier)
+        let caseInsensitive = try await indexNode.flags.contains(.caseInsensitiveDirectoryContents)
+        
+        if let (entries, version) = cache.fetchAllEntriesInDirectory(directoryInode: inodeNumber) {
+            return (entries, FSDirectoryVerifier(version))
         }
-        Self.logger.debug("Loading directory content cache for directory (inode \(self.inodeNumber, privacy: .public))")
+        
         var loadedEntries: [DirectoryEntry] = []
         
         let extents = try await findExtentsCovering(0, with: Int.max)
@@ -249,7 +258,7 @@ final class Ext4Item: FSItem {
                 let byteOffset = containingVolume.superblock.blockSize * Data.Index(block)
                 let blockData = data.subdata(in: byteOffset..<(byteOffset+containingVolume.superblock.blockSize))
                 Self.logger.debug("Trying to decode data of length \(blockData.count, privacy: .public)")
-                guard let dirEntryBlock = ClassicDirectoryEntryBlock(from: blockData) else { continue }
+                guard let dirEntryBlock = ClassicDirectoryEntryBlock(from: blockData, withParentInode: inodeNumber) else { continue }
                 Self.logger.debug("Block has \(dirEntryBlock.entries.count, privacy: .public) entries")
                 for entry in dirEntryBlock.entries {
                     guard entry.inodePointee != 0, entry.nameLength != 0 else { continue }
@@ -258,16 +267,13 @@ final class Ext4Item: FSItem {
             }
         }
         
-        let sortedEntries = loadedEntries.sorted {
-            if isCaseInsensitive {
-                return $0.name.caseInsensitiveCompare($1.name) == .orderedAscending
-            } else {
-                return $0.name < $1.name
-            }
+        let sortedEntries = loadedEntries.sorted { entry1, entry2 in
+            entry1.inodePointee < entry2.inodePointee
         }
+        let realEntries = cache.insert(completeEntryList: sortedEntries, forParentDirectoryInode: inodeNumber, caseInsensitive: caseInsensitive)
+        
         let verifier = FSDirectoryVerifier(UInt64.random(in: 1..<UInt64.max))
-        await self.cache.setDirectoryEntries(sortedEntries, withVerifier: verifier)
-        return (sortedEntries, verifier)
+        return (realEntries, verifier)
     }
     
     var symbolicLinkTarget: String? {

@@ -160,6 +160,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     let blockGroupDescriptors: BlockGroupDescriptorManager
     
     let cache = VolumeCache()
+    let directoryCache = DirectoryCache()
     
     let blockSize: Int
     /// A value to use as the metadata checksum seed for most data structures.
@@ -342,7 +343,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         }
         logger.debug("Looking up item with name \(name.string ?? "(unknown)") in directory (inode \(directory.inodeNumber))")
         
-        if let (item, realName) = try await directory.findItemInDirectory(named: name) {
+        if let (item, realName) = try await directory.findItemInDirectory(named: name, cache: directoryCache) {
             return (item, realName)
         }
         
@@ -419,10 +420,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
             throw POSIXError(.ENOSYS)
         }
         
-        guard let (contents, currentVerifier) = try await directory.directoryContents else {
-            logger.error("Could not read directory contents")
-            throw POSIXError(.EIO)
-        }
+        let (contents, currentVerifier) = try await directory.fetchAllDirectoryEntries(cache: directoryCache)
         
         let attributesAccessibleWithoutLoading: FSItem.Attribute = [.type, .fileID, .parentID]
         let startIndex = cookie == .initial ? contents.startIndex : Int(cookie.rawValue)
