@@ -93,6 +93,8 @@ final class Ext4Item: FSItem {
             throw POSIXError(.EIO)
         }
         self.indexNode.withLock { $0 = indexNode }
+        
+        Task { try? extendedAttributeBlock }
     }
     
     private func refetchInode() async throws {
@@ -277,12 +279,16 @@ final class Ext4Item: FSItem {
         }
     }
     
+    private let _extendedAttributeBlock: Mutex<ExtendedAttrBlock?> = Mutex(nil)
     var extendedAttributeBlock: ExtendedAttrBlock? {
         get throws {
+            if let block = _extendedAttributeBlock.withLock({$0}) { return block }
             let xattrBlock = indexNode.withLock { $0.xattrBlock }
             guard xattrBlock != 0 else { return nil }
             let data = try BlockDeviceReader.fetchExtent(from: containingVolume.resource, blockNumbers: off_t(xattrBlock)..<(Int64(xattrBlock) + 1), blockSize: containingVolume.superblock.blockSize)
-            return ExtendedAttrBlock(from: data)
+            let block = ExtendedAttrBlock(from: data)
+            _extendedAttributeBlock.withLock { $0 = block }
+            return block
         }
     }
     

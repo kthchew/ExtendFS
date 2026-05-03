@@ -734,11 +734,11 @@ extension Ext4Volume: FSVolume.XattrOperations {
         guard let toFind = name.string else { throw POSIXError(.EINVAL) }
         
         let embeddedEntries = item.indexNode.withLock { $0.embeddedExtendedAttributes }
-        let found = embeddedEntries?.filter { entry in
+        let found = embeddedEntries?.first { entry in
             entry.name == toFind
         }
-        if let first = found?.first {
-            return try item.getValueForEmbeddedAttribute(first) ?? Data()
+        if let found {
+            return try item.getValueForEmbeddedAttribute(found) ?? Data()
         }
         
         if let block = try item.extendedAttributeBlock {
@@ -750,7 +750,7 @@ extension Ext4Volume: FSVolume.XattrOperations {
             }
         }
         
-        logger.info("No xattr named \(toFind, privacy: .public)")
+        logger.debug("No xattr named \(toFind, privacy: .public)")
         throw POSIXError(.ENOATTR)
     }
     
@@ -763,15 +763,13 @@ extension Ext4Volume: FSVolume.XattrOperations {
     func xattrs(of item: FSItem) async throws -> [FSFileName] {
         guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
         
-        var attrs: [String] = []
-        if let embeddedEntries = item.indexNode.withLock({ $0.embeddedExtendedAttributes }) {
-            let names = embeddedEntries.map { $0.name }
-            attrs.append(contentsOf: names)
+        let embeddedEntries = item.indexNode.withLock({ $0.embeddedExtendedAttributes })?.map {
+            $0.name
         }
         
-        if let block = try item.extendedAttributeBlock {
-            attrs.append(contentsOf: try block.extendedAttributes.keys)
-        }
+        let otherEntries = try item.extendedAttributeBlock?.extendedAttributeNames
+        
+        let attrs = (embeddedEntries ?? []) + (otherEntries ?? [])
         
         return attrs.map { FSFileName(string: $0) }
     }

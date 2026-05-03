@@ -62,9 +62,16 @@ struct ExtendedAttrBlock {
         self.init(from: blockData)
     }
     
+    var extendedAttributeNames: [String] {
+        entries.map { entry in
+            entry.name
+        }
+    }
+    
     var extendedAttributes: [String: Data] {
         get throws {
             var attrs: [String: Data] = [:]
+            attrs.reserveCapacity(entries.count)
             for entry in entries {
                 let offset = Int(entry.valueOffset) - Int(remainingDataOffset)
                 guard offset >= 0 else {
