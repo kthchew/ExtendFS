@@ -271,7 +271,7 @@ final class Ext4Item: FSItem {
 
         if indexNode.withLock({ $0.flags.contains(.hashedIndices) }) {
             if let entry = try findItemInHashTreeDirectory(named: name, caseInsensitive: caseInsensitive) {
-                let cachedEntry = cache.insert(entry, forKey: key)
+                let cachedEntry = cache.insert(entry, forKey: key) ?? entry
                 return try await (containingVolume.item(forInode: cachedEntry.inodePointee), FSFileName(string: cachedEntry.name))
             }
             
@@ -348,9 +348,9 @@ final class Ext4Item: FSItem {
         loadedEntries.sort { entry1, entry2 in
             entry1.inodePointee < entry2.inodePointee
         }
-        let realEntries = cache.insert(completeEntryList: loadedEntries, forParentDirectoryInode: inodeNumber, caseInsensitive: caseInsensitive)
+        let (realEntries, versionNum) = cache.insert(completeEntryList: loadedEntries, forParentDirectoryInode: inodeNumber, caseInsensitive: caseInsensitive)
         
-        let verifier = FSDirectoryVerifier(UInt64.random(in: 1..<UInt64.max))
+        let verifier = FSDirectoryVerifier(versionNum ?? UInt64.random(in: 1..<UInt64.max))
         return (realEntries, verifier)
     }
     
