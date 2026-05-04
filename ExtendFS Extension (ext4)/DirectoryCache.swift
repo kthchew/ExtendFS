@@ -112,6 +112,7 @@ public final class DirectoryCache: Sendable {
         state.withLock { state in
             var insertedEntries = ContiguousArray<DirectoryEntry>()
             insertedEntries.reserveCapacity(completeEntryList.count)
+            let canFitAllEntries = completeEntryList.count <= capacity
             var completed = true
             for requestedEntry in completeEntryList {
                 let key = DirectoryCacheKey(parentInode: parentInode, pathComponent: (caseInsensitive ? requestedEntry.name.lowercased() : requestedEntry.name).data(using: .utf8)!)
@@ -134,7 +135,7 @@ public final class DirectoryCache: Sendable {
                 }
             }
             
-            if completed {
+            if canFitAllEntries && completed {
                 let verifier = UInt64.random(in: 1...UInt64.max)
                 state.completeDirectoryMapping[parentInode] = (insertedEntries, verifier)
                 return (insertedEntries, verifier)
