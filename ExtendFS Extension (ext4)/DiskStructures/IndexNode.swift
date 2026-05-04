@@ -237,6 +237,7 @@ public struct IndexNode {
         static public let hasCompressedClusters = Flags(rawValue: 1 << 9)
         static public let doNotCompress = Flags(rawValue: 1 << 10)
         static public let encrypted = Flags(rawValue: 1 << 11)
+        /// This is a directory, and has hashed indices (is a hash tree directory).
         static public let hashedIndices = Flags(rawValue: 1 << 12)
         static public let afsMagicDirectory = Flags(rawValue: 1 << 13)
         static public let writeFileDataThroughJournal = Flags(rawValue: 1 << 14)

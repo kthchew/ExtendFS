@@ -449,7 +449,7 @@ public struct Superblock {
         static let supportedFeatures: ReadOnlyCompatibleFeatures = []
     }
     
-    enum HashVersion: UInt8 {
+    public enum HashVersion: UInt8 {
         case legacy = 0
         case halfMD4 = 1
         case tea = 2
@@ -458,6 +458,17 @@ public struct Superblock {
         case teaUnsigned = 5
         case sipHash = 6
         case unknown = 255
+        
+        public var isSigned: Bool {
+            switch self {
+            case .legacy, .tea, .halfMD4:
+                return true
+            case .legacyUnsigned, .halfMD4Unsigned, .teaUnsigned, .sipHash:
+                return false
+            case .unknown:
+                return false
+            }
+        }
     }
     
     struct DefaultMountOptions: OptionSet {

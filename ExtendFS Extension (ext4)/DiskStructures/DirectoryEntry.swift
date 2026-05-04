@@ -103,3 +103,18 @@ public class DirectoryEntry {
     /// This value must only be read or modified when you hold the dcache's ``DirectoryCache/state`` lock.
     var lruNext: DirectoryEntry?
 }
+
+extension DirectoryEntry: Equatable {
+    public static func == (lhs: DirectoryEntry, rhs: DirectoryEntry) -> Bool {
+        return lhs.inodePointee == rhs.inodePointee &&
+        lhs.directoryEntryLength == rhs.directoryEntryLength &&
+        lhs.nameLength == rhs.nameLength &&
+        lhs.fileType == rhs.fileType &&
+        lhs.name == rhs.name &&
+        lhs.checksum == rhs.checksum &&
+        lhs.parentInode == rhs.parentInode &&
+        lhs.referenceCount == rhs.referenceCount &&
+        lhs.lruPrevious == rhs.lruPrevious &&
+        lhs.lruNext == rhs.lruNext
+    }
+}

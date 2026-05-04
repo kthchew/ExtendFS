@@ -56,7 +56,7 @@ final class Ext4Item: FSItem {
         }
     }
     
-    init(volume: Ext4Volume, inodeNumber: UInt32, inodeData: Data? = nil) async throws {
+    init(volume: Ext4Volume, inodeNumber: UInt32, inodeData: Data? = nil) throws {
         guard inodeNumber != 0 else {
             logger.error("Volume contains a file with inode number 0, but this is invalid")
             throw POSIXError(.EIO)
@@ -93,11 +93,97 @@ final class Ext4Item: FSItem {
             throw POSIXError(.EIO)
         }
         self.indexNode.withLock { $0 = indexNode }
-        
-        Task { try? extendedAttributeBlock }
+    }
+
+    /// Whether directory data blocks should be treated as containing a checksum tail.
+    private var directoryBlocksHaveChecksumTail: Bool {
+        containingVolume.metadataChecksumSeed != nil
+    }
+
+    /// Reads one logical directory block and returns its raw bytes.
+    private func directoryBlockData(at logicalBlock: UInt64) throws -> Data? {
+        let extents = try findExtentsCovering(logicalBlock, with: 1)
+        guard let extent = extents.first(where: { extent in
+            guard let lengthInBlocks = extent.lengthInBlocks else { return false }
+            let start = UInt64(extent.logicalBlock)
+            let end = start + UInt64(lengthInBlocks)
+            return extent.type != .zeroFill && logicalBlock >= start && logicalBlock < end
+        }), let lengthInBlocks = extent.lengthInBlocks else {
+            return nil
+        }
+
+        let offsetInExtent = logicalBlock - UInt64(extent.logicalBlock)
+        guard offsetInExtent < UInt64(lengthInBlocks) else { return nil }
+
+        let physicalBlock = extent.physicalBlock + off_t(offsetInExtent)
+        return try BlockDeviceReader.fetchExtent(
+            from: containingVolume.resource,
+            blockNumbers: physicalBlock..<physicalBlock + 1,
+            blockSize: containingVolume.superblock.blockSize
+        )
+    }
+
+    /// Returns the block selected by an HTree hash->block table.
+    private func hashTreeBlock(startingAt block: UInt32, entries: ContiguousArray<HashTreeDirectoryEntry>, for hash: UInt32, interpretHashAsSigned: Bool) -> UInt32 {
+        let index = entries.partitioningIndex { $0.hash > hash } - 1
+        let selectedBlock = index >= entries.startIndex ? entries[index].block : block
+        return selectedBlock
+    }
+
+    private func hashVersion(for root: HashTreeDirectoryRoot) -> Superblock.HashVersion? {
+        if root.info.hashVersion != .unknown {
+            return root.info.hashVersion
+        }
+        if let defaultHashAlgorithm = containingVolume.superblock.defaultHashAlgorithm, defaultHashAlgorithm != .unknown {
+            return defaultHashAlgorithm
+        }
+        return nil
+    }
+
+    private func directoryEntry(named lookupName: String, in blockData: Data, caseInsensitive: Bool) -> DirectoryEntry? {
+        guard let dirEntryBlock = ClassicDirectoryEntryBlock(from: blockData, withParentInode: inodeNumber) else { return nil }
+        return dirEntryBlock.entries.first { entry in
+            guard entry.inodePointee != 0, entry.nameLength != 0 else { return false }
+            if caseInsensitive {
+                return entry.name.caseInsensitiveCompare(lookupName) == .orderedSame
+            } else {
+                return entry.name == lookupName
+            }
+        }
+    }
+
+    private func findItemInHashTreeDirectory(named name: FSFileName, caseInsensitive: Bool) throws -> DirectoryEntry? {
+        guard indexNode.withLock({ $0.flags.contains(.hashedIndices) }) else { return nil }
+        guard let lookupName = name.string else { return nil }
+
+        let hashInput = caseInsensitive ? lookupName.lowercased() : lookupName
+        guard let rootData = try directoryBlockData(at: 0) else { return nil }
+        guard let root = HashTreeDirectoryRoot(from: rootData, parentInode: nil, hasChecksumTail: directoryBlocksHaveChecksumTail) else { return nil }
+        guard let seed = containingVolume.superblock.hashSeed else { return nil }
+        guard let hashVersion = hashVersion(for: root), let hash = HTreeHasher.hash(name: hashInput, hashType: hashVersion, hashSeed: seed) else { return nil }
+
+        let majorHash = hash.upperHalf
+
+        let maxIndirectLevels = containingVolume.superblock.incompatibleFeatures.contains(.largeDirectory) ? 3 : 2
+        guard root.info.indirectLevels <= maxIndirectLevels else {
+            logger.error("Directory has \(root.info.indirectLevels, privacy: .public) levels of indirection, which exceeds the maximum supported level of \(maxIndirectLevels, privacy: .public)")
+            return nil
+        }
+        var currentBlock = hashTreeBlock(startingAt: root.block, entries: root.entries, for: majorHash, interpretHashAsSigned: hashVersion.isSigned)
+        for _ in 0..<root.info.indirectLevels {
+            guard let nextData = try directoryBlockData(at: UInt64(currentBlock)),
+                  let nextNode = HashTreeDirectoryNode(from: nextData, hasChecksumTail: directoryBlocksHaveChecksumTail) else {
+                return nil
+            }
+            currentBlock = hashTreeBlock(startingAt: nextNode.block, entries: nextNode.entries, for: majorHash, interpretHashAsSigned: hashVersion.isSigned)
+        }
+        let leafBlock = currentBlock
+
+        guard let leafData = try directoryBlockData(at: UInt64(leafBlock)) else { return nil }
+        return directoryEntry(named: lookupName, in: leafData, caseInsensitive: caseInsensitive)
     }
     
-    private func refetchInode() async throws {
+    private func refetchInode() throws {
         let blockSize = containingVolume.superblock.blockSize
         var data = Data(count: Int(blockSize))
         try data.withUnsafeMutableBytes { ptr in
@@ -179,6 +265,19 @@ final class Ext4Item: FSItem {
             let inserted = cache.insertEmptyEntry(forKey: key)
             if !inserted {
                 logger.warning("Empty entry supposedly inserted for negative lookup was not inserted")
+            }
+            return nil
+        }
+
+        if indexNode.withLock({ $0.flags.contains(.hashedIndices) }) {
+            if let entry = try findItemInHashTreeDirectory(named: name, caseInsensitive: caseInsensitive) {
+                let cachedEntry = cache.insert(entry, forKey: key)
+                return try await (containingVolume.item(forInode: cachedEntry.inodePointee), FSFileName(string: cachedEntry.name))
+            }
+            
+            guard cache.insertEmptyEntry(forKey: key) else {
+                logger.error("Couldn't find entry in htree directory, but inserting negative entry failed")
+                return nil
             }
             return nil
         }

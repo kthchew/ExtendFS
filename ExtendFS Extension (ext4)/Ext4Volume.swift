@@ -143,7 +143,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         
         super.init(volumeID: FSVolume.Identifier(uuid: superblock.uuid ?? UUID()), volumeName: FSFileName(string: superblock.volumeName ?? ""))
         
-        let root = try await Ext4Item(volume: self, inodeNumber: 2)
+        let root = try Ext4Item(volume: self, inodeNumber: 2)
         await cache.setRoot(root)
         
         await cache.setItem(root, forInodeNumber: 2)
@@ -190,7 +190,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
     /// - Parameter blockNumber: The block number of part of the inode table to load.
     /// - Parameter range: A range of inode numbers to fetch. If `nil`, load all items.
     /// - Returns: An array of the items.
-    func loadItems(from blockNumber: UInt64, inodeNumberIn range: ClosedRange<UInt32>?) async throws -> ContiguousArray<Ext4Item> {
+    func loadItems(from blockNumber: UInt64, inodeNumberIn range: ClosedRange<UInt32>?) throws -> ContiguousArray<Ext4Item> {
         guard let blockGroup = UInt32(exactly: blockNumber / UInt64(superblock.blocksPerGroup)) else {
             logger.error("Block group for \(blockNumber) is too large to fit in a 32-bit integer - should not happen")
             throw POSIXError(.EIO)
@@ -226,7 +226,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         data = data.advanced(by: inodesToSkip * Int(superblock.inodeSize))
         for inode in firstToLoad...lastToLoad {
             let inodeData = data.subdata(in: 0..<Int(superblock.inodeSize))
-            let item = try await Ext4Item(volume: self, inodeNumber: inode, inodeData: inodeData)
+            let item = try Ext4Item(volume: self, inodeNumber: inode, inodeData: inodeData)
             
             items.append(item)
             data = data.advanced(by: Int(superblock.inodeSize))
@@ -241,7 +241,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         }
         
         let blockNumber = try blockNumber(forBlockContainingInode: inodeNumber)
-        let items = try await loadItems(from: UInt64(blockNumber.0), inodeNumberIn: inodeNumber...inodeNumber)
+        let items = try loadItems(from: UInt64(blockNumber.0), inodeNumberIn: inodeNumber...inodeNumber)
         guard !items.isEmpty else { throw POSIXError(.EIO) }
         await cache.setItem(items[0], forInodeNumber: inodeNumber)
         return items[0]
@@ -445,7 +445,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
                     item = items[Int(blockNumber.1)]
                     await cache.setUnclaimedItem(item, forInodeNumber: content.inodePointee)
                 } else {
-                    let items = try await loadItems(from: UInt64(blockNumber.0), inodeNumberIn: nil)
+                    let items = try loadItems(from: UInt64(blockNumber.0), inodeNumberIn: nil)
                     itemsInBlock[blockNumber.0] = items
                     item = items[Int(blockNumber.1)]
                     await cache.setUnclaimedItem(item, forInodeNumber: content.inodePointee)

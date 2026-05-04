@@ -126,6 +126,16 @@ extension Data {
         self.append(contentsOf: padding)
     }
     
+    public func readablePrefix(length: Int) -> Data {
+        guard length <= count else { return Data() }
+        return subdata(in: 0..<length)
+    }
+    
+    public func readableSection(at offset: Int, length: Int) -> Data {
+        guard offset >= 0, length >= 0, offset + length <= count else { return Data() }
+        return subdata(in: offset..<(offset + length))
+    }
+    
     func crc32c(seed: UInt32? = nil) -> UInt32 {
         self.withUnsafeBytes { buf in
             guard let base = buf.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return 0 }
