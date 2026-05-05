@@ -557,6 +557,18 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
             throw POSIXError(.EIO)
         }
         
+        if item.indexNode.withLock({ $0.flags.contains(.inodeHasInlineData) }) {
+            guard let data = try item.getInlineData() else {
+                logger.error("Inode \(item.inodeNumber, privacy: .public) has inline data flag but inline data could not be read")
+                throw POSIXError(.EIO)
+            }
+            return buffer.withUnsafeMutableBytes { buf in
+                let relevantData = data.advanced(by: Int(offset)).prefix(length)
+                (buf[0..<relevantData.count]).copyBytes(from: relevantData)
+                return relevantData.count
+            }
+        }
+        
         let blockSize = superblock.blockSize
         let blockOffset = Int(offset) / blockSize
         let blockLength = Int((Double(length) / Double(blockSize)).rounded(.up))

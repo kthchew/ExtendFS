@@ -370,9 +370,10 @@ public struct IndexNode {
             let usesHugeBlocks = superblock.readOnlyCompatibleFeatures.contains(.hugeFile) && flags.contains(.hugeFile)
             attributes.allocSize = (blockCount * UInt64(usesHugeBlocks ? superblock.blockSize : 512))
         }
-        if request.isAttributeWanted(.inhibitKernelOffloadedIO) {
-            attributes.inhibitKernelOffloadedIO = false
-        }
+
+        // gating behind isAttributeWanted causes this to never work
+        attributes.inhibitKernelOffloadedIO = flags.contains(.inodeHasInlineData)
+        
         if request.isAttributeWanted(.supportsLimitedXAttrs) {
             attributes.supportsLimitedXAttrs = false
         }

@@ -394,6 +394,9 @@ final class Ext4Item: FSItem {
     func getValueForEmbeddedAttribute(_ entry: ExtendedAttrEntry) throws -> Data? {
         let indexNode = indexNode.withLock { $0 }
         guard indexNode.embeddedExtendedAttributes != nil else { return nil }
+        if entry.valueLength == 0 {
+            return Data()
+        }
         guard entry.valueOffset >= indexNode.embeddedXattrEntryBytes else {
             logger.error("Value offset \(entry.valueOffset, privacy: .public) was less than embedded xattr entry bytes \(indexNode.embeddedXattrEntryBytes, privacy: .public)")
             return nil
@@ -405,6 +408,29 @@ final class Ext4Item: FSItem {
             logger.error("Extended attribute is apparently longer than the data available")
             throw POSIXError(.EIO)
         }
+        return data
+    }
+    
+    func getInlineData() throws -> Data? {
+        let indexNode = indexNode.withLock { $0 }
+        guard indexNode.flags.contains(.inodeHasInlineData) else {
+            return nil
+        }
+        
+        let block = indexNode.block
+        guard let systemDataXattrEntry = indexNode.embeddedExtendedAttributes?.first(where: { $0.name == "system.data" }) else {
+            return nil
+        }
+        guard let systemDataXattrValue = try getValueForEmbeddedAttribute(systemDataXattrEntry) else {
+            return nil
+        }
+        let size = Int(indexNode.size)
+        let data = (block + systemDataXattrValue).prefix(size)
+        guard data.count == size else {
+            logger.error("Inline data fetched is not the correct size")
+            throw POSIXError(.EIO)
+        }
+        
         return data
     }
     
