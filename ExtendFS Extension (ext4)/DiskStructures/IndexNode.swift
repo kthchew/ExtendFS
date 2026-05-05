@@ -375,6 +375,7 @@ public struct IndexNode {
 
         // Gating behind isAttributeWanted causes this to never work
         // Kernel offloaded IO does not work here because inline data is not sector aligned
+        // This gets overridden at another level if the feature is not enabled in the superblock
         attributes.inhibitKernelOffloadedIO = flags.contains(.inodeHasInlineData)
         
         if request.isAttributeWanted(.supportsLimitedXAttrs) {

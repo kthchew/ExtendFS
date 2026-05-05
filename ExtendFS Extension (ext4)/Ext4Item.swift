@@ -490,6 +490,10 @@ final class Ext4Item: FSItem {
             attributes.fileID = FSItem.Identifier(rawValue: UInt64(inodeNumber)) ?? .invalid
         }
         
+        if !containingVolume.superblock.incompatibleFeatures.contains(.inlineDataInInode) { // override if feature not enabled in superblock
+            attributes.inhibitKernelOffloadedIO = false
+        }
+        
         return attributes
     }
     
