@@ -268,8 +268,30 @@ final class Ext4Item: FSItem {
             }
             return nil
         }
+        
+        let inodeFlags = indexNode.withLock({ $0.flags })
+        
+        if containingVolume.superblock.incompatibleFeatures.contains(.inlineDataInInode) && inodeFlags.contains(.inodeHasInlineData) {
+            let (entries, _) = try fetchAllDirectoryEntries(cache: cache)
+            let entry = entries.first { entry in
+                if caseInsensitive {
+                    return entry.name.caseInsensitiveCompare(name.string ?? "") == .orderedSame
+                } else {
+                    return entry.name == name.string
+                }
+            }
+            if let entry {
+                return try await (containingVolume.item(forInode: entry.inodePointee), FSFileName(string: entry.name))
+            } else {
+                let inserted = cache.insertEmptyEntry(forKey: key)
+                if !inserted {
+                    logger.warning("Empty entry supposedly inserted for negative lookup was not inserted")
+                }
+                return nil
+            }
+        }
 
-        if indexNode.withLock({ $0.flags.contains(.hashedIndices) }) {
+        if inodeFlags.contains(.hashedIndices) {
             if let entry = try findItemInHashTreeDirectory(named: name, caseInsensitive: caseInsensitive) {
                 let cachedEntry = cache.insert(entry, forKey: key) ?? entry
                 return try await (containingVolume.item(forInode: cachedEntry.inodePointee), FSFileName(string: cachedEntry.name))
@@ -316,7 +338,8 @@ final class Ext4Item: FSItem {
     
     func fetchAllDirectoryEntries(cache: DirectoryCache) throws -> (ContiguousArray<DirectoryEntry>, FSDirectoryVerifier) {
         guard filetype == .directory else { throw POSIXError(.ENOSYS) }
-        let caseInsensitive = indexNode.withLock { $0.flags.contains(.caseInsensitiveDirectoryContents) }
+        let indexNode = indexNode.withLock { $0 }
+        let caseInsensitive = indexNode.flags.contains(.caseInsensitiveDirectoryContents)
         
         if let (entries, version) = cache.fetchAllEntriesInDirectory(directoryInode: inodeNumber) {
             return (entries, FSDirectoryVerifier(version))
@@ -324,23 +347,49 @@ final class Ext4Item: FSItem {
         
         var loadedEntries: ContiguousArray<DirectoryEntry> = []
         
-        let extents = try findExtentsCovering(0, with: Int.max)
-        for extent in extents {
-            logger.debug("Fetching extent at block \(extent.physicalBlock, privacy: .public)")
-            guard let lengthInBlocks = extent.lengthInBlocks else {
-                logger.fault("Extent somehow does not have a length")
+        if containingVolume.superblock.incompatibleFeatures.contains(.inlineDataInInode) && indexNode.flags.contains(.inodeHasInlineData) {
+            let block = indexNode.block
+            guard let firstDirEntryBlock = ClassicDirectoryEntryBlock(from: block.advanced(by: 4), withParentInode: inodeNumber) else {
+                logger.error("Inline data directory did not have a valid directory entry block")
                 throw POSIXError(.EIO)
             }
-            let data = try BlockDeviceReader.fetchExtent(from: containingVolume.resource, blockNumbers: extent.physicalBlock..<extent.physicalBlock+Int64(extent.lengthInBlocks ?? 0), blockSize: containingVolume.superblock.blockSize)
-            for block in 0..<lengthInBlocks {
-                let byteOffset = containingVolume.superblock.blockSize * Data.Index(block)
-                let blockData = data.subdata(in: byteOffset..<(byteOffset+containingVolume.superblock.blockSize))
-                logger.debug("Trying to decode data of length \(blockData.count, privacy: .public)")
-                guard let dirEntryBlock = ClassicDirectoryEntryBlock(from: blockData, withParentInode: inodeNumber) else { continue }
-                logger.debug("Block has \(dirEntryBlock.entries.count, privacy: .public) entries")
-                for entry in dirEntryBlock.entries {
+            for entry in firstDirEntryBlock.entries {
+                guard entry.inodePointee != 0, entry.nameLength != 0 else { continue }
+                loadedEntries.append(entry)
+            }
+            if let systemDataXattrEntry = indexNode.embeddedExtendedAttributes?.first(where: { $0.name == "system.data" }), systemDataXattrEntry.valueLength > 0 {
+                guard let systemDataXattrValue = try getValueForEmbeddedAttribute(systemDataXattrEntry) else {
+                    logger.error("Directory with inline data had a system.data xattr entry, but the value could not be fetched")
+                    throw POSIXError(.EIO)
+                }
+                guard let systemDataDirEntry = ClassicDirectoryEntryBlock(from: systemDataXattrValue, withParentInode: inodeNumber) else {
+                    logger.error("Directory with inline data had a system.data xattr entry, but the value did not contain a valid directory entry block")
+                    throw POSIXError(.EIO)
+                }
+                for entry in systemDataDirEntry.entries {
                     guard entry.inodePointee != 0, entry.nameLength != 0 else { continue }
                     loadedEntries.append(entry)
+                }
+            }
+        } else {
+            let extents = try findExtentsCovering(0, with: Int.max)
+            for extent in extents {
+                logger.debug("Fetching extent at block \(extent.physicalBlock, privacy: .public)")
+                guard let lengthInBlocks = extent.lengthInBlocks else {
+                    logger.fault("Extent somehow does not have a length")
+                    throw POSIXError(.EIO)
+                }
+                let data = try BlockDeviceReader.fetchExtent(from: containingVolume.resource, blockNumbers: extent.physicalBlock..<extent.physicalBlock+Int64(extent.lengthInBlocks ?? 0), blockSize: containingVolume.superblock.blockSize)
+                for block in 0..<lengthInBlocks {
+                    let byteOffset = containingVolume.superblock.blockSize * Data.Index(block)
+                    let blockData = data.subdata(in: byteOffset..<(byteOffset+containingVolume.superblock.blockSize))
+                    logger.debug("Trying to decode data of length \(blockData.count, privacy: .public)")
+                    guard let dirEntryBlock = ClassicDirectoryEntryBlock(from: blockData, withParentInode: inodeNumber) else { continue }
+                    logger.debug("Block has \(dirEntryBlock.entries.count, privacy: .public) entries")
+                    for entry in dirEntryBlock.entries {
+                        guard entry.inodePointee != 0, entry.nameLength != 0 else { continue }
+                        loadedEntries.append(entry)
+                    }
                 }
             }
         }
@@ -413,7 +462,7 @@ final class Ext4Item: FSItem {
     
     func getInlineData() throws -> Data? {
         let indexNode = indexNode.withLock { $0 }
-        guard indexNode.flags.contains(.inodeHasInlineData) else {
+        guard containingVolume.superblock.incompatibleFeatures.contains(.inlineDataInInode) && indexNode.flags.contains(.inodeHasInlineData) else {
             return nil
         }
         

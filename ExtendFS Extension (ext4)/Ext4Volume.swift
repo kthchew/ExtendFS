@@ -557,7 +557,7 @@ extension Ext4Volume: FSVolume.ReadWriteOperations {
             throw POSIXError(.EIO)
         }
         
-        if item.indexNode.withLock({ $0.flags.contains(.inodeHasInlineData) }) {
+        if superblock.incompatibleFeatures.contains(.inlineDataInInode) && item.indexNode.withLock({ $0.flags.contains(.inodeHasInlineData) }) {
             guard let data = try item.getInlineData() else {
                 logger.error("Inode \(item.inodeNumber, privacy: .public) has inline data flag but inline data could not be read")
                 throw POSIXError(.EIO)

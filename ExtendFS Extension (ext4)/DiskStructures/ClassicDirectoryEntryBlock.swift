@@ -22,6 +22,10 @@ struct ClassicDirectoryEntryBlock {
                 logger.error("Directory entry had length of 0")
                 break
             }
+            guard entry.directoryEntryLength <= data.count else {
+                logger.error("Directory entry length exceeded remaining data size")
+                break
+            }
             self.entries.append(entry)
             data = data.advanced(by: Int(entry.directoryEntryLength))
         }

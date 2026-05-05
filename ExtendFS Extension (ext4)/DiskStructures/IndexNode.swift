@@ -373,7 +373,8 @@ public struct IndexNode {
             attributes.allocSize = (blockCount * UInt64(usesHugeBlocks ? superblock.blockSize : 512))
         }
 
-        // gating behind isAttributeWanted causes this to never work
+        // Gating behind isAttributeWanted causes this to never work
+        // Kernel offloaded IO does not work here because inline data is not sector aligned
         attributes.inhibitKernelOffloadedIO = flags.contains(.inodeHasInlineData)
         
         if request.isAttributeWanted(.supportsLimitedXAttrs) {
