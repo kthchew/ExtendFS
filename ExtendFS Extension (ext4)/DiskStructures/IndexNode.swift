@@ -172,7 +172,9 @@ public struct IndexNode {
         var totalAdvance = 0
         while !possibleExtAttr.isEmpty {
             guard let entry = ExtendedAttrEntry(from: possibleExtAttr) else { break }
-            guard entry.nameLength != 0 || entry.namePrefix.rawValue != 0 || entry.valueOffset != 0 || entry.valueInodeNumber != 0 else {
+            guard entry.nameLength != 0 || entry.namePrefix.rawValue != 0 || entry.valueOffset != 0 else {
+                possibleExtAttr = possibleExtAttr.advanced(by: 4)
+                totalAdvance += 4
                 break
             }
             
