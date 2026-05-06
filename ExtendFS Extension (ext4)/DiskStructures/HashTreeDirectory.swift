@@ -74,7 +74,7 @@ public struct HashTreeDirectoryRoot {
     public var info: HashTreeDirectoryRootInfo
     /// The maximum ``HashTreeDirectoryEntry`` count that can be stored in this node.
     public var limit: UInt16
-    /// The logical block of the next leaf node covering hashes between the start of this node and the first entry in ``entries``.
+    /// The actual number of ``HashTreeDirectoryEntry``s stored in this node.
     public var count: UInt16
     /// The logical block of the next leaf node covering hashes between the start of this node and the first entry in ``entries``.
     public var block: UInt32
