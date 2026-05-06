@@ -65,7 +65,7 @@ extension Data {
         return uuid
     }
     
-    func readString(at offset: Self.Index, maxLength: Int) -> String {
+    func readString(at offset: Self.Index, maxLength: Int, encoding: String.Encoding = .utf8) -> String {
         guard maxLength >= 0, offset >= 0, offset + maxLength <= count else { return "" }
         return self.withUnsafeBytes { ptr in
             guard let stringStart = ptr.baseAddress?.assumingMemoryBound(to: CChar.self).advanced(by: Int(offset)) else {
@@ -77,12 +77,12 @@ extension Data {
                 let char = (stringStart + i).pointee
                 cString.append(char)
                 if char == 0 {
-                    return String(cString: cString, encoding: .utf8) ?? ""
+                    return String(cString: cString, encoding: encoding) ?? ""
                 }
             }
             cString.append(0)
             
-            return String(cString: cString, encoding: .utf8) ?? ""
+            return String(cString: cString, encoding: encoding) ?? ""
         }
     }
 

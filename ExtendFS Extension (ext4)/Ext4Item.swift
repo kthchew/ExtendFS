@@ -100,6 +100,24 @@ final class Ext4Item: FSItem {
         containingVolume.metadataChecksumSeed != nil
     }
 
+    private func caseFoldedNameData(_ nameData: Data) -> Data? {
+        guard let nameString = String(data: nameData, encoding: .utf8) else { return nil }
+        return Data(nameString.lowercased().utf8)
+    }
+
+    private func nameMatches(_ entry: DirectoryEntry, lookupName: Data, caseInsensitive: Bool) -> Bool {
+        guard entry.inodePointee != 0, entry.nameLength != 0 else { return false }
+        if caseInsensitive {
+            if let entryName = entry.nameUTF8, let lookupName = String(data: lookupName, encoding: .utf8) {
+                return entryName.caseInsensitiveCompare(lookupName) == .orderedSame
+            } else if let encodingFlags = containingVolume.superblock.encodingFlags, encodingFlags.contains(.noCompatFallback) {
+                return false
+            }
+        }
+        
+        return entry.name == lookupName
+    }
+
     /// Reads one logical directory block and returns its raw bytes.
     private func directoryBlockData(at logicalBlock: UInt64) throws -> Data? {
         let extents = try findExtentsCovering(logicalBlock, with: 1)
@@ -140,27 +158,32 @@ final class Ext4Item: FSItem {
         return nil
     }
 
-    private func directoryEntry(named lookupName: String, in blockData: Data, caseInsensitive: Bool) -> DirectoryEntry? {
+    private func directoryEntry(named lookupName: Data, in blockData: Data, caseInsensitive: Bool) -> DirectoryEntry? {
         guard let dirEntryBlock = ClassicDirectoryEntryBlock(from: blockData, withParentInode: inodeNumber) else { return nil }
         return dirEntryBlock.entries.first { entry in
-            guard entry.inodePointee != 0, entry.nameLength != 0 else { return false }
-            if caseInsensitive {
-                return entry.name.caseInsensitiveCompare(lookupName) == .orderedSame
-            } else {
-                return entry.name == lookupName
-            }
+            nameMatches(entry, lookupName: lookupName, caseInsensitive: caseInsensitive)
         }
     }
 
     private func findItemInHashTreeDirectory(named name: FSFileName, caseInsensitive: Bool) throws -> DirectoryEntry? {
         guard indexNode.withLock({ $0.flags.contains(.hashedIndices) }) else { return nil }
-        guard let lookupName = name.string else { return nil }
-
-        let hashInput = caseInsensitive ? lookupName.lowercased() : lookupName
+        let lookupNameData = name.data
+        let hashInputData: Data
+        if caseInsensitive {
+            if let folded = caseFoldedNameData(lookupNameData) {
+                hashInputData = folded
+            } else if let encodingFlags = containingVolume.superblock.encodingFlags, encodingFlags.contains(.strictMode) {
+                return nil
+            } else {
+                hashInputData = lookupNameData
+            }
+        } else {
+            hashInputData = lookupNameData
+        }
         guard let rootData = try directoryBlockData(at: 0) else { return nil }
         guard let root = HashTreeDirectoryRoot(from: rootData, parentInode: nil, hasChecksumTail: directoryBlocksHaveChecksumTail) else { return nil }
         guard let seed = containingVolume.superblock.hashSeed else { return nil }
-        guard let hashVersion = hashVersion(for: root), let hash = HTreeHasher.hash(name: hashInput, hashType: hashVersion, hashSeed: seed) else { return nil }
+        guard let hashVersion = hashVersion(for: root), let hash = HTreeHasher.hash(name: hashInputData, hashType: hashVersion, hashSeed: seed) else { return nil }
 
         let majorHash = hash.upperHalf
 
@@ -180,7 +203,7 @@ final class Ext4Item: FSItem {
         let leafBlock = currentBlock
 
         guard let leafData = try directoryBlockData(at: UInt64(leafBlock)) else { return nil }
-        return directoryEntry(named: lookupName, in: leafData, caseInsensitive: caseInsensitive)
+        return directoryEntry(named: lookupNameData, in: leafData, caseInsensitive: caseInsensitive)
     }
     
     private func refetchInode() throws {
@@ -252,14 +275,15 @@ final class Ext4Item: FSItem {
     
     func findItemInDirectory(named name: FSFileName, cache: DirectoryCache) async throws -> (Ext4Item, FSFileName)? {
         let caseInsensitive = indexNode.withLock { $0.flags.contains(.caseInsensitiveDirectoryContents) }
-        let keyComponent = caseInsensitive ? FSFileName(string: name.string?.lowercased() ?? "") : name
-        let key = DirectoryCacheKey(parentInode: inodeNumber, pathComponent: keyComponent.data)
+        let lookupNameData = name.data
+        let keyData = caseInsensitive ? (caseFoldedNameData(lookupNameData) ?? lookupNameData) : lookupNameData
+        let key = DirectoryCacheKey(parentInode: inodeNumber, pathComponent: keyData)
         let (cachedEntry, negativeIsCorrect) = cache.lookup(forKey: key)
         if let cachedEntry = cachedEntry {
             if cachedEntry.inodePointee == 0 {
                 return nil
             } else {
-                return try await (containingVolume.item(forInode: cachedEntry.inodePointee), FSFileName(string: cachedEntry.name))
+                return try await (containingVolume.item(forInode: cachedEntry.inodePointee), FSFileName(data: cachedEntry.name))
             }
         } else if negativeIsCorrect {
             let inserted = cache.insertEmptyEntry(forKey: key)
@@ -274,14 +298,10 @@ final class Ext4Item: FSItem {
         if containingVolume.superblock.incompatibleFeatures.contains(.inlineDataInInode) && inodeFlags.contains(.inodeHasInlineData) {
             let (entries, _) = try fetchAllDirectoryEntries(cache: cache)
             let entry = entries.first { entry in
-                if caseInsensitive {
-                    return entry.name.caseInsensitiveCompare(name.string ?? "") == .orderedSame
-                } else {
-                    return entry.name == name.string
-                }
+                nameMatches(entry, lookupName: lookupNameData, caseInsensitive: caseInsensitive)
             }
             if let entry {
-                return try await (containingVolume.item(forInode: entry.inodePointee), FSFileName(string: entry.name))
+                return try await (containingVolume.item(forInode: entry.inodePointee), FSFileName(data: entry.name))
             } else {
                 let inserted = cache.insertEmptyEntry(forKey: key)
                 if !inserted {
@@ -294,7 +314,7 @@ final class Ext4Item: FSItem {
         if inodeFlags.contains(.hashedIndices) {
             if let entry = try findItemInHashTreeDirectory(named: name, caseInsensitive: caseInsensitive) {
                 let cachedEntry = cache.insert(entry, forKey: key) ?? entry
-                return try await (containingVolume.item(forInode: cachedEntry.inodePointee), FSFileName(string: cachedEntry.name))
+                return try await (containingVolume.item(forInode: cachedEntry.inodePointee), FSFileName(data: cachedEntry.name))
             }
             
             guard cache.insertEmptyEntry(forKey: key) else {
@@ -310,7 +330,7 @@ final class Ext4Item: FSItem {
             if secondCachedEntry.inodePointee == 0 {
                 return nil
             } else {
-                return try await (containingVolume.item(forInode: secondCachedEntry.inodePointee), FSFileName(string: secondCachedEntry.name))
+                return try await (containingVolume.item(forInode: secondCachedEntry.inodePointee), FSFileName(data: secondCachedEntry.name))
             }
         } else if secondNegativeIsCorrect {
             let inserted = cache.insertEmptyEntry(forKey: key)
@@ -320,13 +340,9 @@ final class Ext4Item: FSItem {
             return nil
         }
         if let entry = entries.first(where: { entry in
-            if caseInsensitive {
-                return entry.name.caseInsensitiveCompare(name.string ?? "") == .orderedSame
-            } else {
-                return entry.name == name.string
-            }
+            nameMatches(entry, lookupName: lookupNameData, caseInsensitive: caseInsensitive)
         }) {
-            return try await (containingVolume.item(forInode: entry.inodePointee), FSFileName(string: entry.name))
+            return try await (containingVolume.item(forInode: entry.inodePointee), FSFileName(data: entry.name))
         }
         
         let inserted = cache.insertEmptyEntry(forKey: key)

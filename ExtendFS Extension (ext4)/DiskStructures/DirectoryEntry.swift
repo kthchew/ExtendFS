@@ -34,8 +34,8 @@ public class DirectoryEntry {
         guard let fileTypeRaw: UInt8 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.fileType = Filetype(rawValue: fileTypeRaw)
         
-        guard let name = try? data.readString(at: &offset, maxLength: Int(nameLength)) else { return nil }
-        self.name = name
+        guard let nameData = try? data.readSection(at: &offset, length: Int(nameLength)) else { return nil }
+        self.name = nameData
         
         self.parentInode = parent
     }
@@ -45,14 +45,15 @@ public class DirectoryEntry {
         self.directoryEntryLength = 0
         self.nameLength = 0
         self.fileType = .unknown
-        self.name = ""
+        self.name = Data()
         self.referenceCount = 0
         self.parentInode = nil
     }
     
-    static public func createEmptyEntry(with name: String) -> DirectoryEntry {
+    static public func createEmptyEntry(with name: Data) -> DirectoryEntry {
         let entry = DirectoryEntry()
         entry.name = name
+        entry.nameLength = UInt8(clamping: name.count)
         return entry
     }
     
@@ -85,7 +86,10 @@ public class DirectoryEntry {
         }
     }
     #endif
-    var name: String
+    var name: Data
+    var nameUTF8: String? {
+        String(data: name, encoding: .utf8)
+    }
     
     var checksum: UInt32?
     

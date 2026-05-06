@@ -9,7 +9,7 @@ import os.log
 fileprivate let capacity = 150_000
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "DirectoryCache")
 
-/// A cache storing directory entries. 
+/// A cache storing directory entries.
 public final class DirectoryCache: Sendable {
     private struct CacheState {
         var map: [DirectoryCacheKey: DirectoryEntry] = [:]
@@ -28,6 +28,12 @@ public final class DirectoryCache: Sendable {
     private let state = Mutex<CacheState>(CacheState())
     
     public init() {}
+
+    private func keyData(from nameData: Data, caseInsensitive: Bool) -> Data {
+        guard caseInsensitive else { return nameData }
+        guard let string = String(data: nameData, encoding: .utf8) else { return nameData }
+        return Data(string.lowercased().utf8)
+    }
     
     private func markAsUsed(_ entry: DirectoryEntry, state: inout CacheState) {
         if state.lruHead === entry {
@@ -95,7 +101,7 @@ public final class DirectoryCache: Sendable {
                 }
             }
             
-            let empty = DirectoryEntry.createEmptyEntry(with: String(data: key.pathComponent, encoding: .utf8) ?? "")
+            let empty = DirectoryEntry.createEmptyEntry(with: key.pathComponent)
             state.map[key] = empty
             markAsUsed(empty, state: &state)
             return true
@@ -115,7 +121,7 @@ public final class DirectoryCache: Sendable {
             let canFitAllEntries = completeEntryList.count <= capacity
             var completed = true
             for requestedEntry in completeEntryList {
-                let key = DirectoryCacheKey(parentInode: parentInode, pathComponent: (caseInsensitive ? requestedEntry.name.lowercased() : requestedEntry.name).data(using: .utf8)!)
+                let key = DirectoryCacheKey(parentInode: parentInode, pathComponent: keyData(from: requestedEntry.name, caseInsensitive: caseInsensitive))
                 if let existingEntry = state.map[key] {
                     markAsUsed(existingEntry, state: &state)
                     insertedEntries.append(existingEntry)
@@ -173,7 +179,7 @@ public final class DirectoryCache: Sendable {
         if let parentInode = entry.parentInode {
             state.completeDirectoryMapping[parentInode] = nil
         }
-        let keyToRemove = DirectoryCacheKey(parentInode: entry.parentInode ?? 0, pathComponent: Data(entry.name.utf8))
+        let keyToRemove = DirectoryCacheKey(parentInode: entry.parentInode ?? 0, pathComponent: entry.name)
         state.map[keyToRemove] = nil
         
         entry.lruPrevious?.lruNext = entry.lruNext

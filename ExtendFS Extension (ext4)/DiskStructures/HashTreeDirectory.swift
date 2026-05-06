@@ -86,9 +86,9 @@ public struct HashTreeDirectoryRoot {
     public init?(from data: Data, parentInode: UInt32?, hasChecksumTail: Bool) {
         guard data.count > 0 else { return nil }
         guard let dotEntry = DirectoryEntry(from: data.readablePrefix(length: 12), withParentInode: parentInode) else { return nil }
-        guard dotEntry.name == "." else { return nil }
+        guard dotEntry.name == Data(".".utf8) else { return nil }
         guard let dotDotEntry = DirectoryEntry(from: data.readableSection(at: 12, length: 12), withParentInode: parentInode) else { return nil }
-        guard dotDotEntry.name == ".." else { return nil }
+        guard dotDotEntry.name == Data("..".utf8) else { return nil }
         guard let info = HashTreeDirectoryRootInfo(from: data.readableSection(at: 24, length: 8)) else { return nil }
         guard info.reservedZero == 0, info.infoLength == 8 else {
             logger.error("Hash tree root info was not well formed")

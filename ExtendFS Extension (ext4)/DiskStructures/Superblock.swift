@@ -19,6 +19,9 @@ public struct Superblock {
         func nextString(maxLength: Int) -> String? {
             try? data.readString(at: &offset, maxLength: maxLength)
         }
+        func nextSection(length: Int) -> Data? {
+            try? data.readSection(at: &offset, length: length)
+        }
         
         guard let inodeCount: UInt32 = nextLE() else { return nil }
         self.inodeCount = inodeCount
@@ -102,10 +105,10 @@ public struct Superblock {
         guard let uuid = nextUUID() else { return nil }
         self.uuid = uuid
 
-        guard let volumeName = nextString(maxLength: 16) else { return nil }
+        guard let volumeName = nextSection(length: 16) else { return nil }
         self.volumeName = volumeName
 
-        guard let lastMountDirectory = nextString(maxLength: 64) else { return nil }
+        guard let lastMountDirectory = nextSection(length: 64) else { return nil }
         self.lastMountDirectory = lastMountDirectory
 
         guard let compressionAlgorithmUsageBitmap: UInt32 = nextLE() else { return nil }
@@ -300,9 +303,9 @@ public struct Superblock {
         self.pad = pad
         
         guard let encoding: UInt16 = nextLE() else { return nil }
-        self.encoding = encoding
+        self.encoding = Encoding(rawValue: encoding)
         guard let encodingFlags: UInt16 = nextLE() else { return nil }
-        self.encodingFlags = encodingFlags
+        self.encodingFlags = EncodingFlags(rawValue: encodingFlags)
         guard let orphanFileInodeNumber: UInt32 = nextLE() else { return nil }
         self.orphanFileInodeNumber = orphanFileInodeNumber
 
@@ -491,6 +494,57 @@ public struct Superblock {
         static let disableDelayedAllocation = DefaultMountOptions(rawValue: 1 << 11)
     }
     
+    /// An encoding used for file names in casefolded directories.
+    ///
+    /// ext4 on Linux currently only supports UTF-8, so other values will probably not appear. In addition, macOS dislikes file names other than UTF-8 anyway.
+    public enum Encoding {
+        /// UTF-8 encoding.
+        case utf8
+        /// Some other encoding.
+        case unknown(UInt16)
+        
+        public init(rawValue: UInt16) {
+            switch rawValue {
+            case 1:
+                self = .utf8
+            default:
+                self = .unknown(rawValue)
+            }
+        }
+        
+        public var rawValue: UInt16 {
+            switch self {
+            case .utf8:
+                1
+            case .unknown(let value):
+                value
+            }
+        }
+        
+        public var encoding: String.Encoding? {
+            switch self {
+            case .utf8:
+                .utf8
+            case .unknown:
+                nil
+            }
+        }
+    }
+    
+    /// Options that determine how to interpret encoded file names for casefolding.
+    public struct EncodingFlags: OptionSet {
+        public let rawValue: UInt16
+        
+        public init(rawValue: UInt16) {
+            self.rawValue = rawValue
+        }
+        
+        /// Inputted file names that are not in the correct encoding should be rejected.
+        static let strictMode = EncodingFlags(rawValue: 1 << 0)
+        /// If a file name is not in the correct encoding, do not fall back to non-casefolded behavior.
+        static let noCompatFallback = EncodingFlags(rawValue: 1 << 1)
+    }
+    
     /// Total inode count.
     var inodeCount: UInt32
     /// Total block count.
@@ -556,9 +610,9 @@ public struct Superblock {
     var readOnlyCompatibleFeatures: ReadOnlyCompatibleFeatures
     var uuid: UUID?
     /// Volume label, maximum length 16.
-    var volumeName: String?
+    var volumeName: Data?
     /// Directory where filesystem was last mounted, maximum length 64.
-    var lastMountDirectory: String?
+    var lastMountDirectory: Data?
     var compressionAlgorithmUsageBitmap: UInt32?
     
     // MARK: - Performance hints
@@ -649,8 +703,8 @@ public struct Superblock {
     var lastErrorTimeHigh: UInt8?
     
     var pad: [UInt8]?
-    var encoding: UInt16?
-    var encodingFlags: UInt16?
+    var encoding: Encoding?
+    var encodingFlags: EncodingFlags?
     var orphanFileInodeNumber: UInt32?
 
     var reservedPadding: [UInt32]?
@@ -703,8 +757,8 @@ public struct Superblock {
         data.appendLittleEndian(incompatibleFeatures.rawValue)
         data.appendLittleEndian(readOnlyCompatibleFeatures.rawValue)
         data.append(uuid: (uuid ?? UUID()))
-        try data.append(cStringFrom: volumeName ?? "", length: 16)
-        try data.append(cStringFrom: lastMountDirectory ?? "", length: 64)
+        data.append(volumeName ?? Data(count: 16))
+        data.append(lastMountDirectory ?? Data(count: 64))
         data.appendLittleEndian(compressionAlgorithmUsageBitmap ?? 0)
         data.appendLittleEndian(preallocateBlocks ?? 0)
         data.appendLittleEndian(preallocateDirectoryBlocks ?? 0)
@@ -803,8 +857,8 @@ public struct Superblock {
         for i in pad {
             data.appendLittleEndian(i)
         }
-        data.appendLittleEndian(encoding ?? 0)
-        data.appendLittleEndian(encodingFlags ?? 0)
+        data.appendLittleEndian(encoding?.rawValue ?? 0)
+        data.appendLittleEndian(encodingFlags?.rawValue ?? 0)
         data.appendLittleEndian(orphanFileInodeNumber ?? 0)
         guard let reservedPadding, reservedPadding.count == 94 else {
             logger.fault("Superblock state is corrupted")

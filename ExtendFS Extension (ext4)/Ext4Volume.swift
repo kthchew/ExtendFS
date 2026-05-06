@@ -103,8 +103,8 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
                 Incompat features: \(superblock.incompatibleFeatures.rawValue, privacy: .public)
                 Readonly compat features: \(superblock.readOnlyCompatibleFeatures.rawValue, privacy: .public)
                 UUID: \(superblock.uuid?.uuidString ?? "")
-                Volume name: \(superblock.volumeName ?? "")
-                Last mounted directory: \(superblock.lastMountDirectory ?? "")
+                Volume name: \(FSFileName(data: superblock.volumeName ?? Data()).debugDescription)
+                Last mounted directory: \(FSFileName(data: superblock.lastMountDirectory ?? Data()).debugDescription)
                 Compresion algo use bitmap: \(String(describing: superblock.compressionAlgorithmUsageBitmap), privacy: .public)
                 Hash algorithm: \(String(describing: superblock.defaultHashAlgorithm), privacy: .public)
                 
@@ -141,7 +141,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
             self.metadataChecksumSeed = nil
         }
         
-        super.init(volumeID: FSVolume.Identifier(uuid: superblock.uuid ?? UUID()), volumeName: FSFileName(string: superblock.volumeName ?? ""))
+        super.init(volumeID: FSVolume.Identifier(uuid: superblock.uuid ?? UUID()), volumeName: FSFileName(data: superblock.volumeName ?? Data()))
         
         let root = try Ext4Item(volume: self, inodeNumber: 2)
         await cache.setRoot(root)
@@ -341,7 +341,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         guard let directory = directory as? Ext4Item else {
             throw POSIXError(.ENOENT)
         }
-        logger.debug("Looking up item with name \(name.string ?? "(unknown)") in directory (inode \(directory.inodeNumber))")
+        logger.debug("Looking up item with name \(String(data: name.data, encoding: .utf8) ?? "(not UTF-8)") in directory (inode \(directory.inodeNumber))")
         
         if let (item, realName) = try await directory.findItemInDirectory(named: name, cache: directoryCache) {
             return (item, realName)
@@ -424,10 +424,12 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         
         let attributesAccessibleWithoutLoading: FSItem.Attribute = [.type, .fileID, .parentID]
         let startIndex = cookie == .initial ? contents.startIndex : Int(cookie.rawValue)
+        let dotData = Data(".".utf8)
+        let dotDotData = Data("..".utf8)
         var itemsInBlock = [UInt64: ContiguousArray<Ext4Item>]()
         for i in startIndex..<contents.endIndex {
             let content = contents[i]
-            if attributes != nil && (content.name == "." || content.name == "..") {
+            if attributes != nil && (content.name == dotData || content.name == dotDotData) {
                 continue
             }
             let fileAttributes: FSItem.Attributes?
@@ -457,7 +459,7 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
             } else {
                 fileAttributes = nil
             }
-            guard packer.packEntry(name: FSFileName(string: content.name), itemType: content.fskitFileType ?? .unknown, itemID: FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid, nextCookie: FSDirectoryCookie(rawValue: UInt64(i + 1)), attributes: fileAttributes) else {
+            guard packer.packEntry(name: FSFileName(data: content.name), itemType: content.fskitFileType ?? .unknown, itemID: FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid, nextCookie: FSDirectoryCookie(rawValue: UInt64(i + 1)), attributes: fileAttributes) else {
                 break
             }
             
@@ -790,13 +792,18 @@ extension Ext4Volume: FSVolume.XattrOperations {
 extension Ext4Volume: FSVolume.RenameOperations {
     func setVolumeName(_ name: FSFileName) async throws -> FSFileName {
         #if DEBUG
-        superblock.volumeName = name.string ?? ""
+        let nameLength = 16
+        guard name.data.count <= nameLength else {
+            throw POSIXError(.EINVAL)
+        }
+        let padding = Data(count: nameLength - name.data.count)
+        superblock.volumeName = name.data + padding
         superblock.checksum = try superblock.calculateChecksum()
         let newSBData = try superblock.toData()
         try newSBData.withUnsafeBytes { buf in
             try resource.metadataWrite(from: buf, startingAt: 1024, length: buf.count)
         }
-        return FSFileName(string: superblock.volumeName ?? "")
+        return FSFileName(data: superblock.volumeName ?? Data())
         #else
         throw POSIXError(.ENOSYS)
         #endif

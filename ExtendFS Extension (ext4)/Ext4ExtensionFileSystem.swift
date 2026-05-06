@@ -70,7 +70,7 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
             return .notRecognized
         }
         if superblock.magic == 0xEF53 {
-            let name = superblock.volumeName ?? ""
+            let name = String(data: superblock.volumeName ?? Data(), encoding: .utf8) ?? ""
             let uuid = superblock.uuid ?? UUID()
             // seems like recognized and usableButLimited are treated like notRecognized as of macOS 15.6 (24G84)
             guard superblock.incompatibleFeatures.isSubset(of: Superblock.IncompatibleFeatures.supportedFeatures) else {
