@@ -20,6 +20,14 @@ public struct HashTreeDirectoryEntry: Hashable {
         self.hash = hash
         self.block = block
     }
+
+    public func toData() throws -> Data {
+        var data = Data()
+        data.reserveCapacity(8)
+        data.appendLittleEndian(hash)
+        data.appendLittleEndian(block)
+        return data
+    }
 }
 
 /// A structure containing the optional checksum of an htree.
@@ -34,6 +42,14 @@ public struct HashTreeDirectoryTail: Hashable {
         guard let checksum: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.reservedZero = reservedZero
         self.checksum = checksum
+    }
+
+    public func toData() throws -> Data {
+        var data = Data()
+        data.reserveCapacity(8)
+        data.appendLittleEndian(reservedZero)
+        data.appendLittleEndian(checksum)
+        return data
     }
 }
 
@@ -62,6 +78,17 @@ public struct HashTreeDirectoryRootInfo: Hashable {
         self.indirectLevels = indirectLevels
         self.flags = unusedFlags
     }
+
+    public func toData() throws -> Data {
+        var data = Data()
+        data.reserveCapacity(8)
+        data.appendLittleEndian(reservedZero)
+        data.appendLittleEndian(hashVersion.rawValue)
+        data.appendLittleEndian(infoLength)
+        data.appendLittleEndian(indirectLevels)
+        data.appendLittleEndian(flags)
+        return data
+    }
 }
 
 /// The root of a hash tree representing a directory.
@@ -79,11 +106,14 @@ public struct HashTreeDirectoryRoot {
     /// The logical block of the next leaf node covering hashes between the start of this node and the first entry in ``entries``.
     public var block: UInt32
     /// A list of hash to logical block mappings, sorted by hash.
-    public var entries: ContiguousArray<HashTreeDirectoryEntry>
+    public var entries: ContiguousArray<HashTreeDirectoryEntry>.SubSequence {
+        allEntries.prefix(Int(count) - 1)
+    }
+    private var allEntries: ContiguousArray<HashTreeDirectoryEntry>
     /// The tail of this node, or `nil` if checksums are not calculated.
     public var tail: HashTreeDirectoryTail?
     
-    public init?(from data: Data, parentInode: UInt32?, hasChecksumTail: Bool) {
+    public init?(from data: Data, parentInode: UInt32?, hasChecksumTail: Bool, inodeChecksumSeed: UInt32?) {
         guard data.count > 0 else { return nil }
         guard let dotEntry = DirectoryEntry(from: data.readablePrefix(length: 12), withParentInode: parentInode) else { return nil }
         guard dotEntry.name == Data(".".utf8) else { return nil }
@@ -118,12 +148,58 @@ public struct HashTreeDirectoryRoot {
             entries.append(entry)
             offset += 8
         }
-        self.entries = entries
+        self.allEntries = entries
         if hasChecksumTail, data.count >= 8 {
             self.tail = HashTreeDirectoryTail(from: data.readableSection(at: data.count - 8, length: 8))
+            
+            guard let inodeChecksumSeed else {
+                logger.error("Filesystem checksum seed is required to validate hash tree directory node checksums, but not provided")
+                return nil
+            }
+            guard let calculated = try? calculateChecksum(seed: inodeChecksumSeed) else {
+                logger.error("Couldn't calculate checksum for hash tree directory root")
+                return nil
+            }
+            guard let tail, tail.checksum == calculated else {
+                logger.error("Hash tree directory root had invalid checksum")
+                return nil
+            }
         } else {
             self.tail = nil
         }
+    }
+
+    public func toData(forChecksumCalculation: Bool = false) throws -> Data {
+        let entriesToAdd: any RandomAccessCollection<HashTreeDirectoryEntry> = forChecksumCalculation ? entries : allEntries
+        let entryCount = forChecksumCalculation ? Int(count) - 1 : Int(limit) - 1
+        guard entryCount >= 0, entriesToAdd.count <= entryCount else { throw POSIXError(.EIO) }
+
+        var data = Data()
+        data.reserveCapacity(32 + (entryCount * 8) + (tail != nil ? 8 : 0))
+        data.append(try dotEntry.toData())
+        data.append(try dotDotEntry.toData().prefix(12))
+        data.append(try info.toData())
+        data.appendLittleEndian(limit)
+        data.appendLittleEndian(count)
+        data.appendLittleEndian(block)
+
+        for entry in entriesToAdd {
+            data.append(try entry.toData())
+        }
+        if entriesToAdd.count < entryCount {
+            data.append(Data(count: (entryCount - entriesToAdd.count) * 8))
+        }
+
+        if let tail {
+            data.append(try tail.toData())
+        }
+
+        return data
+    }
+    
+    public func calculateChecksum(seed: UInt32) throws -> UInt32 {
+        let data = try self.toData(forChecksumCalculation: true).dropLast(MemoryLayout<UInt32>.size) + [0, 0, 0, 0]
+        return ~data.crc32c(seed: seed)
     }
 }
 
@@ -138,11 +214,14 @@ public struct HashTreeDirectoryNode {
     /// The logical block of the next leaf node covering hashes between the start of this node and the first entry in ``entries``.
     public var block: UInt32
     /// A list of hash to logical block mappings, sorted by hash.
-    public var entries: ContiguousArray<HashTreeDirectoryEntry>
+    public var entries: [HashTreeDirectoryEntry].SubSequence {
+        allEntries.prefix(Int(count) - 1)
+    }
+    private var allEntries: [HashTreeDirectoryEntry]
     /// The tail of this node, or `nil` if checksums are not calculated.
     public var tail: HashTreeDirectoryTail?
     
-    public init?(from data: Data, hasChecksumTail: Bool) {
+    public init?(from data: Data, hasChecksumTail: Bool, inodeChecksumSeed: UInt32?) {
         guard data.count > 0 else { return nil }
         guard let placeholderEntry = DirectoryEntry(from: data.readablePrefix(length: 8), withParentInode: nil) else { return nil }
         guard placeholderEntry.inodePointee == 0, placeholderEntry.nameLength == 0 else { return nil }
@@ -158,21 +237,65 @@ public struct HashTreeDirectoryNode {
         
         let tailLength = hasChecksumTail ? 8 : 0
         let parseLimit = max(0, data.count - tailLength)
-        let rawEntryCount = max(0, Int(count) - 1)
+        let rawEntryCount = max(0, Int(limit) - 1)
         let availableEntryCount = max(0, (parseLimit - offset) / 8)
         let entryCount = min(rawEntryCount, availableEntryCount)
-        var entries = ContiguousArray<HashTreeDirectoryEntry>()
+        var entries = [HashTreeDirectoryEntry]()
         entries.reserveCapacity(entryCount)
         for _ in 0..<entryCount {
             guard let entry = HashTreeDirectoryEntry(from: data.readableSection(at: offset, length: 8)) else { return nil }
             entries.append(entry)
             offset += 8
         }
-        self.entries = entries
+        self.allEntries = entries
         if hasChecksumTail, data.count >= 8 {
             self.tail = HashTreeDirectoryTail(from: data.readableSection(at: data.count - 8, length: 8))
+            
+            guard let inodeChecksumSeed else {
+                logger.error("Filesystem checksum seed is required to validate hash tree directory node checksums, but not provided")
+                return nil
+            }
+            guard let calculated = try? calculateChecksum(seed: inodeChecksumSeed) else {
+                logger.error("Couldn't calculate checksum for hash tree directory node")
+                return nil
+            }
+            guard let tail, tail.checksum == calculated else {
+                logger.error("Hash tree directory node had invalid checksum")
+                return nil
+            }
         } else {
             self.tail = nil
         }
+    }
+
+    public func toData(forChecksumCalculation: Bool = false) throws -> Data {
+        let entriesToAdd: any RandomAccessCollection<HashTreeDirectoryEntry> = forChecksumCalculation ? entries : allEntries
+        let entryCount = forChecksumCalculation ? Int(count) - 1 : Int(limit) - 1
+        guard entryCount >= 0, entriesToAdd.count <= entryCount else { throw POSIXError(.EIO) }
+
+        var data = Data()
+        data.reserveCapacity(8 + 8 + (entryCount * 8) + (tail != nil ? 8 : 0))
+        data.append(try placeholderEntry.toData().prefix(8))
+        data.appendLittleEndian(limit)
+        data.appendLittleEndian(count)
+        data.appendLittleEndian(block)
+
+        for entry in entriesToAdd {
+            data.append(try entry.toData())
+        }
+        if entriesToAdd.count < entryCount {
+            data.append(Data(count: (entryCount - entriesToAdd.count) * 8))
+        }
+
+        if let tail {
+            data.append(try tail.toData())
+        }
+
+        return data
+    }
+    
+    public func calculateChecksum(seed: UInt32) throws -> UInt32 {
+        let data = try self.toData(forChecksumCalculation: true).dropLast(MemoryLayout<UInt32>.size) + [0, 0, 0, 0]
+        return ~data.crc32c(seed: seed)
     }
 }

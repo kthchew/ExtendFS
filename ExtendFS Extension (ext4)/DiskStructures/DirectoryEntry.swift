@@ -57,6 +57,26 @@ public class DirectoryEntry {
         return entry
     }
     
+    public func toData() throws -> Data {
+        guard name.count == Int(nameLength) else { throw POSIXError(.EIO) }
+
+        let entryLengthInt = Int(directoryEntryLength)
+        guard entryLengthInt >= 8 + Int(nameLength) else { throw POSIXError(.EIO) }
+
+        var data = Data()
+        data.reserveCapacity(entryLengthInt)
+        data.appendLittleEndian(inodePointee)
+        data.appendLittleEndian(UInt16(directoryEntryLength))
+        data.appendLittleEndian(UInt8(nameLength))
+        data.appendLittleEndian(fileType?.rawValue ?? 0)
+        data.append(name)
+        if data.count < Int(directoryEntryLength) {
+            data.append(Data(count: entryLengthInt - data.count))
+        }
+        guard data.count == entryLengthInt else { throw POSIXError(.EIO) }
+        return data
+    }
+    
     var inodePointee: UInt32
     var directoryEntryLength: UInt16
     var nameLength: UInt8

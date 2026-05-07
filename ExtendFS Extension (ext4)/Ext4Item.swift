@@ -142,9 +142,10 @@ final class Ext4Item: FSItem {
     }
 
     /// Returns the block selected by an HTree hash->block table.
-    private func hashTreeBlock(startingAt block: UInt32, entries: ContiguousArray<HashTreeDirectoryEntry>, for hash: UInt32, interpretHashAsSigned: Bool) -> UInt32 {
-        let index = entries.partitioningIndex { $0.hash > hash } - 1
-        let selectedBlock = index >= entries.startIndex ? entries[index].block : block
+    private func hashTreeBlock(startingAt block: UInt32, entries: some RandomAccessCollection<HashTreeDirectoryEntry>, for hash: UInt32, interpretHashAsSigned: Bool) -> UInt32 {
+        let foundIndex = entries.partitioningIndex { $0.hash > hash }
+        let index = entries.index(before: foundIndex)
+        let selectedBlock = index >= entries.startIndex && index < entries.endIndex ? entries[index].block : block
         return selectedBlock
     }
 
@@ -166,7 +167,8 @@ final class Ext4Item: FSItem {
     }
 
     private func findItemInHashTreeDirectory(named name: FSFileName, caseInsensitive: Bool) throws -> DirectoryEntry? {
-        guard indexNode.withLock({ $0.flags.contains(.hashedIndices) }) else { return nil }
+        let indexNode = indexNode.withLock { $0 }
+        guard indexNode.flags.contains(.hashedIndices) else { return nil }
         let lookupNameData = name.data
         let hashInputData: Data
         if caseInsensitive {
@@ -181,7 +183,7 @@ final class Ext4Item: FSItem {
             hashInputData = lookupNameData
         }
         guard let rootData = try directoryBlockData(at: 0) else { return nil }
-        guard let root = HashTreeDirectoryRoot(from: rootData, parentInode: nil, hasChecksumTail: directoryBlocksHaveChecksumTail) else { return nil }
+        guard let root = HashTreeDirectoryRoot(from: rootData, parentInode: nil, hasChecksumTail: directoryBlocksHaveChecksumTail, inodeChecksumSeed: indexNode.metadataChecksumSeed) else { return nil }
         guard let seed = containingVolume.superblock.hashSeed else { return nil }
         guard let hashVersion = hashVersion(for: root), let hash = HTreeHasher.hash(name: hashInputData, hashType: hashVersion, hashSeed: seed) else { return nil }
 
@@ -195,7 +197,7 @@ final class Ext4Item: FSItem {
         var currentBlock = hashTreeBlock(startingAt: root.block, entries: root.entries, for: majorHash, interpretHashAsSigned: hashVersion.isSigned)
         for _ in 0..<root.info.indirectLevels {
             guard let nextData = try directoryBlockData(at: UInt64(currentBlock)),
-                  let nextNode = HashTreeDirectoryNode(from: nextData, hasChecksumTail: directoryBlocksHaveChecksumTail) else {
+                  let nextNode = HashTreeDirectoryNode(from: nextData, hasChecksumTail: directoryBlocksHaveChecksumTail, inodeChecksumSeed: indexNode.metadataChecksumSeed) else {
                 return nil
             }
             currentBlock = hashTreeBlock(startingAt: nextNode.block, entries: nextNode.entries, for: majorHash, interpretHashAsSigned: hashVersion.isSigned)
