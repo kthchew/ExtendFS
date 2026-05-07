@@ -11,6 +11,8 @@
 		9F57A64D2DD6841D00D7E52D /* ExtendFS Extension (ext4).appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = 9F57A6432DD6841D00D7E52D /* ExtendFS Extension (ext4).appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9FC8DBDD2F0A443E00976568 /* GoogleCRC32C.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9F5B7CA02F0A408A009B095C /* GoogleCRC32C.framework */; };
 		9FC8DBDE2F0A443E00976568 /* GoogleCRC32C.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 9F5B7CA02F0A408A009B095C /* GoogleCRC32C.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		9FFDCB7F2FAD21C1005361EC /* LICENSE.md in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD07DA2ED50597001E909D /* LICENSE.md */; };
+		9FFDCB802FAD21C1005361EC /* COPYING in Resources */ = {isa = PBXBuildFile; fileRef = 9FBD07DC2ED505C3001E909D /* COPYING */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -363,6 +365,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9FFDCB7F2FAD21C1005361EC /* LICENSE.md in Resources */,
+				9FFDCB802FAD21C1005361EC /* COPYING in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
