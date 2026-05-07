@@ -551,6 +551,14 @@ final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperatio
         }
         set {}
     }
+    
+    @available(macOS 26.4, *)
+    var requestedMountOptions: FSVolume.MountOptions {
+        get {
+            readOnly ? [.readOnly] : []
+        }
+        set {}
+    }
 }
 
 extension Ext4Volume: FSVolume.ReadWriteOperations {
@@ -739,6 +747,19 @@ extension Ext4Volume: FSVolume.AccessCheckOperations {
         }
         
         return true
+    }
+    
+    var isAccessCheckInhibited: Bool {
+        get {
+            // current implementation is just to work around an inability to really mark the volume as read-only
+            // before macOS 26.5
+            if #available(macOS 26.5, *) {
+                return true
+            }
+            
+            return false
+        }
+        set {}
     }
 }
 

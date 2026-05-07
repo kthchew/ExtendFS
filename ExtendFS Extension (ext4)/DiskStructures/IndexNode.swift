@@ -345,8 +345,13 @@ public struct IndexNode {
             attributes.gid = gid
         }
         if request.isAttributeWanted(.mode) {
-            // FIXME: not correct way to enforce read-only file system but does FSKit currently have a better way?
-            let useMode = readOnlySystem ? mode.subtracting([.ownerWrite, .groupWrite, .otherWrite]) : mode
+            let useMode: Mode
+            if #available(macOS 26.5, *) {
+                useMode = mode
+            } else {
+                // workaround for versions before 26.5 where the volume can't be marked as "true" read-only
+                useMode = readOnlySystem ? mode.subtracting([.ownerWrite, .groupWrite, .otherWrite]) : mode
+            }
             attributes.mode = useMode.rawValue
         }
         if request.isAttributeWanted(.flags) {
