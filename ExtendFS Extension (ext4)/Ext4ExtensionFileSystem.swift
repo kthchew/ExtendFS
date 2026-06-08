@@ -299,7 +299,12 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
                         destination.stopAccessingSecurityScopedResource()
                     }
                     
-                    try await Self.makeShadowFile(at: destination, volume: volume, task: task)
+                    do {
+                        try await Self.makeShadowFile(at: destination, volume: volume, task: task)
+                    } catch {
+                        task.logMessage("Error creating shadow file: \(error).")
+                        task.didComplete(error: error)
+                    }
                 } else {
                     task.logMessage("No valid directory provided to -S option. Shadow file not being created.")
                 }
