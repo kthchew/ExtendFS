@@ -1,848 +1,358 @@
 // This file is part of ExtendFS which is released under the GNU GPL v3 or later license with an app store exception.
 // See the LICENSE file in the root of the repository for full license details.
 
-import AppKit
-import Algorithms
 import Foundation
 import FSKit
+import os.log
 
-actor VolumeCache {
-    static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Volume")
-    
-    init() {
-        self.unclaimedItems.countLimit = 30000
-    }
-    
-    /// The key is the inode number.
-    var items = [UInt32: Ext4Item]()
-    
-    /// A cache of items that have not yet been sent to the system, but are kept in case they are needed "soon."
-    let unclaimedItems = NSCache<NSNumber, Ext4Item>()
-    
-    func setUnclaimedItem(_ item: Ext4Item, forInodeNumber inodeNumber: UInt32) {
-        unclaimedItems.setObject(item, forKey: NSNumber(value: inodeNumber))
-    }
-    func setItem(_ item: Ext4Item?, forInodeNumber inodeNumber: UInt32) {
-        unclaimedItems.removeObject(forKey: NSNumber(value: inodeNumber))
-        items[inodeNumber] = item
-    }
-    func fetchItem(forInodeNumber inodeNumber: UInt32, toSendToSystem: Bool) -> Ext4Item? {
-        if let item = items[inodeNumber] {
-            return item
-        }
-        
-        if let item = unclaimedItems.object(forKey: NSNumber(value: inodeNumber)) {
-            if toSendToSystem {
-                setItem(item, forInodeNumber: inodeNumber)
-            }
-            return item
-        }
-        
-        return nil
-    }
-    func reclaimItem(forInodeNumber inodeNumber: UInt32) {
-        unclaimedItems.removeObject(forKey: NSNumber(value: inodeNumber))
-        setItem(nil, forInodeNumber: inodeNumber)
-    }
-    
-    var root: Ext4Item!
-    func setRoot(_ root: Ext4Item) {
-        self.root = root
-    }
-    
-    func clearAllCaches() {
-        items = [:]
-    }
-}
+fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Volume")
 
-final class Ext4Volume: FSVolume, FSVolume.Operations, FSVolume.PathConfOperations {
-    let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Volume")
-    
-    init(resource: FSBlockDeviceResource, fileSystem: Ext4ExtensionFileSystem, readOnly: Bool) async throws {
-        logger.log("Initializing volume")
-        self.resource = resource
-        self.fileSystem = fileSystem
-        guard let superblock = try Superblock(blockDevice: resource, offset: 1024) else {
-            logger.error("Superblock could not be parsed")
+/// An object representing an ext2, ext3, or ext4 volume that conforms to FSKit's various Handler protocols.
+@available(macOS 27.0, *)
+final class Ext4Volume: Ext4VolumeBase {}
+
+@available(macOS 27.0, *)
+extension Ext4Volume: FSVolume.Handler {
+    func activate(options: FSTaskOptions) async throws -> FSActivateResult {
+        let root = try await baseActivate(options: options)
+        guard let result = FSActivateResult(rootItem: root) else {
+            logger.error("Failed to create activate result")
             throw POSIXError(.EIO)
         }
-        self.superblock = superblock
-        self.readOnly = readOnly
-        
-        logger.log("""
-            Superblock contents:
-                Inode count: \(superblock.inodeCount, privacy: .public)
-                Block count: \(superblock.blockCount, privacy: .public)
-                Root-only block count: \(superblock.superUserBlockCount, privacy: .public)
-                Free block count: \(superblock.freeBlockCount, privacy: .public)
-                Free inode count: \(superblock.freeInodeCount, privacy: .public)
-                First data block: \(superblock.firstDataBlock, privacy: .public)
-                Log block size: \(superblock.logBlockSize, privacy: .public)
-                Log cluster size: \(superblock.logClusterSize, privacy: .public)
-                Blocks per group: \(superblock.blocksPerGroup, privacy: .public)
-                Clusters per group: \(superblock.clustersPerGroup, privacy: .public)
-                Inodes per group: \(superblock.inodesPerGroup, privacy: .public)
-                Mount time: \(superblock.mountTime, privacy: .public)
-                Write time: \(superblock.writeTime, privacy: .public)
-                Mount count: \(superblock.mountsSinceLastFsck, privacy: .public)
-                Max mount count: \(superblock.maxMountsSinceLastFsck, privacy: .public)
-                Magic: \(superblock.magic, privacy: .public)
-                State: \(superblock.state.rawValue, privacy: .public)
-                Error behavior: \(String(describing: superblock.errorPolicy), privacy: .public)
-                Minor revision level: \(superblock.minorRevisionLevel, privacy: .public)
-                Last check: \(superblock.lastCheckTime, privacy: .public)
-                Check interval: \(superblock.maxSecondsBetweenChecks, privacy: .public)
-                Creator OS: \(superblock.creatorOS.rawValue, privacy: .public)
-                Revision level: \(superblock.revisionLevel.rawValue, privacy: .public)
-                Default UID: \(superblock.defaultUidForReservedBlocks, privacy: .public)
-                Default GID: \(superblock.defaultGidForReservedBlocks, privacy: .public)
-                First non-reserved inode: \(superblock.firstNonReservedInode, privacy: .public)
-                Inode size: \(superblock.inodeSize, privacy: .public)
-                Block group of this superblock: \(String(describing: superblock.blockGroupNumber), privacy: .public)
-                Compat features: \(superblock.compatibleFeatures.rawValue, privacy: .public)
-                Incompat features: \(superblock.incompatibleFeatures.rawValue, privacy: .public)
-                Readonly compat features: \(superblock.readOnlyCompatibleFeatures.rawValue, privacy: .public)
-                UUID: \(superblock.uuid?.uuidString ?? "")
-                Volume name: \(FSFileName(data: superblock.volumeName ?? Data()).debugDescription)
-                Last mounted directory: \(FSFileName(data: superblock.lastMountDirectory ?? Data()).debugDescription)
-                Compresion algo use bitmap: \(String(describing: superblock.compressionAlgorithmUsageBitmap), privacy: .public)
-                Hash algorithm: \(String(describing: superblock.defaultHashAlgorithm), privacy: .public)
-                
-                Min extra inode size: \(String(describing: superblock.minimumExtraInodeSize), privacy: .public)
-                Want extra inode size: \(String(describing: superblock.wantExtraInodeSize), privacy: .public)
-                Flags: \(String(describing: superblock.flags), privacy: .public)
-            
-                Log groups per flex: \(String(describing: superblock.logGroupsPerFlexibleGroup), privacy: .public)
-            """)
-        
-        let endOfSuperblock = 1024 + 1024
-        let blockSize = superblock.blockSize
-        let firstBlockAfterSuperblockOffset = Int64(ceil(Double(endOfSuperblock) / Double(blockSize))) * Int64(blockSize)
-        let blockGroupCount = (Int(resource.blockCount) + Int(superblock.blocksPerGroup) - 1) / Int(superblock.blocksPerGroup)
-        self.blockGroupDescriptors = try BlockGroupDescriptorManager(resource: resource, superblock: superblock, offset: firstBlockAfterSuperblockOffset, blockGroupCount: blockGroupCount)
-        
-        self.blockSize = blockSize
-        
-        if superblock.incompatibleFeatures.contains(.metadataChecksumSeedInSuperblock) {
-            guard let seed = superblock.checksumSeed else {
-                logger.error("Superblock checksum seed could not be read but seed in superblock is enabled")
-                throw POSIXError(.EIO)
-            }
-            self.metadataChecksumSeed = ~seed
-        } else if superblock.readOnlyCompatibleFeatures.contains(.supportsMetadataChecksumming) {
-            guard let uuid = superblock.uuid else {
-                logger.error("Mounted volume does not have a valid UUID but checksums are enabled")
-                throw POSIXError(.EIO)
-            }
-            var uuidData = Data()
-            uuidData.append(uuid: uuid)
-            self.metadataChecksumSeed = uuidData.crc32c()
-        } else {
-            self.metadataChecksumSeed = nil
-        }
-        
-        super.init(volumeID: FSVolume.Identifier(uuid: superblock.uuid ?? UUID()), volumeName: FSFileName(data: superblock.volumeName ?? Data()))
-        
-        let root = try Ext4Item(volume: self, inodeNumber: 2)
-        await cache.setRoot(root)
-        
-        await cache.setItem(root, forInodeNumber: 2)
-    }
-    
-    let fileSystem: Ext4ExtensionFileSystem
-    let resource: FSBlockDeviceResource
-    /// The superblock in block group 0.
-    #if DEBUG
-    var superblock: Superblock // TODO: this must be moved into an actor for thread safety
-    #else
-    let superblock: Superblock
-    #endif
-    let blockGroupDescriptors: BlockGroupDescriptorManager
-    
-    let cache = VolumeCache()
-    let directoryCache = DirectoryCache()
-    
-    let blockSize: Int
-    /// A value to use as the metadata checksum seed for most data structures.
-    ///
-    /// If the volume doesn't support metadata checksumming, this will be `nil`.
-    let metadataChecksumSeed: UInt32?
-    
-    /// Returns the block number for the block containing the given inode on disk.
-    /// - Parameter inodeNumber: The inode number.
-    /// - Returns: The block number, and the index into that block at which you'll find the inode.
-    func blockNumber(forBlockContainingInode inodeNumber: UInt32) throws -> (UInt64, UInt32) {
-        guard inodeNumber != 0 else {
-            logger.error("Tried to get block number for inode number 0")
-            throw POSIXError(.EINVAL)
-        }
-        let blockGroup = Int((inodeNumber - 1) / superblock.inodesPerGroup)
-        guard let groupDescriptor = try blockGroupDescriptors[blockGroup], let tableLocation = groupDescriptor.inodeTableLocation else {
-            logger.error("Failed to fetch data from block group descriptors while looking for block containing inode \(inodeNumber, privacy: .public)")
-            throw POSIXError(.EIO)
-        }
-        let tableIndex = (inodeNumber - 1) % superblock.inodesPerGroup
-        let blockOffset = UInt64(tableIndex) * UInt64(superblock.inodeSize) / UInt64(superblock.blockSize)
-        return (tableLocation + blockOffset, tableIndex - UInt32(blockOffset * UInt64(superblock.blockSize) / UInt64(superblock.inodeSize)))
-    }
-    
-    /// Loads all items associated with the inodes located at the given block number within the given range.
-    /// - Parameter blockNumber: The block number of part of the inode table to load.
-    /// - Parameter range: A range of inode numbers to fetch. If `nil`, load all items.
-    /// - Returns: An array of the items.
-    func loadItems(from blockNumber: UInt64, inodeNumberIn range: ClosedRange<UInt32>?) throws -> ContiguousArray<Ext4Item> {
-        guard let blockGroup = UInt32(exactly: blockNumber / UInt64(superblock.blocksPerGroup)) else {
-            logger.error("Block group for \(blockNumber) is too large to fit in a 32-bit integer - should not happen")
-            throw POSIXError(.EIO)
-        }
-        guard let groupDescriptor = try blockGroupDescriptors[Int(blockGroup)], let tableLocation = groupDescriptor.inodeTableLocation else {
-            logger.error("Failed to fetch data from block group descriptors while loading inodes at block \(blockNumber, privacy: .public)")
-            throw POSIXError(.EIO)
-        }
-        guard blockNumber >= tableLocation else {
-            logger.error("Trying to load inodes at block \(blockNumber, privacy: .public), but the inode table starts later (at \(tableLocation, privacy: .public))")
-            throw POSIXError(.EIO)
-        }
-        guard let blockOffset = UInt32(exactly: blockNumber - tableLocation) else {
-            logger.error("Inodes at block \(blockNumber, privacy: .public) are way too far from the table starting at \(tableLocation, privacy: .public)")
-            throw POSIXError(.EIO)
-        }
-        let firstInodeOfGroup = blockGroup * superblock.inodesPerGroup + 1
-        let inodesPerBlock = UInt32(superblock.blockSize) / UInt32(superblock.inodeSize)
-        let firstInodeInBlock = firstInodeOfGroup + (blockOffset * inodesPerBlock)
-        let lastInodeInBlock = firstInodeInBlock + inodesPerBlock - 1
-        
-        let firstToLoad = max(firstInodeInBlock, range?.lowerBound ?? UInt32(0))
-        let lastToLoad = min(lastInodeInBlock, range?.upperBound ?? UInt32.max)
-        guard firstToLoad <= lastToLoad else {
-            logger.error("Range was invalid when loading inodes")
-            throw POSIXError(.EIO)
-        }
-        
-        logger.debug("Loading inodes \(firstToLoad, privacy: .public) through \(lastToLoad, privacy: .public) at block number \(blockNumber, privacy: .public) from disk")
-        var data = try BlockDeviceReader.fetchExtent(from: resource, blockNumbers: off_t(blockNumber)..<Int64(blockNumber)+1, blockSize: superblock.blockSize)
-        var items: ContiguousArray<Ext4Item> = []
-        let inodesToSkip = Int(firstToLoad - firstInodeInBlock)
-        data = data.advanced(by: inodesToSkip * Int(superblock.inodeSize))
-        for inode in firstToLoad...lastToLoad {
-            let inodeData = data.subdata(in: 0..<Int(superblock.inodeSize))
-            let item = try Ext4Item(volume: self, inodeNumber: inode, inodeData: inodeData)
-            
-            items.append(item)
-            data = data.advanced(by: Int(superblock.inodeSize))
-        }
-        
-        return items
-    }
-    
-    func item(forInode inodeNumber: UInt32) async throws -> Ext4Item {
-        if let item = await cache.fetchItem(forInodeNumber: inodeNumber, toSendToSystem: true) {
-            return item
-        }
-        
-        let blockNumber = try blockNumber(forBlockContainingInode: inodeNumber)
-        let items = try loadItems(from: UInt64(blockNumber.0), inodeNumberIn: inodeNumber...inodeNumber)
-        guard !items.isEmpty else { throw POSIXError(.EIO) }
-        await cache.setItem(items[0], forInodeNumber: inodeNumber)
-        return items[0]
-    }
-    
-    let readOnly: Bool
-    
-    var supportedVolumeCapabilities: FSVolume.SupportedCapabilities {
-        let capabilities = SupportedCapabilities()
-        capabilities.caseFormat = .sensitive
-        capabilities.supportsHardLinks = true
-        capabilities.supportsSymbolicLinks = true
-        capabilities.supportsJournal = superblock.compatibleFeatures.contains(.journal)
-        capabilities.supportsActiveJournal = false
-        capabilities.supportsPersistentObjectIDs = true
-        capabilities.supports64BitObjectIDs = false
-        capabilities.supportsDocumentID = false
-        capabilities.supportsSparseFiles = true
-        capabilities.supportsZeroRuns = true
-        capabilities.supports2TBFiles = true
-        capabilities.supportsHiddenFiles = false
-        capabilities.supportsFastStatFS = true
-        capabilities.doesNotSupportRootTimes = false
-        capabilities.doesNotSupportVolumeSizes = false
-        capabilities.doesNotSupportImmutableFiles = false
-        capabilities.doesNotSupportSettingFilePermissions = false
-        return capabilities
-    }
-    
-    var volumeStatistics: FSStatFSResult {
-        let statistics = FSStatFSResult(fileSystemTypeName: "ExtendFS")
-        statistics.blockSize = superblock.blockSize
-        statistics.totalBlocks = superblock.blockCount
-        statistics.freeBlocks = superblock.freeBlockCount
-        statistics.availableBlocks = superblock.freeBlockCount >= superblock.superUserBlockCount ? superblock.freeBlockCount - superblock.superUserBlockCount : 0
-        statistics.usedBlocks = statistics.totalBlocks - statistics.freeBlocks
-        statistics.freeFiles = UInt64(superblock.freeInodeCount)
-        statistics.totalFiles = UInt64(superblock.inodeCount)
-        statistics.ioSize = 1_048_576
-        
-        if superblock.incompatibleFeatures.contains(.extents) {
-            statistics.fileSystemSubType = ExtendedFilesystemTypes.ext4.rawValue
-        } else if superblock.compatibleFeatures.contains(.journal) {
-            statistics.fileSystemSubType = ExtendedFilesystemTypes.ext3.rawValue
-        } else {
-            statistics.fileSystemSubType = ExtendedFilesystemTypes.ext2.rawValue
-        }
-        return statistics
-    }
-    
-    func mount(options: FSTaskOptions) async throws {
-        logger.log("mount options: \(options.taskOptions, privacy: .public)")
-        return
-    }
-    
-    func unmount() async {
-        logger.log("unmounting")
-        await cache.clearAllCaches()
-        return
-    }
-    
-    func synchronize(flags: FSSyncFlags) async throws {
-        try resource.metadataFlush()
-        return
-    }
-    
-    func attributes(_ desiredAttributes: FSItem.GetAttributesRequest, of item: FSItem) async throws -> FSItem.Attributes {
-        guard let item = item as? Ext4Item else {
-            throw POSIXError(.ENOENT)
-        }
-        logger.debug("attributes for \(item.inodeNumber, privacy: .public)")
-        
-        let attrs = item.getAttributes(desiredAttributes)
-        if desiredAttributes.isAttributeWanted(.parentID) {
-            attrs.parentID = .invalid
-        }
-        return attrs
-    }
-    
-    func setAttributes(_ newAttributes: FSItem.SetAttributesRequest, on item: FSItem) async throws -> FSItem.Attributes {
-        logger.debug("setAttributes")
-        if readOnly {
-            throw POSIXError(.EROFS)
-        }
-        
-        guard let item = item as? Ext4Item else {
-            throw POSIXError(.ENOENT)
-        }
-        #if DEBUG
-        return try await item.setAttributes(newAttributes)
-        #else
-        throw POSIXError(.ENOSYS)
-        #endif
-    }
-    
-    func lookupItem(named name: FSFileName, inDirectory directory: FSItem) async throws -> (FSItem, FSFileName) {
-        guard let directory = directory as? Ext4Item else {
-            throw POSIXError(.ENOENT)
-        }
-        logger.debug("Looking up item with name \(String(data: name.data, encoding: .utf8) ?? "(not UTF-8)") in directory (inode \(directory.inodeNumber))")
-        
-        if let (item, realName) = try await directory.findItemInDirectory(named: name, cache: directoryCache) {
-            return (item, realName)
-        }
-        
-        throw POSIXError(.ENOENT)
-    }
-    
-    func reclaimItem(_ item: FSItem) async throws {
-        guard let item = item as? Ext4Item else {
-            throw POSIXError(.ENOSYS)
-        }
-        
-        let inodeNumber = item.inodeNumber
-        await cache.reclaimItem(forInodeNumber: inodeNumber)
-        
-        return
-    }
-    
-    
-    func readSymbolicLink(_ item: FSItem) async throws -> FSFileName {
-        guard let item = item as? Ext4Item else {
-            throw POSIXError(.EIO)
-        }
-        guard let target = try await item.symbolicLinkTarget else {
-            logger.fault("Symbolic link request for item with inode \(item.inodeNumber) but symbolic link target was nil")
-            throw POSIXError(.EIO)
-        }
-        return FSFileName(string: target)
-    }
-    
-    func createItem(named name: FSFileName, type: FSItem.ItemType, inDirectory directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest) async throws -> (FSItem, FSFileName) {
-        logger.debug("createItem")
-        if readOnly {
-            throw POSIXError(.EROFS)
-        }
-        throw POSIXError(.ENOSYS)
-    }
-    
-    func createSymbolicLink(named name: FSFileName, inDirectory directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest, linkContents contents: FSFileName) async throws -> (FSItem, FSFileName) {
-        logger.debug("createSymbolicLink")
-        if readOnly {
-            throw POSIXError(.EROFS)
-        }
-        throw POSIXError(.ENOSYS)
-    }
-    
-    func createLink(to item: FSItem, named name: FSFileName, inDirectory directory: FSItem) async throws -> FSFileName {
-        logger.debug("createLink")
-        if readOnly {
-            throw POSIXError(.EROFS)
-        }
-        throw POSIXError(.ENOSYS)
-    }
-    
-    func removeItem(_ item: FSItem, named name: FSFileName, fromDirectory directory: FSItem) async throws {
-        logger.debug("removeItem(_:named:fromDirectory:)")
-        if readOnly {
-            throw POSIXError(.EROFS)
-        }
-        throw POSIXError(.ENOSYS)
-    }
-    
-    func renameItem(_ item: FSItem, inDirectory sourceDirectory: FSItem, named sourceName: FSFileName, to destinationName: FSFileName, inDirectory destinationDirectory: FSItem, overItem: FSItem?) async throws -> FSFileName {
-        logger.debug("renameItem")
-        if readOnly {
-            throw POSIXError(.EROFS)
-        }
-        throw POSIXError(.ENOSYS)
-    }
-    
-    func enumerateDirectory(_ directory: FSItem, startingAt cookie: FSDirectoryCookie, verifier: FSDirectoryVerifier, attributes: FSItem.GetAttributesRequest?, packer: FSDirectoryEntryPacker) async throws -> FSDirectoryVerifier {
-        logger.debug("enumerateDirectory")
-        // the cookie refers to the index of the directory content array
-        guard let directory = directory as? Ext4Item else {
-            throw POSIXError(.ENOSYS)
-        }
-        
-        let (contents, currentVerifier) = try directory.fetchAllDirectoryEntries(cache: directoryCache)
-        
-        let attributesAccessibleWithoutLoading: FSItem.Attribute = [.type, .fileID, .parentID]
-        let startIndex = cookie == .initial ? contents.startIndex : Int(cookie.rawValue)
-        let dotData = Data(".".utf8)
-        let dotDotData = Data("..".utf8)
-        var itemsInBlock = [UInt64: ContiguousArray<Ext4Item>]()
-        for i in startIndex..<contents.endIndex {
-            let content = contents[i]
-            if attributes != nil && (content.name == dotData || content.name == dotDotData) {
-                continue
-            }
-            let fileAttributes: FSItem.Attributes?
-            if let attributes, attributes.wantedAttributes.isSubset(of: attributesAccessibleWithoutLoading) {
-                fileAttributes = FSItem.Attributes()
-                fileAttributes?.type = content.fskitFileType ?? .unknown
-                fileAttributes?.fileID = FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid
-                fileAttributes?.parentID = FSItem.Identifier(rawValue: UInt64(directory.inodeNumber)) ?? .invalid
-            } else if let attributes {
-                let blockNumber = try self.blockNumber(forBlockContainingInode: content.inodePointee)
-                let item: Ext4Item
-                if let cachedItem = await cache.fetchItem(forInodeNumber: content.inodePointee, toSendToSystem: false) {
-                    item = cachedItem
-                } else if let items = itemsInBlock[blockNumber.0] {
-                    item = items[Int(blockNumber.1)]
-                    await cache.setUnclaimedItem(item, forInodeNumber: content.inodePointee)
-                } else {
-                    let items = try loadItems(from: UInt64(blockNumber.0), inodeNumberIn: nil)
-                    itemsInBlock[blockNumber.0] = items
-                    item = items[Int(blockNumber.1)]
-                    await cache.setUnclaimedItem(item, forInodeNumber: content.inodePointee)
-                }
-                fileAttributes = item.getAttributes(attributes)
-                
-                fileAttributes?.fileID = FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid
-                fileAttributes?.parentID = FSItem.Identifier(rawValue: UInt64(directory.inodeNumber)) ?? .invalid
-            } else {
-                fileAttributes = nil
-            }
-            guard packer.packEntry(name: FSFileName(data: content.name), itemType: content.fskitFileType ?? .unknown, itemID: FSItem.Identifier(rawValue: UInt64(content.inodePointee)) ?? .invalid, nextCookie: FSDirectoryCookie(rawValue: UInt64(i + 1)), attributes: fileAttributes) else {
-                break
-            }
-            
-        }
-        
-        return currentVerifier
-    }
-    
-    func activate(options: FSTaskOptions) async throws -> FSItem {
-        logger.log("activate options: \(options.taskOptions, privacy: .public)")
-        await fileSystem.setContainerStatus(.active)
-        
-        let bsdName = resource.bsdName
-        Task {
-            if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.kpchew.ExtendFS") {
-                let config = NSWorkspace.OpenConfiguration()
-                config.createsNewApplicationInstance = true
-                config.activates = false
-                config.addsToRecentItems = false
-                config.hides = true
-                let _ = try? await NSWorkspace.shared.open([URL(string: "extendfs-internal-diskwatch:/dev/\(bsdName)")!], withApplicationAt: appURL, configuration: config)
-            }
-        }
-        
-        return await cache.root
+        return result
     }
     
     func deactivate(options: FSDeactivateOptions = []) async throws {
-        logger.log("deactivate")
-        await fileSystem.setContainerStatus(.ready)
-        return
+        try await baseDeactivate(options: options)
     }
     
-    var maximumLinkCount: Int {
-        -1
+    func mount(options: FSTaskOptions) async throws {
+        try await baseMount(options: options)
     }
     
-    var maximumNameLength: Int {
-        255
+    func unmount() async {
+        await baseUnmount()
     }
     
-    var maximumFileSizeInBits: Int {
-        if superblock.incompatibleFeatures.contains(.extents) {
-            return -1
-        } else {
-            let blockSize = UInt64(superblock.blockSize)
-            let addressesPerBlock = blockSize / 4
-            let tripleIndirectMapBlockCoverage = UInt64(pow(Double(addressesPerBlock), 3.0)) + UInt64(pow(Double(addressesPerBlock), 2.0)) + addressesPerBlock + 12 + 1
-            let sizeInBytes = tripleIndirectMapBlockCoverage * blockSize
-            return Int(log2(Double(sizeInBytes))) + 1
+    func synchronize(flags: FSSyncFlags) async throws {
+        try await baseSynchronize(flags: flags)
+    }
+    
+    func lookupItem(named name: FSFileName, in directory: FSItem, context: FSContext) async throws -> FSLookupItemResult {
+        let (item, itemName) = try await baseLookupItem(named: name, inDirectory: directory)
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        let attributes = item.getAttributes(FSLookupItemResult.requestedAttributes)
+        guard let result = FSLookupItemResult(foundItem: item, itemName: itemName, itemAttributes: attributes) else {
+            logger.error("Failed to create lookup item result")
+            throw POSIXError(.EIO)
         }
+        return result
     }
     
-    var maximumXattrSize: Int {
-        if superblock.incompatibleFeatures.contains(.inodesCanStoreLargeExtendedAttributes) {
-            return 65536
-        } else {
-            return superblock.blockSize
+    func reclaimItem(_ item: FSItem) async throws {
+        try await baseReclaimItem(item)
+    }
+    
+    func createItem(named name: FSFileName, type: FSItem.ItemType, in directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest, context: FSContext) async throws -> FSCreateItemResult {
+        let (item, itemName) = try await baseCreateItem(named: name, type: type, inDirectory: directory, attributes: newAttributes)
+        guard let directory = directory as? Ext4Item else { throw POSIXError(.EIO) }
+        let directoryAttributes = directory.getAttributes(FSCreateItemResult.requestedAttributes)
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        let itemAttributes = item.getAttributes(FSCreateItemResult.requestedAttributes)
+        let newFreeSpace = FSFreeSpace.noUpdate
+        guard let result = FSCreateItemResult(newItem: item, newItemName: itemName, newItemAttributes: itemAttributes, directoryAttributes: directoryAttributes, freeSpace: newFreeSpace) else {
+            logger.error("Failed to create create item result")
+            throw POSIXError(.EIO)
         }
+        return result
     }
     
-    var restrictsOwnershipChanges: Bool {
-        false
+    func createSymbolicLink(named name: FSFileName, in directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest, linkContents contents: FSFileName, context: FSContext) async throws -> FSCreateSymlinkResult {
+        let (item, itemName) = try await baseCreateSymbolicLink(named: name, inDirectory: directory, attributes: newAttributes, linkContents: contents)
+        guard let directory = directory as? Ext4Item else { throw POSIXError(.EIO) }
+        let directoryAttributes = directory.getAttributes(FSCreateSymlinkResult.requestedAttributes)
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        let itemAttributes = item.getAttributes(FSCreateSymlinkResult.requestedAttributes)
+        let newFreeSpace = FSFreeSpace.noUpdate
+        guard let result = FSCreateSymlinkResult(newItem: item, newItemName: itemName, newItemAttributes: itemAttributes, directoryAttributes: directoryAttributes, freeSpace: newFreeSpace) else {
+            logger.error("Failed to create create symlink result")
+            throw POSIXError(.EIO)
+        }
+        return result
     }
     
-    var truncatesLongNames: Bool {
-        false
+    func createLink(to item: FSItem, named name: FSFileName, in directory: FSItem, context: FSContext) async throws -> FSCreateLinkResult {
+        let name = try await baseCreateLink(to: item, named: name, inDirectory: directory)
+        guard let directory = directory as? Ext4Item else { throw POSIXError(.EIO) }
+        let directoryAttributes = directory.getAttributes(FSCreateLinkResult.requestedAttributes)
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        let linkAttributes = item.getAttributes(FSCreateLinkResult.requestedAttributes)
+        let newFreeSpace = FSFreeSpace.noUpdate
+        guard let result = FSCreateLinkResult(linkName: name, linkAttributes: linkAttributes, directoryAttributes: directoryAttributes, freeSpace: newFreeSpace) else {
+            logger.error("Failed to create create link result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+    
+    func renameItem(_ item: FSItem, inDirectory sourceDirectory: FSItem, named sourceName: FSFileName, to destinationName: FSFileName, inDirectory destinationDirectory: FSItem, overItem: FSItem?, context: FSContext) async throws -> FSRenameItemResult {
+        let newName = try await baseRenameItem(item, inDirectory: sourceDirectory, named: sourceName, to: destinationName, inDirectory: destinationDirectory, overItem: overItem)
+        guard let sourceDirectory = sourceDirectory as? Ext4Item else { throw POSIXError(.EIO) }
+        let sourceDirectoryAttributes = sourceDirectory.getAttributes(FSRenameItemResult.requestedAttributes)
+        guard let destinationDirectory = destinationDirectory as? Ext4Item else { throw POSIXError(.EIO) }
+        let destinationDirectoryAttributes = destinationDirectory.getAttributes(FSRenameItemResult.requestedAttributes)
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        let renamedItemAttributes = item.getAttributes(FSRenameItemResult.requestedAttributes)
+        let overItemAttributes: FSItem.Attributes?
+        if let overItem {
+            guard let overItem = overItem as? Ext4Item else { throw POSIXError(.EIO) }
+            overItemAttributes = overItem.getAttributes(FSRenameItemResult.requestedAttributes)
+        } else {
+            overItemAttributes = nil
+        }
+        let newFreeSpace = FSFreeSpace.noUpdate
+        guard let result = FSRenameItemResult(newName: newName, renamedItemAttributes: renamedItemAttributes, sourceDirectoryAttributes: sourceDirectoryAttributes, destinationDirectoryAttributes: destinationDirectoryAttributes, overItemAttributes: overItemAttributes, freeSpace: newFreeSpace) else {
+            logger.error("Failed to create rename item result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+    
+    func removeItem(_ item: FSItem, named name: FSFileName, from directory: FSItem, context: FSContext) async throws -> FSRemoveItemResult {
+        try await baseRemoveItem(item, named: name, fromDirectory: directory)
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        let itemAttributes = item.getAttributes(FSRemoveItemResult.requestedAttributes)
+        guard let directory = directory as? Ext4Item else { throw POSIXError(.EIO) }
+        let directoryAttributes = directory.getAttributes(FSRemoveItemResult.requestedAttributes)
+        let newFreeSpace = FSFreeSpace.noUpdate
+        guard let result = FSRemoveItemResult(itemAttributes: itemAttributes, directoryAttributes: directoryAttributes, freeSpace: newFreeSpace) else {
+            logger.error("Failed to create remove item result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+    
+    func attributes(_ desiredAttributes: FSItem.GetAttributesRequest, of item: FSItem, context: FSContext) async throws -> FSGetAttributesResult {
+        let attributes = try await baseAttributes(desiredAttributes, of: item)
+        guard let result = FSGetAttributesResult(attributes: attributes) else {
+            logger.error("Failed to create get attributes result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+    
+    func setAttributes(_ newAttributes: FSItem.SetAttributesRequest, on item: FSItem, context: FSContext) async throws -> FSSetAttributesResult {
+        let newAttributes = try await baseSetAttributes(newAttributes, on: item)
+        let newFreeSpace = FSFreeSpace.noUpdate
+        guard let result = FSSetAttributesResult(attributes: newAttributes, freeSpace: newFreeSpace) else {
+            logger.error("Failed to create set attributes result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+    
+    func enumerateDirectory(_ directory: FSItem, startingAt cookie: FSDirectoryCookie, verifier: FSDirectoryVerifier, attributes: FSItem.GetAttributesRequest?, packer: FSDirectoryEntryPacker, context: FSContext) async throws -> FSEnumerateDirectoryResult {
+        let newVerifier = try await baseEnumerateDirectory(directory, startingAt: cookie, verifier: verifier, attributes: attributes, packer: packer)
+        guard let result = FSEnumerateDirectoryResult(verifier: newVerifier.rawValue) else {
+            logger.error("Failed to create enumerate directory result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+    
+    func readSymbolicLink(_ item: FSItem, context: FSContext) async throws -> FSReadSymlinkResult {
+        let location = try await baseReadSymbolicLink(item)
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        let attributes = item.getAttributes(FSReadSymlinkResult.requestedAttributes)
+        guard let result = FSReadSymlinkResult(contents: location, symlinkAttributes: attributes) else {
+            logger.error("Failed to create read symlink result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+}
+
+@available(macOS 27.0, *)
+extension Ext4Volume: FSVolume.KernelOffloadedIOHandler {
+    func blockmapFile(_ file: FSItem, offset: off_t, length: Int, flags: FSBlockmapFlags, operationID: FSOperationID, packer: FSExtentPacker) async throws -> FSBlockmapResult {
+        try await baseBlockmapFile(file, offset: offset, length: length, flags: flags, operationID: operationID, packer: packer)
+        let newFreeSpace = FSFreeSpace.noUpdate
+        guard let result = FSBlockmapResult(freeSpace: newFreeSpace) else {
+            logger.error("Failed to create blockmap file result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+    
+    func completeIO(for file: FSItem, offset: off_t, length: Int, status: any Error, flags: FSCompleteIOFlags, operationID: FSOperationID) async throws -> FSCompleteIOResult {
+        try await baseCompleteIO(for: file, offset: offset, length: length, status: status, flags: flags, operationID: operationID)
+        guard let file = file as? Ext4Item else { throw POSIXError(.EIO) }
+        let attributes = file.getAttributes(FSCompleteIOResult.requestedAttributes)
+        guard let result = FSCompleteIOResult(itemAttributes: attributes) else {
+            logger.error("Failed to create complete IO result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+    
+    func createFile(named name: FSFileName, in directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest, packer: FSExtentPacker, context: FSContext) async throws -> FSCreateFileKOIOResult {
+        let (item, itemName) = try await baseCreateFileAndPackEntries(name: name, in: directory, attributes: newAttributes, packer: packer)
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        let attributes = item.getAttributes(FSCreateFileKOIOResult.requestedAttributes)
+        guard let directory = directory as? Ext4Item else { throw POSIXError(.EIO) }
+        let directoryAttributes = directory.getAttributes(FSCreateFileKOIOResult.requestedAttributes)
+        let newFreeSpace: FSFreeSpace = FSFreeSpace.noUpdate
+        guard let result = FSCreateFileKOIOResult(newItem: item, newItemName: itemName, newItemAttributes: attributes, directoryAttributes: directoryAttributes, freeSpace: newFreeSpace) else {
+            logger.error("Failed to create create file (KOIO) result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+    
+    func lookupItem(named name: FSFileName, in directory: FSItem, packer: FSExtentPacker, context: FSContext) async throws -> FSLookupItemKOIOResult {
+        let (item, itemName) = try await baseLookupItemAndPackEntries(name: name, in: directory, packer: packer)
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        let attributes = item.getAttributes(FSLookupItemKOIOResult.requestedAttributes)
+        guard let result = FSLookupItemKOIOResult(foundItem: item, itemName: itemName, itemAttributes: attributes) else {
+            logger.error("Failed to create lookup item (KOIO) result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+}
+
+@available(macOS 27.0, *)
+extension Ext4Volume: FSVolume.XattrHandler {
+    func xattr(named name: FSFileName, of item: FSItem, context: FSContext) async throws -> FSGetXattrResult {
+        let data = try await baseGetXattr(named: name, of: item)
+        guard let result = FSGetXattrResult(xattrValue: data) else {
+            logger.error("Failed to create get xattr result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+    
+    func setXattr(named name: FSFileName, to value: Data?, on item: FSItem, policy: FSVolume.SetXattrPolicy, context: FSContext) async throws -> FSSetXattrResult {
+        try await baseSetXattr(named: name, to: value, on: item, policy: policy)
+        let newFreeSpace = FSFreeSpace.noUpdate
+        guard let result = FSSetXattrResult(freeSpace: newFreeSpace) else {
+            logger.error("Failed to create set xattr result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+    
+    func xattrs(of item: FSItem, context: FSContext) async throws -> FSListXattrsResult {
+        let xattrNames = try await baseListXattrs(of: item)
+        guard let result = FSListXattrsResult(xattrNames: xattrNames) else {
+            logger.error("Failed to create list xattrs result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+}
+
+@available(macOS 27.0, *)
+extension Ext4Volume: FSVolume.OpenCloseHandler {
+    func openItem(_ item: FSItem, modes: FSVolume.OpenModes, context: FSContext) async throws {
+        try await baseOpenItem(item, modes: modes)
+    }
+    
+    func closeItem(_ item: FSItem, modes: FSVolume.OpenModes, context: FSContext) async throws {
+        try await baseCloseItem(item, modes: modes)
+    }
+    
+    var isOpenCloseInhibited: Bool { true }
+}
+
+@available(macOS 27.0, *)
+extension Ext4Volume: FSVolume.ReadWriteHandler {
+    func read(from item: FSItem, at offset: off_t, length: Int, into buffer: FSMutableFileDataBuffer) async throws -> FSReadFileResult {
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        let amountRead = try await baseRead(from: item, at: offset, length: length, into: buffer)
+        let attributes = item.getAttributes(FSReadFileResult.requestedAttributes)
+        guard let result = FSReadFileResult(bytesRead: amountRead, itemAttributes: attributes) else {
+            logger.error("Failed to create read result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+    
+    func write(contents: Data, to item: FSItem, at offset: off_t) async throws -> FSWriteFileResult {
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        let amountWritten = try await baseWrite(contents: contents, to: item, at: offset)
+        let attributes = item.getAttributes(FSWriteFileResult.requestedAttributes)
+        let newFreeSpace = FSFreeSpace.noUpdate
+        guard let result = FSWriteFileResult(bytesWritten: amountWritten, itemAttributes: attributes, freeSpace: newFreeSpace) else {
+            logger.error("Failed to create write result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+}
+
+@available(macOS 27.0, *)
+extension Ext4Volume: FSVolume.AccessCheckHandler {
+    func checkAccess(to theItem: FSItem, requestedAccess access: FSVolume.AccessMask, context: FSContext) async throws -> FSCheckAccessResult {
+        let hasAccess = try await baseCheckAccess(to: theItem, requestedAccess: access)
+        guard let result = FSCheckAccessResult(accessAllowed: hasAccess) else {
+            logger.error("Failed to create check access result")
+            throw POSIXError(.EIO)
+        }
+        return result
+    }
+    
+    var isAccessCheckInhibited: Bool { true }
+}
+
+@available(macOS 27.0, *)
+extension Ext4Volume: FSVolume.RenameHandler {
+    func setVolumeName(_ name: FSFileName, context: FSContext) async throws -> FSVolumeRenameResult {
+        let newName = try await baseSetVolumeName(name)
+        guard let result = FSVolumeRenameResult(newName: newName) else {
+            logger.error("Failed to create volume rename result")
+            throw POSIXError(.EIO)
+        }
+        return result
     }
     
     var isVolumeRenameInhibited: Bool {
-        get {
-            #if DEBUG
-            false
-            #else
-            true
-            #endif
-        }
-        set {}
-    }
-    var isPreallocateInhibited: Bool {
-        get {
-            true
-        }
-        set {}
-    }
-    var isOpenCloseInhibited: Bool {
-        get {
-            true
-        }
-        set {}
-    }
-    
-    @available(macOS 26.4, *)
-    var requestedMountOptions: FSVolume.MountOptions {
-        get {
-            readOnly ? [.readOnly] : []
-        }
-        set {}
-    }
-}
-
-extension Ext4Volume: FSVolume.ReadWriteOperations {
-    func read(from item: FSItem, at offset: off_t, length: Int, into buffer: FSMutableFileDataBuffer) async throws -> Int {
-        guard let item = item as? Ext4Item else {
-            throw POSIXError(.EIO)
-        }
-        
-        if superblock.incompatibleFeatures.contains(.inlineDataInInode) && item.indexNode.withLock({ $0.flags.contains(.inodeHasInlineData) }) {
-            guard let data = try item.getInlineData() else {
-                logger.error("Inode \(item.inodeNumber, privacy: .public) has inline data flag but inline data could not be read")
-                throw POSIXError(.EIO)
-            }
-            return buffer.withUnsafeMutableBytes { buf in
-                let relevantData = data.advanced(by: Int(offset)).prefix(length)
-                (buf[0..<relevantData.count]).copyBytes(from: relevantData)
-                return relevantData.count
-            }
-        }
-        
-        let blockSize = superblock.blockSize
-        let blockOffset = Int(offset) / blockSize
-        let blockLength = Int((Double(length) / Double(blockSize)).rounded(.up))
-        let extents = try item.findExtentsCovering(UInt64(blockOffset), with: blockLength)
-        let firstLogicalBlock = offset / Int64(blockSize)
-        var amountRead = 0
-        let remainingLengthInFile: off_t = item.indexNode.withLock { off_t($0.size) - offset }
-        let actualLengthToRead = min(length, Int(remainingLengthInFile.roundUp(toMultipleOf: off_t(blockSize))))
-        for extent in extents {
-            let startingAtLogicalBlock = min(max(firstLogicalBlock, extent.logicalBlock), Int64(actualLengthToRead - amountRead))
-            if amountRead + Int(offset) < Int(extent.logicalBlock) * blockSize {
-                let zerosCount = (Int(extent.logicalBlock) * blockSize) - (amountRead + Int(offset))
-                let data = Data(count: zerosCount)
-                buffer.withUnsafeMutableBytes { buf in
-                    (buf[amountRead...]).copyBytes(from: data)
-                }
-                amountRead += zerosCount
-            }
-            
-            guard amountRead < actualLengthToRead else {
-                break
-            }
-            
-            let startingAtPhysicalBlock = extent.physicalBlock + (startingAtLogicalBlock - extent.logicalBlock)
-            let startingAtPhysicalByte = startingAtPhysicalBlock * Int64(superblock.blockSize)
-            let blockLengthConsidered = Int(extent.lengthInBlocks ?? 1) - Int(startingAtLogicalBlock - extent.logicalBlock)
-            let readFromThisExtent = min(actualLengthToRead - amountRead, blockLengthConsidered * superblock.blockSize)
-            if let type = extent.type, type == .zeroFill {
-                amountRead += readFromThisExtent
-                continue
-            }
-            amountRead += try buffer.withUnsafeMutableBytes { ptr in
-                return try resource.read(into: UnsafeMutableRawBufferPointer(rebasing: ptr[amountRead...]), startingAt: startingAtPhysicalByte, length: readFromThisExtent)
-            }
-        }
-        if amountRead < actualLengthToRead {
-            let zerosCount = actualLengthToRead - amountRead
-            let data = Data(count: zerosCount)
-            buffer.withUnsafeMutableBytes { buf in
-                (buf[amountRead...]).copyBytes(from: data)
-            }
-            amountRead += zerosCount
-        }
-        return min(amountRead, Int(remainingLengthInFile))
-    }
-    
-    func write(contents: Data, to item: FSItem, at offset: off_t) async throws -> Int {
-        if readOnly {
-            throw POSIXError(.EROFS)
-        }
-        throw POSIXError(.ENOSYS)
-    }
-}
-
-extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
-    func sendExtents(_ extents: any Collection<FileExtentNode>, using packer: FSExtentPacker, offset: off_t, length: Int) {
-        let end = Int(offset) + length
-        var current = offset
-        var sentSomething = false
-        for extent in extents {
-            let extentStartInBytes = extent.logicalBlock * Int64(blockSize)
-            let extentLengthInBytes = Int(extent.lengthInBlocks ?? 1) * Int(blockSize)
-            let extentEndInBytes = extentStartInBytes + Int64(extentLengthInBytes)
-            defer {
-                current += Int64(extentLengthInBytes)
-            }
-            if current < extentStartInBytes {
-                let zeros = Int(extentStartInBytes - current)
-                guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: zeros) else {
-                    return
-                }
-                current += Int64(zeros)
-            }
-            
-            // There's a bug(?) where sending an extent of length with a very long length can cause I/O to silently fail for a latter portion of the mapping.
-            // The point at which this happens does not seem to be easy to predict, so only give what was asked for (even if the extent is larger) to avoid this.
-            let cutOffFromStart = max(offset - off_t(extentStartInBytes), 0)
-            let cutOffFromEnd = max(off_t(extentEndInBytes) - (offset + off_t(length)), 0)
-            let lengthToSend = extentLengthInBytes - Int(cutOffFromStart) - Int(cutOffFromEnd)
-            guard lengthToSend > 0 else {
-                continue
-            }
-            guard packer.packExtent(resource: resource, type: extent.type!, logicalOffset: extentStartInBytes + cutOffFromStart, physicalOffset: extent.physicalBlock * Int64(blockSize) + cutOffFromStart, length: lengthToSend) else {
-                return
-            }
-            sentSomething = true
-        }
-        if !sentSomething {
-            logger.info("Called sendExtents, but no valid extents within range to send? This can be valid, but is unusual.")
-        }
-        if current < end {
-            guard packer.packExtent(resource: resource, type: .zeroFill, logicalOffset: current, physicalOffset: off_t.min, length: end - Int(current)) else {
-                return
-            }
-        }
-    }
-    
-    func blockmapFile(_ file: FSItem, offset: off_t, length: Int, flags: FSBlockmapFlags, operationID: FSOperationID, packer: FSExtentPacker) async throws {
-        guard let file = file as? Ext4Item else {
-            throw POSIXError(.EIO)
-        }
-        if flags.contains(.write) && readOnly {
-            throw POSIXError(.EROFS)
-        }
-        
-        let blockSize = superblock.blockSize
-        
-        let blockOffset = Int(offset) / blockSize
-        let blockLength = Int((Double(Int(offset) + length) / Double(blockSize)).rounded(.up)) - blockOffset
-        let extents = try file.findExtentsCovering(UInt64(blockOffset), with: blockLength)
-        
-        sendExtents(extents, using: packer, offset: offset, length: length)
-    }
-    
-    func completeIO(for file: FSItem, offset: off_t, length: Int, status: any Error, flags: FSCompleteIOFlags, operationID: FSOperationID) async throws {
-        return
-    }
-    
-    func createFile(name: FSFileName, in directory: FSItem, attributes: FSItem.SetAttributesRequest, packer: FSExtentPacker) async throws -> (FSItem, FSFileName) {
-        if readOnly {
-            throw POSIXError(.EROFS)
-        }
-        throw POSIXError(.ENOSYS)
-    }
-    
-    func lookupItem(name: FSFileName, in directory: FSItem, packer: FSExtentPacker) async throws -> (FSItem, FSFileName) {
-        let (item, name) = try await lookupItem(named: name, inDirectory: directory)
-        
-        guard let item = item as? Ext4Item else {
-            throw POSIXError(.EIO)
-        }
-        do {
-            let req = FSItem.GetAttributesRequest()
-            req.wantedAttributes.insert(.allocSize)
-            let allocSize = item.getAttributes(req).allocSize
-            let extents = try item.findExtentsCovering(0, with: Int(clamping: allocSize), performAdditionalIO: false)
-            sendExtents(extents, using: packer, offset: 0, length: Int(clamping: allocSize))
-        } catch {
-            logger.error("Failed to prefetch extents while looking up item: \(error)")
-        }
-        
-        return (item, name)
-    }
-}
-
-extension Ext4Volume: FSVolume.OpenCloseOperations {
-    func openItem(_ item: FSItem, modes: FSVolume.OpenModes) async throws {
-        if modes.contains(.write) {
-            if readOnly {
-                throw POSIXError(.EROFS)
-            }
-            throw POSIXError(.ENOSYS)
-        }
-    }
-    
-    func closeItem(_ item: FSItem, modes: FSVolume.OpenModes) async throws {
-        
-    }
-}
-
-extension Ext4Volume: FSVolume.AccessCheckOperations {
-    func checkAccess(to theItem: FSItem, requestedAccess access: FSVolume.AccessMask) async throws -> Bool {
-        let writeAccess: FSVolume.AccessMask = [.addFile, .addSubdirectory, .appendData, .delete, .deleteChild, .takeOwnership, .writeAttributes, .writeData, .writeSecurity, .writeXattr]
-        if readOnly && !access.isDisjoint(with: writeAccess) {
-            return false
-        }
-        
-        return true
-    }
-    
-    var isAccessCheckInhibited: Bool {
-        get {
-            // current implementation is just to work around an inability to really mark the volume as read-only
-            // before macOS 26.5
-            if #available(macOS 26.5, *) {
-                return true
-            }
-            
-            return false
-        }
-        set {}
-    }
-}
-
-extension Ext4Volume: FSVolume.XattrOperations {
-    func xattr(named name: FSFileName, of item: FSItem) async throws -> Data {
-        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
-        guard let toFind = name.string else { throw POSIXError(.EINVAL) }
-        
-        let embeddedEntries = item.indexNode.withLock { $0.embeddedExtendedAttributes }
-        let found = embeddedEntries?.first { entry in
-            entry.name == toFind
-        }
-        if let found {
-            return try item.getValueForEmbeddedAttribute(found) ?? Data()
-        }
-        
-        if let block = try item.extendedAttributeBlock {
-            let index = block.entries.partitioningIndex { entry in
-                entry.name >= toFind
-            }
-            if index != block.entries.endIndex && block.entries[index].name == toFind {
-                return try block.value(for: block.entries[index])
-            }
-        }
-        
-        logger.debug("No xattr named \(toFind, privacy: .public)")
-        throw POSIXError(.ENOATTR)
-    }
-    
-    func setXattr(named name: FSFileName, to value: Data?, on item: FSItem, policy: FSVolume.SetXattrPolicy) async throws {
-        guard !readOnly else { throw POSIXError(.EROFS) }
-        
-        throw POSIXError(.ENOSYS)
-    }
-    
-    func xattrs(of item: FSItem) async throws -> [FSFileName] {
-        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
-        
-        let embeddedEntries = item.indexNode.withLock({ $0.embeddedExtendedAttributes })?.map {
-            $0.name
-        }
-        
-        let otherEntries = try item.extendedAttributeBlock?.extendedAttributeNames
-        
-        let attrs = (embeddedEntries ?? []) + (otherEntries ?? [])
-        
-        return attrs.map { FSFileName(string: $0) }
-    }
-}
-
-extension Ext4Volume: FSVolume.RenameOperations {
-    func setVolumeName(_ name: FSFileName) async throws -> FSFileName {
         #if DEBUG
-        let nameLength = 16
-        guard name.data.count <= nameLength else {
-            throw POSIXError(.EINVAL)
-        }
-        let padding = Data(count: nameLength - name.data.count)
-        superblock.volumeName = name.data + padding
-        superblock.checksum = try superblock.calculateChecksum()
-        let newSBData = try superblock.toData()
-        try newSBData.withUnsafeBytes { buf in
-            try resource.metadataWrite(from: buf, startingAt: 1024, length: buf.count)
-        }
-        return FSFileName(data: superblock.volumeName ?? Data())
+        false
         #else
-        throw POSIXError(.ENOSYS)
+        true
         #endif
     }
 }
 
-extension Ext4Volume: FSVolume.PreallocateOperations {
-    func preallocateSpace(for item: FSItem, at offset: off_t, length: Int, flags: FSVolume.PreallocateFlags) async throws -> Int {
-        throw POSIXError(.ENOSYS)
+@available(macOS 27.0, *)
+extension Ext4Volume: FSVolume.PreallocateHandler {
+    func preallocateSpace(for item: FSItem, at offset: off_t, length: Int, flags: FSVolume.PreallocateFlags, context: FSContext) async throws -> FSPreallocateResult {
+        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+        let allocated = try await basePreallocateSpace(for: item, at: offset, length: length, flags: flags)
+        let attributes = item.getAttributes(FSPreallocateResult.requestedAttributes)
+        let newFreeSpace = FSFreeSpace.noUpdate
+        guard let result = FSPreallocateResult(bytesAllocated: allocated, itemAttributes: attributes, freeSpace: newFreeSpace) else {
+            logger.error("Failed to create preallocate result")
+            throw POSIXError(.EIO)
+        }
+        return result
     }
 }
 
-extension Ext4Volume: FSVolume.ItemDeactivation {
+@available(macOS 27.0, *)
+extension Ext4Volume: FSVolume.ItemDeactivationHandler {
     var itemDeactivationPolicy: FSVolume.ItemDeactivationOptions {
         []
     }
     
-    func deactivateItem(_ item: FSItem) async throws {
-        throw POSIXError(.ENOSYS)
+    func deactivateItem(_ item: FSItem, context: FSContext) async throws -> FSDeactivateItemResult {
+        try await baseDeactivateItem(item)
+        let newFreeSpace = FSFreeSpace.noUpdate
+        guard let result = FSDeactivateItemResult(freeSpace: newFreeSpace) else {
+            logger.error("Failed to create deactivate item result")
+            throw POSIXError(.EIO)
+        }
+        return result
     }
 }

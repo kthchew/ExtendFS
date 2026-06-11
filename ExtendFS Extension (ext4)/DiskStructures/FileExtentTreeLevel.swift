@@ -107,7 +107,7 @@ struct FileExtentTreeLevel {
     ///   - volume: The volume for this filesystem.
     ///   - performAdditionalIO: A boolean that determines whether performing additional IO to fetch extents is allowed. If `false`, only extents that do not require performing additional IO to the disk are fetched, if any.
     /// - Returns: An array of extents.
-    func findExtentsCovering(_ fileBlock: UInt64, with blockLength: Int, in volume: Ext4Volume, performAdditionalIO: Bool = true) throws -> [FileExtentNode] {
+    func findExtentsCovering(_ fileBlock: UInt64, with blockLength: Int, in volume: Ext4VolumeBase, performAdditionalIO: Bool = true) throws -> [FileExtentNode] {
         let firstBlock = fileBlock
         let lastBlock = Int(fileBlock) + blockLength - 1
         

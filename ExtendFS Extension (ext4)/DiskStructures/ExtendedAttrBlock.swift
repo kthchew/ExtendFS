@@ -39,7 +39,7 @@ struct ExtendedAttrBlock {
         self.remainingDataOffset = remainingOffset
     }
     
-    init?(blockAt blockNumber: UInt32, in volume: Ext4Volume) throws {
+    init?(blockAt blockNumber: UInt32, in volume: Ext4VolumeBase) throws {
         let blockSize = volume.superblock.blockSize
         var blockData = Data(count: blockSize)
         try blockData.withUnsafeMutableBytes { ptr in

@@ -532,7 +532,7 @@ public struct Superblock {
     }
     
     /// Options that determine how to interpret encoded file names for casefolding.
-    public struct EncodingFlags: OptionSet {
+    public struct EncodingFlags: OptionSet, Sendable {
         public let rawValue: UInt16
         
         public init(rawValue: UInt16) {

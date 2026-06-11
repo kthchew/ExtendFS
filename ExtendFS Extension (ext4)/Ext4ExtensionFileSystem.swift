@@ -10,9 +10,9 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
     static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Ext4Extension")
     
     @MainActor weak var resource: FSBlockDeviceResource?
-    @MainActor weak var volume: Ext4Volume?
+    @MainActor weak var volume: Ext4VolumeBase?
     
-    @MainActor func setResources(resource: FSBlockDeviceResource?, volume: Ext4Volume?) {
+    @MainActor func setResources(resource: FSBlockDeviceResource?, volume: Ext4VolumeBase?) {
         self.resource = resource
         self.volume = volume
     }
@@ -170,7 +170,14 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
             }
         }
         
-        let volume = try await Ext4Volume(resource: resource, fileSystem: self, readOnly: readOnly)
+        let volume: Ext4VolumeBase
+        if #available(macOS 27.0, *) {
+            Self.logger.log("On macOS 27 or later, using new implementation")
+            volume = try await Ext4Volume(resource: resource, fileSystem: self, readOnly: readOnly)
+        } else {
+            Self.logger.log("On version of macOS earlier than 27, using old implementation")
+            volume = try await LegacyExt4Volume(resource: resource, fileSystem: self, readOnly: readOnly)
+        }
         await setResources(resource: resource, volume: volume)
         await setContainerStatus(.ready)
         Self.logger.log("Container status ready")
@@ -191,7 +198,7 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
 }
 
 extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
-    @MainActor private static func quickCheck(volume: Ext4Volume, task: FSTask) throws {
+    @MainActor private static func quickCheck(volume: Ext4VolumeBase, task: FSTask) throws {
         let superblock = volume.superblock
         guard superblock.magic == 0xEF53 else {
             task.logMessage("Magic value in superblock did not match expectation. Is this an ext volume?")
@@ -236,7 +243,7 @@ extension Ext4ExtensionFileSystem: FSManageableResourceMaintenanceOperations {
     ///   - destination: The directory at which the shadow file should be created.
     ///   - volume: The volume to create a shadow file of.
     ///   - task: The task associated with the check operation that initiated this request.
-    private static func makeShadowFile(at destination: URL, volume: Ext4Volume, task: FSTask) async throws {
+    private static func makeShadowFile(at destination: URL, volume: Ext4VolumeBase, task: FSTask) async throws {
         #if DEBUG
         let name = "shadow-\(volume.resource.bsdName)"
         let shadowURL = destination.appendingPathComponent(name)

@@ -8,7 +8,7 @@ import Synchronization
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item")
 
 final class Ext4Item: FSItem {
-    let containingVolume: Ext4Volume
+    let containingVolume: Ext4VolumeBase
     /// The number of the index node for this item.
     let inodeNumber: UInt32
     
@@ -56,7 +56,7 @@ final class Ext4Item: FSItem {
         }
     }
     
-    init(volume: Ext4Volume, inodeNumber: UInt32, inodeData: Data? = nil) throws {
+    init(volume: Ext4VolumeBase, inodeNumber: UInt32, inodeData: Data? = nil) throws {
         guard inodeNumber != 0 else {
             logger.error("Volume contains a file with inode number 0, but this is invalid")
             throw POSIXError(.EIO)

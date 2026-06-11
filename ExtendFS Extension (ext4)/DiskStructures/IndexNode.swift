@@ -191,7 +191,7 @@ public struct IndexNode {
         self.remainingData = possibleExtAttr
     }
     
-    public struct Mode: OptionSet {
+    public struct Mode: OptionSet, Sendable {
         public let rawValue: UInt32
         
         public init(rawValue: UInt32) {
@@ -220,7 +220,7 @@ public struct IndexNode {
         static public let symbolicLinkType = Mode(rawValue: 0xA000)
         static public let socketType = Mode(rawValue: 0xC000)
     }
-    public struct Flags: OptionSet {
+    public struct Flags: OptionSet, Sendable {
         public let rawValue: UInt32
         
         public init(rawValue: UInt32) {
