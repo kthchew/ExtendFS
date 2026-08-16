@@ -15,3 +15,5 @@ sudo log collect --last 5m --predicate "subsystem=='com.kpchew.ExtendFS.ext4Exte
 Sometimes these logarchive files can be very large. You might need to upload them somewhere else and include a link in your report. You might also be able to paste the log contents into a text file and then upload the text file instead.
 
 Note that issues you open are public, which includes any attachments you send. Please don't send private data unless requested and it is absolutely necessary to troubleshoot an issue. By default, information like directory names and contents are not visible in the logs.
+
+While I try to respond in a timely manner, please allow a reasonable amount of time for a response. There are no SLAs, and I do not prioritize issues any differently based on whether you downloaded ExtendFS from the App Store or from GitHub.
