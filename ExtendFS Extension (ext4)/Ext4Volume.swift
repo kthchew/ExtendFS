@@ -1,6 +1,8 @@
 // This file is part of ExtendFS which is released under the GNU GPL v3 or later license with an app store exception.
 // See the LICENSE file in the root of the repository for full license details.
 
+#if canImport(FSKit, _version: 971.0.0.0)
+
 import Foundation
 import FSKit
 import os.log
@@ -356,3 +358,5 @@ extension Ext4Volume: FSVolume.ItemDeactivationHandler {
         return result
     }
 }
+
+#endif

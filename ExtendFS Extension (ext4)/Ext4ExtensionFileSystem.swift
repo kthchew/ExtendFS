@@ -171,6 +171,7 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
         }
         
         let volume: Ext4VolumeBase
+#if canImport(FSKit, _version: 971.0.0.0)
         if #available(macOS 27.0, *) {
             Self.logger.log("On macOS 27 or later, using new implementation")
             volume = try await Ext4Volume(resource: resource, fileSystem: self, readOnly: readOnly)
@@ -178,6 +179,9 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
             Self.logger.log("On version of macOS earlier than 27, using old implementation")
             volume = try await LegacyExt4Volume(resource: resource, fileSystem: self, readOnly: readOnly)
         }
+#else
+        volume = try await LegacyExt4Volume(resource: resource, fileSystem: self, readOnly: readOnly)
+#endif
         await setResources(resource: resource, volume: volume)
         await setContainerStatus(.ready)
         Self.logger.log("Container status ready")
