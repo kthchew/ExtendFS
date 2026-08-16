@@ -10,12 +10,29 @@ import os.log
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Volume")
 
 /// An object representing an ext2, ext3, or ext4 volume that conforms to FSKit's various Handler protocols.
-@available(macOS 27.0, *)
 final class Ext4Volume: Ext4VolumeBase {}
+
+extension Ext4Volume: FSVolume.CommonOperations {
+    func mount(options: FSTaskOptions) async throws {
+        return try await baseMount(options: options)
+    }
+    
+    func unmount() async {
+        return await baseUnmount()
+    }
+    
+    func synchronize(flags: FSSyncFlags) async throws {
+        return try await baseSynchronize(flags: flags)
+    }
+    
+    func reclaimItem(_ item: FSItem) async throws {
+        return try await baseReclaimItem(item)
+    }
+}
 
 @available(macOS 27.0, *)
 extension Ext4Volume: FSVolume.Handler {
-    func activate(options: FSTaskOptions) async throws -> FSActivateResult {
+    func activateVolume(options: FSTaskOptions) async throws -> FSActivateResult {
         let root = try await baseActivate(options: options)
         guard let result = FSActivateResult(rootItem: root) else {
             logger.error("Failed to create activate result")
@@ -24,20 +41,8 @@ extension Ext4Volume: FSVolume.Handler {
         return result
     }
     
-    func deactivate(options: FSDeactivateOptions = []) async throws {
+    func deactivateVolume(options: FSDeactivateOptions = []) async throws {
         try await baseDeactivate(options: options)
-    }
-    
-    func mount(options: FSTaskOptions) async throws {
-        try await baseMount(options: options)
-    }
-    
-    func unmount() async {
-        await baseUnmount()
-    }
-    
-    func synchronize(flags: FSSyncFlags) async throws {
-        try await baseSynchronize(flags: flags)
     }
     
     func lookupItem(named name: FSFileName, in directory: FSItem, context: FSContext) async throws -> FSLookupItemResult {
@@ -49,10 +54,6 @@ extension Ext4Volume: FSVolume.Handler {
             throw POSIXError(.EIO)
         }
         return result
-    }
-    
-    func reclaimItem(_ item: FSItem) async throws {
-        try await baseReclaimItem(item)
     }
     
     func createItem(named name: FSFileName, type: FSItem.ItemType, in directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest, context: FSContext) async throws -> FSCreateItemResult {
@@ -174,54 +175,55 @@ extension Ext4Volume: FSVolume.Handler {
     }
 }
 
-@available(macOS 27.0, *)
-extension Ext4Volume: FSVolume.KernelOffloadedIOHandler {
-    func blockmapFile(_ file: FSItem, offset: off_t, length: Int, flags: FSBlockmapFlags, operationID: FSOperationID, packer: FSExtentPacker) async throws -> FSBlockmapResult {
-        try await baseBlockmapFile(file, offset: offset, length: length, flags: flags, operationID: operationID, packer: packer)
-        let newFreeSpace = FSFreeSpace.noUpdate
-        guard let result = FSBlockmapResult(freeSpace: newFreeSpace) else {
-            logger.error("Failed to create blockmap file result")
-            throw POSIXError(.EIO)
-        }
-        return result
-    }
-    
-    func completeIO(for file: FSItem, offset: off_t, length: Int, status: any Error, flags: FSCompleteIOFlags, operationID: FSOperationID) async throws -> FSCompleteIOResult {
-        try await baseCompleteIO(for: file, offset: offset, length: length, status: status, flags: flags, operationID: operationID)
-        guard let file = file as? Ext4Item else { throw POSIXError(.EIO) }
-        let attributes = file.getAttributes(FSCompleteIOResult.requestedAttributes)
-        guard let result = FSCompleteIOResult(itemAttributes: attributes) else {
-            logger.error("Failed to create complete IO result")
-            throw POSIXError(.EIO)
-        }
-        return result
-    }
-    
-    func createFile(named name: FSFileName, in directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest, packer: FSExtentPacker, context: FSContext) async throws -> FSCreateFileKOIOResult {
-        let (item, itemName) = try await baseCreateFileAndPackEntries(name: name, in: directory, attributes: newAttributes, packer: packer)
-        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
-        let attributes = item.getAttributes(FSCreateFileKOIOResult.requestedAttributes)
-        guard let directory = directory as? Ext4Item else { throw POSIXError(.EIO) }
-        let directoryAttributes = directory.getAttributes(FSCreateFileKOIOResult.requestedAttributes)
-        let newFreeSpace: FSFreeSpace = FSFreeSpace.noUpdate
-        guard let result = FSCreateFileKOIOResult(newItem: item, newItemName: itemName, newItemAttributes: attributes, directoryAttributes: directoryAttributes, freeSpace: newFreeSpace) else {
-            logger.error("Failed to create create file (KOIO) result")
-            throw POSIXError(.EIO)
-        }
-        return result
-    }
-    
-    func lookupItem(named name: FSFileName, in directory: FSItem, packer: FSExtentPacker, context: FSContext) async throws -> FSLookupItemKOIOResult {
-        let (item, itemName) = try await baseLookupItemAndPackEntries(name: name, in: directory, packer: packer)
-        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
-        let attributes = item.getAttributes(FSLookupItemKOIOResult.requestedAttributes)
-        guard let result = FSLookupItemKOIOResult(foundItem: item, itemName: itemName, itemAttributes: attributes) else {
-            logger.error("Failed to create lookup item (KOIO) result")
-            throw POSIXError(.EIO)
-        }
-        return result
-    }
-}
+// compilation requires FB24356249 to be fixed
+//@available(macOS 27.0, *)
+//extension Ext4Volume: FSVolume.KernelOffloadedIOHandler {
+//    func blockmapFile(_ file: FSItem, offset: off_t, length: Int, flags: FSBlockmapFlags, operationID: FSOperationID, packer: FSExtentPacker) async throws -> FSBlockmapResult {
+//        try await baseBlockmapFile(file, offset: offset, length: length, flags: flags, operationID: operationID, packer: packer)
+//        let newFreeSpace = FSFreeSpace.noUpdate
+//        guard let result = FSBlockmapResult(freeSpace: newFreeSpace) else {
+//            logger.error("Failed to create blockmap file result")
+//            throw POSIXError(.EIO)
+//        }
+//        return result
+//    }
+//    
+//    func completeIO(for file: FSItem, offset: off_t, length: Int, status: any Error, flags: FSCompleteIOFlags, operationID: FSOperationID) async throws -> FSCompleteIOResult {
+//        try await baseCompleteIO(for: file, offset: offset, length: length, status: status, flags: flags, operationID: operationID)
+//        guard let file = file as? Ext4Item else { throw POSIXError(.EIO) }
+//        let attributes = file.getAttributes(FSCompleteIOResult.requestedAttributes)
+//        guard let result = FSCompleteIOResult(itemAttributes: attributes) else {
+//            logger.error("Failed to create complete IO result")
+//            throw POSIXError(.EIO)
+//        }
+//        return result
+//    }
+//    
+//    func createFile(named name: FSFileName, in directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest, packer: FSExtentPacker, context: FSContext) async throws -> FSCreateFileKOIOResult {
+//        let (item, itemName) = try await baseCreateFileAndPackEntries(name: name, in: directory, attributes: newAttributes, packer: packer)
+//        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+//        let attributes = item.getAttributes(FSCreateFileKOIOResult.requestedAttributes)
+//        guard let directory = directory as? Ext4Item else { throw POSIXError(.EIO) }
+//        let directoryAttributes = directory.getAttributes(FSCreateFileKOIOResult.requestedAttributes)
+//        let newFreeSpace: FSFreeSpace = FSFreeSpace.noUpdate
+//        guard let result = FSCreateFileKOIOResult(newItem: item, newItemName: itemName, newItemAttributes: attributes, directoryAttributes: directoryAttributes, freeSpace: newFreeSpace) else {
+//            logger.error("Failed to create create file (KOIO) result")
+//            throw POSIXError(.EIO)
+//        }
+//        return result
+//    }
+//    
+//    func lookupItem(named name: FSFileName, in directory: FSItem, packer: FSExtentPacker, context: FSContext) async throws -> FSLookupItemKOIOResult {
+//        let (item, itemName) = try await baseLookupItemAndPackEntries(name: name, in: directory, packer: packer)
+//        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+//        let attributes = item.getAttributes(FSLookupItemKOIOResult.requestedAttributes)
+//        guard let result = FSLookupItemKOIOResult(foundItem: item, itemName: itemName, itemAttributes: attributes) else {
+//            logger.error("Failed to create lookup item (KOIO) result")
+//            throw POSIXError(.EIO)
+//        }
+//        return result
+//    }
+//}
 
 @available(macOS 27.0, *)
 extension Ext4Volume: FSVolume.XattrHandler {
@@ -263,35 +265,34 @@ extension Ext4Volume: FSVolume.OpenCloseHandler {
     func closeItem(_ item: FSItem, modes: FSVolume.OpenModes, context: FSContext) async throws {
         try await baseCloseItem(item, modes: modes)
     }
-    
-    var isOpenCloseInhibited: Bool { true }
 }
 
-@available(macOS 27.0, *)
-extension Ext4Volume: FSVolume.ReadWriteHandler {
-    func read(from item: FSItem, at offset: off_t, length: Int, into buffer: FSMutableFileDataBuffer) async throws -> FSReadFileResult {
-        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
-        let amountRead = try await baseRead(from: item, at: offset, length: length, into: buffer)
-        let attributes = item.getAttributes(FSReadFileResult.requestedAttributes)
-        guard let result = FSReadFileResult(bytesRead: amountRead, itemAttributes: attributes) else {
-            logger.error("Failed to create read result")
-            throw POSIXError(.EIO)
-        }
-        return result
-    }
-    
-    func write(contents: Data, to item: FSItem, at offset: off_t) async throws -> FSWriteFileResult {
-        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
-        let amountWritten = try await baseWrite(contents: contents, to: item, at: offset)
-        let attributes = item.getAttributes(FSWriteFileResult.requestedAttributes)
-        let newFreeSpace = FSFreeSpace.noUpdate
-        guard let result = FSWriteFileResult(bytesWritten: amountWritten, itemAttributes: attributes, freeSpace: newFreeSpace) else {
-            logger.error("Failed to create write result")
-            throw POSIXError(.EIO)
-        }
-        return result
-    }
-}
+// compilation requires FB24356249 to be fixed
+//@available(macOS 27.0, *)
+//extension Ext4Volume: FSVolume.ReadWriteHandler {
+//    func read(from item: FSItem, at offset: off_t, length: Int, into buffer: FSMutableFileDataBuffer) async throws -> FSReadFileResult {
+//        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+//        let amountRead = try await baseRead(from: item, at: offset, length: length, into: buffer)
+//        let attributes = item.getAttributes(FSReadFileResult.requestedAttributes)
+//        guard let result = FSReadFileResult(bytesRead: amountRead, itemAttributes: attributes) else {
+//            logger.error("Failed to create read result")
+//            throw POSIXError(.EIO)
+//        }
+//        return result
+//    }
+//    
+//    func write(contents: Data, to item: FSItem, at offset: off_t) async throws -> FSWriteFileResult {
+//        guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
+//        let amountWritten = try await baseWrite(contents: contents, to: item, at: offset)
+//        let attributes = item.getAttributes(FSWriteFileResult.requestedAttributes)
+//        let newFreeSpace = FSFreeSpace.noUpdate
+//        guard let result = FSWriteFileResult(bytesWritten: amountWritten, itemAttributes: attributes, freeSpace: newFreeSpace) else {
+//            logger.error("Failed to create write result")
+//            throw POSIXError(.EIO)
+//        }
+//        return result
+//    }
+//}
 
 @available(macOS 27.0, *)
 extension Ext4Volume: FSVolume.AccessCheckHandler {
@@ -303,8 +304,6 @@ extension Ext4Volume: FSVolume.AccessCheckHandler {
         }
         return result
     }
-    
-    var isAccessCheckInhibited: Bool { true }
 }
 
 @available(macOS 27.0, *)
@@ -316,14 +315,6 @@ extension Ext4Volume: FSVolume.RenameHandler {
             throw POSIXError(.EIO)
         }
         return result
-    }
-    
-    var isVolumeRenameInhibited: Bool {
-        #if DEBUG
-        false
-        #else
-        true
-        #endif
     }
 }
 
@@ -344,10 +335,6 @@ extension Ext4Volume: FSVolume.PreallocateHandler {
 
 @available(macOS 27.0, *)
 extension Ext4Volume: FSVolume.ItemDeactivationHandler {
-    var itemDeactivationPolicy: FSVolume.ItemDeactivationOptions {
-        []
-    }
-    
     func deactivateItem(_ item: FSItem, context: FSContext) async throws -> FSDeactivateItemResult {
         try await baseDeactivateItem(item)
         let newFreeSpace = FSFreeSpace.noUpdate

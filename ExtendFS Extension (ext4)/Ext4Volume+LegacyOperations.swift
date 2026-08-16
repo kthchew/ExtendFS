@@ -6,24 +6,7 @@ import FSKit
 
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Volume")
 
-// FIXME: when FB23036931 is fixed, there is no need for a separate class
-/// An object representing an ext2, ext3, or ext4 volume that implements FSKit's various Operations protocols, which were deprecated in macOS 27.0 but are needed for backwards compatibility.
-@available(macOS, introduced: 15.4, deprecated: 27.0, message: "Use ``Ext4Volume`` instead on macOS 27.0 and later.")
-final class LegacyExt4Volume: Ext4VolumeBase {}
-
-extension LegacyExt4Volume: FSVolume.Operations {
-    func mount(options: FSTaskOptions) async throws {
-        return try await baseMount(options: options)
-    }
-    
-    func unmount() async {
-        return await baseUnmount()
-    }
-    
-    func synchronize(flags: FSSyncFlags) async throws {
-        return try await baseSynchronize(flags: flags)
-    }
-    
+extension Ext4Volume: FSVolume.Operations {
     func attributes(_ desiredAttributes: FSItem.GetAttributesRequest, of item: FSItem) async throws -> FSItem.Attributes {
         return try await baseAttributes(desiredAttributes, of: item)
     }
@@ -35,11 +18,6 @@ extension LegacyExt4Volume: FSVolume.Operations {
     func lookupItem(named name: FSFileName, inDirectory directory: FSItem) async throws -> (FSItem, FSFileName) {
         return try await baseLookupItem(named: name, inDirectory: directory)
     }
-    
-    func reclaimItem(_ item: FSItem) async throws {
-        return try await baseReclaimItem(item)
-    }
-    
     
     func readSymbolicLink(_ item: FSItem) async throws -> FSFileName {
         return try await baseReadSymbolicLink(item)
@@ -78,7 +56,7 @@ extension LegacyExt4Volume: FSVolume.Operations {
     }
 }
 
-extension LegacyExt4Volume: FSVolume.ReadWriteOperations {
+extension Ext4Volume: FSVolume.ReadWriteOperations {
     func read(from item: FSItem, at offset: off_t, length: Int, into buffer: FSMutableFileDataBuffer) async throws -> Int {
         return try await baseRead(from: item, at: offset, length: length, into: buffer)
     }
@@ -88,7 +66,7 @@ extension LegacyExt4Volume: FSVolume.ReadWriteOperations {
     }
 }
 
-extension LegacyExt4Volume: FSVolumeKernelOffloadedIOOperations {
+extension Ext4Volume: FSVolumeKernelOffloadedIOOperations {
     func blockmapFile(_ file: FSItem, offset: off_t, length: Int, flags: FSBlockmapFlags, operationID: FSOperationID, packer: FSExtentPacker) async throws {
         return try await baseBlockmapFile(file, offset: offset, length: length, flags: flags, operationID: operationID, packer: packer)
     }
@@ -106,7 +84,7 @@ extension LegacyExt4Volume: FSVolumeKernelOffloadedIOOperations {
     }
 }
 
-extension LegacyExt4Volume: FSVolume.OpenCloseOperations {
+extension Ext4Volume: FSVolume.OpenCloseOperations {
     func openItem(_ item: FSItem, modes: FSVolume.OpenModes) async throws {
         return try await baseOpenItem(item, modes: modes)
     }
@@ -123,7 +101,7 @@ extension LegacyExt4Volume: FSVolume.OpenCloseOperations {
     }
 }
 
-extension LegacyExt4Volume: FSVolume.AccessCheckOperations {
+extension Ext4Volume: FSVolume.AccessCheckOperations {
     func checkAccess(to theItem: FSItem, requestedAccess access: FSVolume.AccessMask) async throws -> Bool {
         let writeAccess: FSVolume.AccessMask = [.addFile, .addSubdirectory, .appendData, .delete, .deleteChild, .takeOwnership, .writeAttributes, .writeData, .writeSecurity, .writeXattr]
         if readOnly && !access.isDisjoint(with: writeAccess) {
@@ -147,7 +125,7 @@ extension LegacyExt4Volume: FSVolume.AccessCheckOperations {
     }
 }
 
-extension LegacyExt4Volume: FSVolume.XattrOperations {
+extension Ext4Volume: FSVolume.XattrOperations {
     func xattr(named name: FSFileName, of item: FSItem) async throws -> Data {
         return try await baseGetXattr(named: name, of: item)
     }
@@ -161,7 +139,7 @@ extension LegacyExt4Volume: FSVolume.XattrOperations {
     }
 }
 
-extension LegacyExt4Volume: FSVolume.RenameOperations {
+extension Ext4Volume: FSVolume.RenameOperations {
     func setVolumeName(_ name: FSFileName) async throws -> FSFileName {
         return try await baseSetVolumeName(name)
     }
@@ -178,7 +156,7 @@ extension LegacyExt4Volume: FSVolume.RenameOperations {
     }
 }
 
-extension LegacyExt4Volume: FSVolume.PreallocateOperations {
+extension Ext4Volume: FSVolume.PreallocateOperations {
     func preallocateSpace(for item: FSItem, at offset: off_t, length: Int, flags: FSVolume.PreallocateFlags) async throws -> Int {
         return try await basePreallocateSpace(for: item, at: offset, length: length, flags: flags)
     }
@@ -191,7 +169,7 @@ extension LegacyExt4Volume: FSVolume.PreallocateOperations {
     }
 }
 
-extension LegacyExt4Volume: FSVolume.ItemDeactivation {
+extension Ext4Volume: FSVolume.ItemDeactivation {
     var itemDeactivationPolicy: FSVolume.ItemDeactivationOptions {
         []
     }
