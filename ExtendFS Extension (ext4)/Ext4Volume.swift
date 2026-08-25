@@ -1,8 +1,6 @@
 // This file is part of ExtendFS which is released under the GNU GPL v3 or later license with an app store exception.
 // See the LICENSE file in the root of the repository for full license details.
 
-#if canImport(FSKit, _version: 971.0.0.0)
-
 import Foundation
 import FSKit
 import os.log
@@ -12,7 +10,7 @@ fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", 
 /// An object representing an ext2, ext3, or ext4 volume that conforms to FSKit's various Handler protocols.
 final class Ext4Volume: Ext4VolumeBase {}
 
-extension Ext4Volume: FSVolume.CommonOperations {
+extension Ext4Volume {
     func mount(options: FSTaskOptions) async throws {
         return try await baseMount(options: options)
     }
@@ -29,6 +27,10 @@ extension Ext4Volume: FSVolume.CommonOperations {
         return try await baseReclaimItem(item)
     }
 }
+
+#if canImport(FSKit, _version: 971.0.0.0)
+
+extension Ext4Volume: FSVolume.CommonOperations {}
 
 @available(macOS 27.0, *)
 extension Ext4Volume: FSVolume.Handler {
