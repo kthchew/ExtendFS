@@ -31,6 +31,8 @@ struct FileExtentNode: Hashable, Comparable {
             guard let lowerStartBlock: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
             guard let upperStartBlock: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
             self.physicalBlock = off_t(UInt64.combine(upper: upperStartBlock, lower: lowerStartBlock))
+            guard let unused: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
+            self.unused = unused
         }
     }
     
@@ -67,7 +69,7 @@ struct FileExtentNode: Hashable, Comparable {
         } else {
             data.appendLittleEndian(physicalBlockLow)
             data.appendLittleEndian(physicalBlockHigh)
-            data.appendLittleEndian(UInt16(0))
+            data.appendLittleEndian(unused ?? UInt16(0))
         }
         
         return data
@@ -81,4 +83,6 @@ struct FileExtentNode: Hashable, Comparable {
     var lengthInBlocks: UInt16?
     /// The type of extent, indicating whether it contains valid data, if this is a leaf node.
     var type: FSExtentType?
+    /// The value of `ei_unused`, if present.
+    var unused: UInt16?
 }
