@@ -62,7 +62,7 @@ body:
     id: logs
     attributes:
       label: Logs and crash reports
-      description: Please copy and paste any relevant log output or attach files such as crash reports.
+      description: Please copy and paste any relevant log output or attach files such as crash reports. See the [support page](https://github.com/kthchew/ExtendFS/blob/main/SUPPORT.md) for instructions on how to collect logs. Bug reports without logs may be closed if there is not enough additional information to diagnose the issue.
     validations:
       required: false
   - type: textarea
