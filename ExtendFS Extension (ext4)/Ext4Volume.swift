@@ -28,8 +28,6 @@ extension Ext4Volume {
     }
 }
 
-#if canImport(FSKit, _version: 971.0.0.0)
-
 extension Ext4Volume: FSVolume.CommonOperations {}
 
 @available(macOS 27.0, *)
@@ -347,5 +345,3 @@ extension Ext4Volume: FSVolume.ItemDeactivationHandler {
         return result
     }
 }
-
-#endif

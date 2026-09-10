@@ -20,15 +20,11 @@ struct TahoeEnablementTutorialView: View {
                 Text("Open Login Items & Extensions in System Settings.")
                 
                 Button("Open System Settings") {
-#if canImport(FSKit, _version: 971.0.0.0)
                     if #available(macOS 27.0, *) {
                         FSClient.shared.openFileSystemExtensionsSettings()
                     } else {
                         SMAppService.openSystemSettingsLoginItems()
                     }
-#else
-                    SMAppService.openSystemSettingsLoginItems()
-#endif
                 }
                 .padding(.horizontal)
                 .focusable(false)
