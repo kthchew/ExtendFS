@@ -109,7 +109,7 @@ extension Data {
         self.append(contentsOf: array)
     }
     
-    mutating func append(cStringFrom string: String, using encoding: String.Encoding = .utf8, length: Int, useNullTerminator: Bool = true) throws {
+    mutating func append(cStringFrom string: String, using encoding: String.Encoding = .utf8, length: Int, useNullTerminator: Bool) throws {
         guard let cString = string.cString(using: encoding) else {
             throw POSIXError(.EINVAL)
         }
