@@ -3,6 +3,9 @@
 
 import Foundation
 import GoogleCRC32C
+import os.log
+
+fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "DataExtensions")
 
 extension Data {
     func readSection(at offset: Self.Index, length: Int) throws -> Data {
@@ -111,10 +114,12 @@ extension Data {
     
     mutating func append(cStringFrom string: String, using encoding: String.Encoding = .utf8, length: Int, useNullTerminator: Bool) throws {
         guard let cString = string.cString(using: encoding) else {
+            logger.error("Tried to append string but it could not be encoded with the provided encoding")
             throw POSIXError(.EINVAL)
         }
         let actualLength = useNullTerminator ? cString.count : cString.count - 1
         guard actualLength <= length else {
+            logger.error("Trying to append string of length \(actualLength, privacy: .public), but the maximum provided length was \(length, privacy: .public)")
             throw POSIXError(.EINVAL)
         }
         

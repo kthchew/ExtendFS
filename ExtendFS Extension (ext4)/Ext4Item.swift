@@ -520,6 +520,7 @@ final class Ext4Item: FSItem {
         let readOnlyAttributes: [FSItem.Attribute] = [.fileID, .parentID, .type, .linkCount, .supportsLimitedXAttrs, .inhibitKernelOffloadedIO]
         for attribute in readOnlyAttributes {
             guard !request.isValid(attribute) else {
+                logger.error("Attempted to set read-only attribute")
                 throw POSIXError(.EINVAL)
             }
         }
