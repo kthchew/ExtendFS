@@ -27,4 +27,29 @@ struct BlockDeviceReader {
         
         return data
     }
+    
+    static func fetchSuperblockData(from device: FSBlockDeviceResource, at offset: Int64) throws -> Data {
+        let superblockSize: Int64 = 1024
+        let physicalBlockSize = Int64(device.physicalBlockSize)
+        let toRead = max(superblockSize, physicalBlockSize)
+        let startReadAt = offset % physicalBlockSize == 0 ? offset : (offset / physicalBlockSize) * physicalBlockSize
+        var data = Data(count: Int(toRead))
+        let actuallyRead = try data.withUnsafeMutableBytes { ptr in
+            let actuallyRead: Int
+            do {
+                actuallyRead = try device.read(into: ptr, startingAt: startReadAt, length: Int(toRead))
+            } catch {
+                logger.critical("Tried to read from the block device starting at \(startReadAt, privacy: .public) with length \(toRead, privacy: .public), but this is failed with error \(error, privacy: .public). It is likely incompatible with the device's sector size of \(physicalBlockSize, privacy: .public). Please report this as a bug.")
+                throw error
+            }
+            return actuallyRead
+        }
+        guard actuallyRead == toRead else {
+            logger.error("Expected to read \(toRead, privacy: .public) bytes for superblock, only read \(actuallyRead, privacy: .public) bytes")
+            throw POSIXError(.EIO)
+        }
+        let offsetInData = Int(offset - startReadAt)
+        let superblockData = data.subdata(in: (offsetInData)..<(offsetInData + Int(superblockSize)))
+        return superblockData
+    }
 }

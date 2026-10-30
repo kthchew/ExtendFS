@@ -325,17 +325,9 @@ public struct Superblock {
     var initialData: Data?
     
     init?(blockDevice: FSBlockDeviceResource, offset: Int64) throws {
-        let superblockSize = 1024
-        var data = Data(count: superblockSize)
-        let actuallyRead = try data.withUnsafeMutableBytes { ptr in
-            return try blockDevice.read(into: ptr, startingAt: offset, length: 1024)
-        }
-        guard actuallyRead == superblockSize else {
-            logger.error("Expected to read 1024 bytes for superblock, only read \(actuallyRead, privacy: .public) bytes")
-            throw POSIXError(.EIO)
-        }
-        self.init(from: data)
-        self.initialData = data
+        let superblockData = try BlockDeviceReader.fetchSuperblockData(from: blockDevice, at: offset)
+        self.init(from: superblockData)
+        self.initialData = superblockData
     }
     
     struct State: OptionSet {

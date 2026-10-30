@@ -51,16 +51,13 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
         guard let superblock = try Superblock(blockDevice: resource, offset: 1024) else {
             Self.logger.error("Could not read superblock from resource")
             
-            var data = Data(count: 1024)
-            let readCount = try data.withUnsafeMutableBytes { buffer in
-                return try resource.read(into: buffer, startingAt: 0, length: 1024)
-            }
+            let data = try BlockDeviceReader.fetchSuperblockData(from: resource, at: 1024)
             let potentialLuksSignature = String(data: data.subdata(in: 0..<4), encoding: .ascii)
             let potentialLVMSignature = String(data: data.subdata(in: 536..<544), encoding: .ascii)
-            if readCount >= 6 && potentialLuksSignature == "LUKS" && data[4] == 0xBA && data[5] == 0xBE {
+            if potentialLuksSignature == "LUKS" && data[4] == 0xBA && data[5] == 0xBE {
                 Self.logger.error("Disk can't be mounted - LUKS")
                 sendNotification(title: "Unsupported Disk", body: "Disk \(resource.bsdName) can't be mounted because it is encrypted with LUKS, which is currently unsupported.")
-            } else if readCount >= 1024 && potentialLVMSignature == "LVM2 001" {
+            } else if potentialLVMSignature == "LVM2 001" {
                 Self.logger.error("Disk can't be mounted - LVM")
                 sendNotification(title: "Unsupported Disk", body: "Disk \(resource.bsdName) can't be mounted because it uses LVM, which is currently unsupported.")
             } else {
