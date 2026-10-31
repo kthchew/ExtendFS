@@ -472,6 +472,10 @@ final class Ext4Item: FSItem {
         }
         let offset = Data.Index(entry.valueOffset - indexNode.embeddedXattrEntryBytes)
         let length = Data.Index(entry.valueLength)
+        guard offset + length <= indexNode.remainingData.count else {
+            logger.error("Value offset \(entry.valueOffset, privacy: .public) and length \(entry.valueLength, privacy: .public) exceed the remaining data size \(indexNode.remainingData.count, privacy: .public)")
+            throw POSIXError(.EIO)
+        }
         let data = indexNode.remainingData.subdata(in: offset..<offset+length)
         guard data.count == length else {
             logger.error("Extended attribute is apparently longer than the data available")
