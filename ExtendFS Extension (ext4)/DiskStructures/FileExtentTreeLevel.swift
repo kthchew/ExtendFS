@@ -38,6 +38,10 @@ struct FileExtentTreeLevel {
         self.numberOfEntries = numberOfEntries
         guard let maxNumberOfEntries: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.maxNumberOfEntries = maxNumberOfEntries
+        guard maxNumberOfEntries >= numberOfEntries else {
+            logger.error("maxNumberOfEntries is less than numberOfEntries. This extent block may be corrupted.")
+            return nil
+        }
         guard let depth: UInt16 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.depth = depth
         guard let generation: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
