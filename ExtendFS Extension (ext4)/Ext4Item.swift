@@ -142,7 +142,7 @@ final class Ext4Item: FSItem {
     }
 
     /// Returns the block selected by an HTree hash->block table.
-    private func hashTreeBlock(startingAt block: UInt32, entries: some RandomAccessCollection<HashTreeDirectoryEntry>, for hash: UInt32, interpretHashAsSigned: Bool) -> UInt32 {
+    private func hashTreeBlock(startingAt block: UInt32, entries: some RandomAccessCollection<HashTreeDirectoryEntry>, for hash: UInt32) -> UInt32 {
         let foundIndex = entries.partitioningIndex { $0.hash > hash }
         let index = entries.index(before: foundIndex)
         let selectedBlock = index >= entries.startIndex && index < entries.endIndex ? entries[index].block : block
@@ -194,13 +194,13 @@ final class Ext4Item: FSItem {
             logger.error("Directory has \(root.info.indirectLevels, privacy: .public) levels of indirection, which exceeds the maximum supported level of \(maxIndirectLevels, privacy: .public)")
             return nil
         }
-        var currentBlock = hashTreeBlock(startingAt: root.block, entries: root.entries, for: majorHash, interpretHashAsSigned: hashVersion.isSigned)
+        var currentBlock = hashTreeBlock(startingAt: root.block, entries: root.entries, for: majorHash)
         for _ in 0..<root.info.indirectLevels {
             guard let nextData = try directoryBlockData(at: UInt64(currentBlock)),
                   let nextNode = HashTreeDirectoryNode(from: nextData, hasChecksumTail: directoryBlocksHaveChecksumTail, inodeChecksumSeed: indexNode.metadataChecksumSeed) else {
                 return nil
             }
-            currentBlock = hashTreeBlock(startingAt: nextNode.block, entries: nextNode.entries, for: majorHash, interpretHashAsSigned: hashVersion.isSigned)
+            currentBlock = hashTreeBlock(startingAt: nextNode.block, entries: nextNode.entries, for: majorHash)
         }
         let leafBlock = currentBlock
 
