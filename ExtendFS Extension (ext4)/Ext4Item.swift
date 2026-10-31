@@ -430,14 +430,16 @@ final class Ext4Item: FSItem {
             } else {
                 let extents = try findExtentsCovering(0, with: Int.max)
                 var data = Data(capacity: Int(indexNode.size).roundUp(toMultipleOf: Int(containingVolume.resource.physicalBlockSize)))
-                let remaining = indexNode.size
+                var remaining = indexNode.size
                 for extent in extents {
                     let remainingSectorAligned = remaining.roundUp(toMultipleOf: containingVolume.resource.physicalBlockSize)
                     let toActuallyRead = min(Int(remainingSectorAligned), Int(Int(extent.lengthInBlocks ?? 1) * containingVolume.superblock.blockSize))
                     let pointer = UnsafeMutableRawBufferPointer.allocate(byteCount: toActuallyRead, alignment: MemoryLayout<UInt8>.alignment)
                     defer { pointer.deallocate() }
                     let actuallyRead = try await containingVolume.resource.read(into: pointer, startingAt: extent.physicalBlock * Int64(containingVolume.superblock.blockSize), length: toActuallyRead)
-                    data += Data(bytes: pointer.baseAddress!, count: actuallyRead)
+                    data += Data(bytes: pointer.baseAddress!, count: min(actuallyRead, Int(clamping: remaining)))
+                    if actuallyRead >= remaining { break }
+                    remaining -= UInt64(actuallyRead)
                 }
                 
                 return String(data: data, encoding: .utf8)
