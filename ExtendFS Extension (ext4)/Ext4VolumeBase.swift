@@ -577,6 +577,9 @@ extension Ext4VolumeBase {
                 logger.error("Inode \(item.inodeNumber, privacy: .public) has inline data flag but inline data could not be read")
                 throw POSIXError(.EIO)
             }
+            guard offset < off_t(data.count) else {
+                return 0
+            }
             return buffer.withUnsafeMutableBytes { buf in
                 let relevantData = data.advanced(by: Int(offset)).prefix(length)
                 (buf[0..<relevantData.count]).copyBytes(from: relevantData)
