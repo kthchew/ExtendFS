@@ -2,9 +2,12 @@
 // See the LICENSE file in the root of the repository for full license details.
 
 import Foundation
+import os.log
 #if canImport(FSKit)
 import FSKit
 #endif
+
+fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "DirectoryEntry")
 
 public class DirectoryEntry {
     public enum Filetype: UInt8, Hashable {
@@ -33,6 +36,12 @@ public class DirectoryEntry {
         // FIXME: may be part of the name length
         guard let fileTypeRaw: UInt8 = try? data.readLittleEndian(at: &offset) else { return nil }
         self.fileType = Filetype(rawValue: fileTypeRaw)
+        
+        let nonNameLength = MemoryLayout<UInt32>.size + MemoryLayout<UInt16>.size + MemoryLayout<UInt8>.size + MemoryLayout<UInt8>.size
+        guard directoryEntryLength >= nonNameLength && nameLength <= Int(directoryEntryLength) - nonNameLength else {
+            logger.error("Directory entry name length \(nameLength, privacy: .public) is too long for entry length \(directoryEntryLength, privacy: .public)")
+            return nil
+        }
         
         guard let nameData = try? data.readSection(at: &offset, length: Int(nameLength)) else { return nil }
         self.name = nameData
