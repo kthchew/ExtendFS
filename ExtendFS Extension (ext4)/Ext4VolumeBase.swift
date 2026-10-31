@@ -615,6 +615,9 @@ extension Ext4VolumeBase {
             let blockLengthConsidered = Int(extent.lengthInBlocks ?? 1) - Int(startingAtLogicalBlock - extent.logicalBlock)
             let readFromThisExtent = min(actualLengthToRead - amountRead, blockLengthConsidered * superblock.blockSize)
             if let type = extent.type, type == .zeroFill {
+                buffer.withUnsafeMutableBytes { buf in
+                    let _ = buf[amountRead..<amountRead+readFromThisExtent].initializeMemory(as: UInt8.self, repeating: 0)
+                }
                 amountRead += readFromThisExtent
                 continue
             }
