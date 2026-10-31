@@ -168,7 +168,13 @@ final class Ext4ExtensionFileSystem: FSUnaryFileSystem & FSUnaryFileSystemOperat
         }
         
         let volume: Ext4VolumeBase
-        volume = try await Ext4Volume(resource: resource, fileSystem: self, readOnly: readOnly)
+        if #available(macOS 27.0, *) {
+            Self.logger.log("Using standard volume (on modern macOS version)")
+            volume = try await Ext4Volume(resource: resource, fileSystem: self, readOnly: readOnly)
+        } else {
+            Self.logger.log("Using legacy volume (on older macOS version)")
+            volume = try await Ext4LegacyVolume(resource: resource, fileSystem: self, readOnly: readOnly)
+        }
         await setResources(resource: resource, volume: volume)
         await setContainerStatus(.ready)
         Self.logger.log("Container status ready")

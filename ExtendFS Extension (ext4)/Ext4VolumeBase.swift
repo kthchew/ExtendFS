@@ -55,6 +55,11 @@ actor VolumeCache {
     }
 }
 
+// MARK: - Common
+
+/// The base functionality for ext2, ext3, and ext4 volumes.
+///
+/// > Warning: Don't pass instances of this class directly to FSKit. Use its subclasses instead, which conform to the required protocols.
 public class Ext4VolumeBase: FSVolume {
     init(resource: FSBlockDeviceResource, fileSystem: Ext4ExtensionFileSystem, readOnly: Bool) async throws {
         logger.log("Initializing volume")
@@ -150,11 +155,11 @@ public class Ext4VolumeBase: FSVolume {
     let fileSystem: Ext4ExtensionFileSystem
     let resource: FSBlockDeviceResource
     /// The superblock in block group 0.
-    #if DEBUG
+#if DEBUG
     var superblock: Superblock // TODO: this must be moved into an actor for thread safety
-    #else
+#else
     let superblock: Superblock
-    #endif
+#endif
     let blockGroupDescriptors: BlockGroupDescriptorManager
     
     let cache = VolumeCache()
@@ -247,7 +252,30 @@ public class Ext4VolumeBase: FSVolume {
     
     let readOnly: Bool
     
-    @objc var supportedVolumeCapabilities: FSVolume.SupportedCapabilities {
+    func openDiskwatchProcess(watching bsdName: String) async throws {
+        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.kpchew.ExtendFS") else {
+            logger.error("Failed to find ExtendFS app bundle")
+            return
+        }
+        let config = NSWorkspace.OpenConfiguration()
+        config.createsNewApplicationInstance = true
+        config.activates = false
+        config.addsToRecentItems = false
+        config.hides = true
+        let _ = try? await NSWorkspace.shared.open([URL(string: "extendfs-internal-diskwatch:/dev/\(bsdName)")!], withApplicationAt: appURL, configuration: config)
+    }
+}
+
+extension Ext4VolumeBase: FSVolume.CommonOperations {
+    @available(macOS 26.4, *)
+    @objc public var requestedMountOptions: FSVolume.MountOptions {
+        get {
+            readOnly ? [.readOnly] : []
+        }
+        set {}
+    }
+    
+    @objc public var supportedVolumeCapabilities: FSVolume.SupportedCapabilities {
         let capabilities = SupportedCapabilities()
         capabilities.caseFormat = .sensitive
         capabilities.supportsHardLinks = true
@@ -269,7 +297,7 @@ public class Ext4VolumeBase: FSVolume {
         return capabilities
     }
     
-    @objc var volumeStatistics: FSStatFSResult {
+    @objc public var volumeStatistics: FSStatFSResult {
         let statistics = FSStatFSResult(fileSystemTypeName: "ExtendFS")
         statistics.blockSize = superblock.blockSize
         statistics.totalBlocks = superblock.blockCount
@@ -290,25 +318,31 @@ public class Ext4VolumeBase: FSVolume {
         return statistics
     }
     
-    func openDiskwatchProcess(watching bsdName: String) async throws {
-        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.kpchew.ExtendFS") else {
-            logger.error("Failed to find ExtendFS app bundle")
-            return
-        }
-        let config = NSWorkspace.OpenConfiguration()
-        config.createsNewApplicationInstance = true
-        config.activates = false
-        config.addsToRecentItems = false
-        config.hides = true
-        let _ = try? await NSWorkspace.shared.open([URL(string: "extendfs-internal-diskwatch:/dev/\(bsdName)")!], withApplicationAt: appURL, configuration: config)
+    @objc public func mount(options: FSTaskOptions) async throws {
+        logger.log("mount options: \(options.taskOptions, privacy: .public)")
+        return
     }
     
-    @available(macOS 26.4, *)
-    @objc var requestedMountOptions: FSVolume.MountOptions {
-        get {
-            readOnly ? [.readOnly] : []
+    @objc public func unmount() async {
+        logger.log("unmounting")
+        await cache.clearAllCaches()
+        return
+    }
+    
+    @objc public func synchronize(flags: FSSyncFlags) async throws {
+        try resource.metadataFlush()
+        return
+    }
+    
+    @objc public func reclaimItem(_ item: FSItem) async throws {
+        guard let item = item as? Ext4Item else {
+            throw POSIXError(.ENOSYS)
         }
-        set {}
+        
+        let inodeNumber = item.inodeNumber
+        await cache.reclaimItem(forInodeNumber: inodeNumber)
+        
+        return
     }
 }
 
@@ -350,24 +384,10 @@ extension Ext4VolumeBase: FSVolume.PathConfOperations {
     }
 }
 
+// MARK: - Operations/Handler
 extension Ext4VolumeBase {
-    func baseMount(options: FSTaskOptions) async throws {
-        logger.log("mount options: \(options.taskOptions, privacy: .public)")
-        return
-    }
-    
-    func baseUnmount() async {
-        logger.log("unmounting")
-        await cache.clearAllCaches()
-        return
-    }
-    
-    func baseSynchronize(flags: FSSyncFlags) async throws {
-        try resource.metadataFlush()
-        return
-    }
-    
-    func baseAttributes(_ desiredAttributes: FSItem.GetAttributesRequest, of item: FSItem) async throws -> FSItem.Attributes {
+    @objc(getAttributes:ofItem:replyHandler:)
+    public func attributes(_ desiredAttributes: FSItem.GetAttributesRequest, of item: FSItem) async throws -> FSItem.Attributes {
         guard let item = item as? Ext4Item else {
             throw POSIXError(.ENOENT)
         }
@@ -380,7 +400,8 @@ extension Ext4VolumeBase {
         return attrs
     }
     
-    func baseSetAttributes(_ newAttributes: FSItem.SetAttributesRequest, on item: FSItem) async throws -> FSItem.Attributes {
+    @objc(setAttributes:onItem:replyHandler:)
+    public func setAttributes(_ newAttributes: FSItem.SetAttributesRequest, on item: FSItem) async throws -> FSItem.Attributes {
         logger.debug("setAttributes")
         if readOnly {
             throw POSIXError(.EROFS)
@@ -389,14 +410,15 @@ extension Ext4VolumeBase {
         guard let item = item as? Ext4Item else {
             throw POSIXError(.ENOENT)
         }
-        #if DEBUG
+#if DEBUG
         return try await item.setAttributes(newAttributes)
-        #else
+#else
         throw POSIXError(.ENOSYS)
-        #endif
+#endif
     }
     
-    func baseLookupItem(named name: FSFileName, inDirectory directory: FSItem) async throws -> (FSItem, FSFileName) {
+    @objc(lookupItemNamed:inDirectory:replyHandler:)
+    public func lookupItem(named name: FSFileName, inDirectory directory: FSItem) async throws -> (FSItem, FSFileName) {
         guard let directory = directory as? Ext4Item else {
             throw POSIXError(.ENOENT)
         }
@@ -409,19 +431,8 @@ extension Ext4VolumeBase {
         throw POSIXError(.ENOENT)
     }
     
-    func baseReclaimItem(_ item: FSItem) async throws {
-        guard let item = item as? Ext4Item else {
-            throw POSIXError(.ENOSYS)
-        }
-        
-        let inodeNumber = item.inodeNumber
-        await cache.reclaimItem(forInodeNumber: inodeNumber)
-        
-        return
-    }
-    
-    
-    func baseReadSymbolicLink(_ item: FSItem) async throws -> FSFileName {
+    @objc(readSymbolicLink:replyHandler:)
+    public func readSymbolicLink(_ item: FSItem) async throws -> FSFileName {
         guard let item = item as? Ext4Item else {
             throw POSIXError(.EIO)
         }
@@ -432,7 +443,8 @@ extension Ext4VolumeBase {
         return FSFileName(string: target)
     }
     
-    func baseCreateItem(named name: FSFileName, type: FSItem.ItemType, inDirectory directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest) async throws -> (FSItem, FSFileName) {
+    @objc(createItemNamed:type:inDirectory:attributes:replyHandler:)
+    public func createItem(named name: FSFileName, type: FSItem.ItemType, inDirectory directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest) async throws -> (FSItem, FSFileName) {
         logger.debug("createItem")
         if readOnly {
             throw POSIXError(.EROFS)
@@ -440,7 +452,8 @@ extension Ext4VolumeBase {
         throw POSIXError(.ENOSYS)
     }
     
-    func baseCreateSymbolicLink(named name: FSFileName, inDirectory directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest, linkContents contents: FSFileName) async throws -> (FSItem, FSFileName) {
+    @objc(createSymbolicLinkNamed:inDirectory:attributes:linkContents:replyHandler:)
+    public func createSymbolicLink(named name: FSFileName, inDirectory directory: FSItem, attributes newAttributes: FSItem.SetAttributesRequest, linkContents contents: FSFileName) async throws -> (FSItem, FSFileName) {
         logger.debug("createSymbolicLink")
         if readOnly {
             throw POSIXError(.EROFS)
@@ -448,7 +461,8 @@ extension Ext4VolumeBase {
         throw POSIXError(.ENOSYS)
     }
     
-    func baseCreateLink(to item: FSItem, named name: FSFileName, inDirectory directory: FSItem) async throws -> FSFileName {
+    @objc(createLinkToItem:named:inDirectory:replyHandler:)
+    public func createLink(to item: FSItem, named name: FSFileName, inDirectory directory: FSItem) async throws -> FSFileName {
         logger.debug("createLink")
         if readOnly {
             throw POSIXError(.EROFS)
@@ -456,7 +470,8 @@ extension Ext4VolumeBase {
         throw POSIXError(.ENOSYS)
     }
     
-    func baseRemoveItem(_ item: FSItem, named name: FSFileName, fromDirectory directory: FSItem) async throws {
+    @objc(removeItem:named:fromDirectory:replyHandler:)
+    public func removeItem(_ item: FSItem, named name: FSFileName, fromDirectory directory: FSItem) async throws {
         logger.debug("removeItem(_:named:fromDirectory:)")
         if readOnly {
             throw POSIXError(.EROFS)
@@ -464,7 +479,8 @@ extension Ext4VolumeBase {
         throw POSIXError(.ENOSYS)
     }
     
-    func baseRenameItem(_ item: FSItem, inDirectory sourceDirectory: FSItem, named sourceName: FSFileName, to destinationName: FSFileName, inDirectory destinationDirectory: FSItem, overItem: FSItem?) async throws -> FSFileName {
+    @objc(renameItem:inDirectory:named:toNewName:inDirectory:overItem:replyHandler:)
+    public func renameItem(_ item: FSItem, inDirectory sourceDirectory: FSItem, named sourceName: FSFileName, to destinationName: FSFileName, inDirectory destinationDirectory: FSItem, overItem: FSItem?) async throws -> FSFileName {
         logger.debug("renameItem")
         if readOnly {
             throw POSIXError(.EROFS)
@@ -472,7 +488,8 @@ extension Ext4VolumeBase {
         throw POSIXError(.ENOSYS)
     }
     
-    func baseEnumerateDirectory(_ directory: FSItem, startingAt cookie: FSDirectoryCookie, verifier: FSDirectoryVerifier, attributes: FSItem.GetAttributesRequest?, packer: FSDirectoryEntryPacker) async throws -> FSDirectoryVerifier {
+    @objc(enumerateDirectory:startingAtCookie:verifier:providingAttributes:usingPacker:replyHandler:)
+    public func enumerateDirectory(_ directory: FSItem, startingAt cookie: FSDirectoryCookie, verifier: FSDirectoryVerifier, attributes: FSItem.GetAttributesRequest?, packer: FSDirectoryEntryPacker) async throws -> FSDirectoryVerifier {
         logger.debug("enumerateDirectory")
         // the cookie refers to the index of the directory content array
         guard let directory = directory as? Ext4Item else {
@@ -527,7 +544,8 @@ extension Ext4VolumeBase {
         return currentVerifier
     }
     
-    func baseActivate(options: FSTaskOptions) async throws -> FSItem {
+    @objc(activateWithOptions:replyHandler:)
+    public func activate(options: FSTaskOptions) async throws -> FSItem {
         logger.log("activate options: \(options.taskOptions, privacy: .public)")
         await fileSystem.setContainerStatus(.active)
         
@@ -538,13 +556,16 @@ extension Ext4VolumeBase {
         return await cache.root
     }
     
-    func baseDeactivate(options: FSDeactivateOptions = []) async throws {
+    @objc(deactivateWithOptions:replyHandler:)
+    public func deactivate(options: FSDeactivateOptions = []) async throws {
         logger.log("deactivate")
         await fileSystem.setContainerStatus(.ready)
         return
     }
 }
 
+// MARK: - ReadWriteOperations/Handler
+// These functions have a base prefix to avoid naming collisions (FB24356249).
 extension Ext4VolumeBase {
     func baseRead(from item: FSItem, at offset: off_t, length: Int, into buffer: FSMutableFileDataBuffer) async throws -> Int {
         guard let item = item as? Ext4Item else {
@@ -617,6 +638,8 @@ extension Ext4VolumeBase {
     }
 }
 
+// MARK: - KernelOffloadedIOOperations/Handler
+// These functions have a base prefix to avoid naming collisions (FB24356249).
 extension Ext4VolumeBase {
     func sendExtents(_ extents: any Collection<FileExtentNode>, using packer: FSExtentPacker, offset: off_t, length: Int) {
         let end = Int(offset) + length
@@ -689,7 +712,7 @@ extension Ext4VolumeBase {
     }
     
     func baseLookupItemAndPackEntries(name: FSFileName, in directory: FSItem, packer: FSExtentPacker) async throws -> (FSItem, FSFileName) {
-        let (item, name) = try await baseLookupItem(named: name, inDirectory: directory)
+        let (item, name) = try await lookupItem(named: name, inDirectory: directory)
         
         guard let item = item as? Ext4Item else {
             throw POSIXError(.EIO)
@@ -708,8 +731,10 @@ extension Ext4VolumeBase {
     }
 }
 
+// MARK: - OpenCloseOperations/Handler
 extension Ext4VolumeBase {
-    func baseOpenItem(_ item: FSItem, modes: FSVolume.OpenModes) async throws {
+    @objc(openItem:withModes:replyHandler:)
+    public func openItem(_ item: FSItem, modes: FSVolume.OpenModes) async throws {
         if modes.contains(.write) {
             if readOnly {
                 throw POSIXError(.EROFS)
@@ -718,19 +743,29 @@ extension Ext4VolumeBase {
         }
     }
     
-    func baseCloseItem(_ item: FSItem, modes: FSVolume.OpenModes) async throws {
+    @objc(closeItem:keepingModes:replyHandler:)
+    public func closeItem(_ item: FSItem, modes: FSVolume.OpenModes) async throws {
         
     }
 }
 
+// MARK: - AccessCheckOperations/Handler
 extension Ext4VolumeBase {
-    func baseCheckAccess(to theItem: FSItem, requestedAccess access: FSVolume.AccessMask) async throws -> Bool {
+    @objc(checkAccessToItem:requestedAccess:replyHandler:)
+    public func checkAccess(to theItem: FSItem, requestedAccess access: FSVolume.AccessMask) async throws -> Bool {
+        let writeAccess: FSVolume.AccessMask = [.addFile, .addSubdirectory, .appendData, .delete, .deleteChild, .takeOwnership, .writeAttributes, .writeData, .writeSecurity, .writeXattr]
+        if readOnly && !access.isDisjoint(with: writeAccess) {
+            return false
+        }
+        
         return true
     }
 }
 
+// MARK: - XattrOperations/Handler
 extension Ext4VolumeBase {
-    func baseGetXattr(named name: FSFileName, of item: FSItem) async throws -> Data {
+    @objc(getXattrNamed:ofItem:replyHandler:)
+    public func xattr(named name: FSFileName, of item: FSItem) async throws -> Data {
         guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
         guard let toFind = name.string else { throw POSIXError(.EINVAL) }
         
@@ -755,13 +790,15 @@ extension Ext4VolumeBase {
         throw POSIXError(.ENOATTR)
     }
     
-    func baseSetXattr(named name: FSFileName, to value: Data?, on item: FSItem, policy: FSVolume.SetXattrPolicy) async throws {
+    @objc(setXattrNamed:toData:onItem:policy:replyHandler:)
+    public func setXattr(named name: FSFileName, to value: Data?, on item: FSItem, policy: FSVolume.SetXattrPolicy) async throws {
         guard !readOnly else { throw POSIXError(.EROFS) }
         
         throw POSIXError(.ENOSYS)
     }
     
-    func baseListXattrs(of item: FSItem) async throws -> [FSFileName] {
+    @objc(listXattrsOfItem:replyHandler:)
+    public func xattrs(of item: FSItem) async throws -> [FSFileName] {
         guard let item = item as? Ext4Item else { throw POSIXError(.EIO) }
         
         let embeddedEntries = item.indexNode.withLock({ $0.embeddedExtendedAttributes })?.map {
@@ -776,9 +813,11 @@ extension Ext4VolumeBase {
     }
 }
 
+// MARK: - RenameOperations/Handler
 extension Ext4VolumeBase {
-    func baseSetVolumeName(_ name: FSFileName) async throws -> FSFileName {
-        #if DEBUG
+    @objc(setVolumeName:replyHandler:)
+    public func setVolumeName(_ name: FSFileName) async throws -> FSFileName {
+#if DEBUG
         let nameLength = 16
         guard name.data.count <= nameLength else {
             throw POSIXError(.EINVAL)
@@ -791,20 +830,28 @@ extension Ext4VolumeBase {
             try resource.metadataWrite(from: buf, startingAt: 1024, length: buf.count)
         }
         return FSFileName(data: superblock.volumeName ?? Data())
-        #else
+#else
         throw POSIXError(.ENOSYS)
-        #endif
+#endif
     }
 }
 
+// MARK: - PreallocateOperations/Handler
 extension Ext4VolumeBase {
-    func basePreallocateSpace(for item: FSItem, at offset: off_t, length: Int, flags: FSVolume.PreallocateFlags) async throws -> Int {
+    @objc(preallocateSpaceForItem:atOffset:length:flags:replyHandler:)
+    public func preallocateSpace(for item: FSItem, at offset: off_t, length: Int, flags: FSVolume.PreallocateFlags) async throws -> Int {
         throw POSIXError(.ENOSYS)
     }
 }
 
+// MARK: - ItemDeactivation/Handler
 extension Ext4VolumeBase {
-    func baseDeactivateItem(_ item: FSItem) async throws {
+    @objc public var itemDeactivationPolicy: FSVolume.ItemDeactivationOptions {
+        []
+    }
+    
+    @objc(deactivateItem:replyHandler:)
+    public func deactivateItem(_ item: FSItem) async throws {
         throw POSIXError(.ENOSYS)
     }
 }
