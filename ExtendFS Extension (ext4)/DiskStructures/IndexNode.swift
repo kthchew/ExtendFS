@@ -162,7 +162,12 @@ public struct IndexNode {
         self.version = UInt64(versionUpper ?? 0)
         self.projectID = extraINodeSize >= 32 ? nextLE() : nil
         
-        var possibleExtAttr = data.advanced(by: 128 + Int(extraINodeSize))
+        let possibleExtOffset = 128 + Int(extraINodeSize)
+        guard possibleExtOffset <= data.count else {
+            Self.logger.error("Possible ext offset (\(possibleExtOffset, privacy: .public)) is beyond the end of the inode data (\(data.count, privacy: .public)). This inode may be corrupted.")
+            return nil
+        }
+        var possibleExtAttr = data.advanced(by: possibleExtOffset)
         guard possibleExtAttr.count >= 4 else { return }
         let magic: UInt32 = (try? possibleExtAttr.readLittleEndian(at: 0)) ?? 0
         guard magic == 0xEA020000 else { return }
