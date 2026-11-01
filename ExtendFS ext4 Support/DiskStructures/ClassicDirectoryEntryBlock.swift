@@ -6,14 +6,14 @@ import os.log
 
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "ClassicDirectoryEntryBlock")
 
-struct ClassicDirectoryEntryBlock {
-    var entries: ContiguousArray<DirectoryEntry>
-    var checksum: UInt32 {
+public struct ClassicDirectoryEntryBlock {
+    public var entries: ContiguousArray<DirectoryEntry>
+    public var checksum: UInt32 {
         // TODO: actual checksum
         return 0
     }
     
-    init?(from data: Data, withParentInode parent: UInt32?) {
+    public init?(from data: Data, withParentInode parent: UInt32?) {
         self.entries = []
         var data = data
         while data.count > 0 {

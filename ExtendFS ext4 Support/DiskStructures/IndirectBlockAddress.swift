@@ -7,17 +7,17 @@ import FSKit
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "IndirectBlockMap")
 
 /// A mapping of file block numbers to logical block numbers used by ext2/3.
-struct IndirectBlockMap {
+public struct IndirectBlockMap {
     /// A direct map to file blocks 0 through 11.
-    var directMap: [UInt32]
+    public var directMap: [UInt32]
     private var singleIndirectBlock: IndirectBlock?
-    var indirectBlockLocation: UInt32
+    public var indirectBlockLocation: UInt32
     private var doubleIndirectBlock: IndirectBlock?
-    var doubleIndirectBlockLocation: UInt32
+    public var doubleIndirectBlockLocation: UInt32
     private var tripleIndirectBlock: IndirectBlock?
-    var tripleIndirectBlockLocation: UInt32
+    public var tripleIndirectBlockLocation: UInt32
     
-    init?(from data: Data) {
+    public init?(from data: Data) {
         var offset = 0
         
         directMap = []
@@ -40,7 +40,7 @@ struct IndirectBlockMap {
     ///   - blockDevice: The block device containing the volume.
     ///   - blockSize: The size of a logical block used by the file system.
     /// - Returns: The physical block number. 0 means that a block is not allocated.
-    mutating func getIndirectBlockForPhysicalBlockLocation(for logicalBlock: UInt64, blockDevice: FSBlockDeviceResource, blockSize: Int) throws -> IndirectBlock {
+    public mutating func getIndirectBlockForPhysicalBlockLocation(for logicalBlock: UInt64, blockDevice: FSBlockDeviceResource, blockSize: Int) throws -> IndirectBlock {
         guard let logicalBlock = UInt32(exactly: logicalBlock) else {
             logger.error("Trying to use indirect block map to get logical block number \(logicalBlock, privacy: .public), which is too large")
             throw POSIXError(.EFBIG)
@@ -91,16 +91,16 @@ struct IndirectBlockMap {
     }
 }
 
-struct IndirectBlock {
-    let startingBlock: UInt32
+public struct IndirectBlock {
+    public let startingBlock: UInt32
     /// 0 represent a block that points directly to data blocks, 1 represents a block pointing to blocks with depth of 0, etc.
-    let depth: UInt
+    public let depth: UInt
     /// Indirect blocks mapping to the `logicalBlockNumbers`. Only non-nil if `depth != 0`.
     private var indirectBlocks: [IndirectBlock?]?
     /// If depth is 0, this contains physical data block numbers. Otherwise, it contains the physical block numbers of another layer of indirect blocks.
-    var blockNumbers: [UInt32]
+    public var blockNumbers: [UInt32]
     
-    init(from data: Data, startingAt startingBlock: UInt32, depth: UInt) {
+    public init(from data: Data, startingAt startingBlock: UInt32, depth: UInt) {
         self.startingBlock = startingBlock
 
         var offset = 0
@@ -117,13 +117,13 @@ struct IndirectBlock {
         }
     }
     
-    init(from blocks: [UInt32], startingAt startingBlock: UInt32, depth: UInt) {
+    public init(from blocks: [UInt32], startingAt startingBlock: UInt32, depth: UInt) {
         self.blockNumbers = blocks
         self.depth = depth
         self.startingBlock = startingBlock
     }
     
-    mutating func getIndirectBlockForPhysicalBlockLocation(for logicalBlock: UInt64, blockDevice: FSBlockDeviceResource, blockSize: Int) throws -> IndirectBlock {
+    public mutating func getIndirectBlockForPhysicalBlockLocation(for logicalBlock: UInt64, blockDevice: FSBlockDeviceResource, blockSize: Int) throws -> IndirectBlock {
         guard logicalBlock >= startingBlock else {
             let startingBlock = self.startingBlock
             logger.fault("Tried to get physical block location for logical block \(logicalBlock, privacy: .public), but it is smaller than the starting block \(startingBlock, privacy: .public)")
@@ -160,7 +160,7 @@ struct IndirectBlock {
         return try indirectBlock.getIndirectBlockForPhysicalBlockLocation(for: logicalBlock, blockDevice: blockDevice, blockSize: blockSize)
     }
     
-    mutating func getPhysicalBlockLocation(for logicalBlock: UInt64, blockDevice: FSBlockDeviceResource, blockSize: Int) throws -> UInt64 {
+    public mutating func getPhysicalBlockLocation(for logicalBlock: UInt64, blockDevice: FSBlockDeviceResource, blockSize: Int) throws -> UInt64 {
         guard logicalBlock >= startingBlock else {
             let startingBlock = self.startingBlock
             logger.fault("Tried to get physical block location for logical block \(logicalBlock, privacy: .public), but it is smaller than the starting block \(startingBlock, privacy: .public)")

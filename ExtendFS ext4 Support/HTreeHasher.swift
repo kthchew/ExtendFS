@@ -3,13 +3,13 @@
 
 import Foundation
 
-struct HTreeHasher {
+public struct HTreeHasher {
     /// Returns the hash value for the provided file name for use in a hash tree directory.
     /// - Parameters:
     ///   - name: The file name. Its raw bytes will be used to create the hash.
     ///   - hashType: The hash version to use.
     /// - Returns: The hash as a 64-bit integer, where the upper half is the major part and the lower half is the minor part. `nil` if hashing fails (such as if the provided hash algorithm is unsupported).
-    static func hash(name: Data, hashType: Superblock.HashVersion, hashSeed: [UInt32]) -> UInt64? {
+    public static func hash(name: Data, hashType: Superblock.HashVersion, hashSeed: [UInt32]) -> UInt64? {
         var major: UInt32 = 0
         var minor: UInt32 = 0
         var seed = hashSeed

@@ -3,9 +3,9 @@
 
 import Foundation
 
-struct ExtentTreeHeader {
+public struct ExtentTreeHeader {
     
-    init?(from data: Data) {
+    public init?(from data: Data) {
         var offset = 0
         
         guard let magic: UInt16 = try? data.readLittleEndian(at: &offset), magic == 0xF30A else { return nil }
@@ -19,8 +19,8 @@ struct ExtentTreeHeader {
         self.generation = gen
     }
     
-    var numberOfEntries: UInt16
-    var maximumEntries: UInt16
-    var depth: UInt16
-    var generation: UInt32
+    public var numberOfEntries: UInt16
+    public var maximumEntries: UInt16
+    public var depth: UInt16
+    public var generation: UInt32
 }

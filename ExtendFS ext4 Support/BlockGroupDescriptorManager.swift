@@ -5,17 +5,17 @@ import Foundation
 import FSKit
 import os.log
 
-final class BlockGroupDescriptorManager: Sendable {
-    static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "BlockGroupDescriptorManager")
+public final class BlockGroupDescriptorManager: Sendable {
+    private static let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "BlockGroupDescriptorManager")
     /// An offset pointing to the first descriptor in this block group, starting from the start of the disk.
-    let offset: Int64
-    let blockGroupCount: Int
+    public let offset: Int64
+    public let blockGroupCount: Int
     
-    let data: Data
+    public let data: Data
     
     private let descriptorSizeInBytes: UInt16
     
-    init(resource: FSBlockDeviceResource, superblock: Superblock, offset: Int64, blockGroupCount: Int) throws {
+    public init(resource: FSBlockDeviceResource, superblock: Superblock, offset: Int64, blockGroupCount: Int) throws {
         self.offset = offset
         self.blockGroupCount = blockGroupCount
         let descriptorSizeBytes = superblock.incompatibleFeatures.contains(.enable64BitSize) ? (superblock.groupDescriptorSizeInBytes ?? 32) : 32
@@ -38,7 +38,7 @@ final class BlockGroupDescriptorManager: Sendable {
         self.data = data
     }
     
-    subscript(index: Int) -> BlockGroupDescriptor? {
+    public subscript(index: Int) -> BlockGroupDescriptor? {
         get throws {
             guard index >= 0 && index < blockGroupCount else {
                 Self.logger.fault("Trying to get block group descriptor for index \(index, privacy: .public), but it is out of bounds (offset \(self.offset, privacy: .public), total block group count \(self.blockGroupCount, privacy: .public))")

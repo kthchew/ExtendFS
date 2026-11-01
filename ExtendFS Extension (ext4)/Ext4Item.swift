@@ -3,6 +3,7 @@
 
 import Foundation
 import FSKit
+import ExtendFSext4Support
 import Synchronization
 
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Item")
@@ -646,7 +647,7 @@ final class Ext4Item: FSItem {
     /// - Returns: A list of extents.
     func findExtentsCovering(_ fileBlock: UInt64, with blockLength: Int, performAdditionalIO: Bool = true) throws -> [FileExtentNode] {
         if let extentTreeRoot = extentTreeRoot {
-            return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength, in: containingVolume, performAdditionalIO: performAdditionalIO)
+            return try extentTreeRoot.findExtentsCovering(fileBlock, with: blockLength, in: containingVolume.resource, blockSize: containingVolume.superblock.blockSize, performAdditionalIO: performAdditionalIO)
         } else {
             let sizeInBlocks = indexNode.withLock { Int((Double($0.size) / Double(containingVolume.superblock.blockSize)).rounded(.up)) }
             let actualBlockLength = min(blockLength, sizeInBlocks)

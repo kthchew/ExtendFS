@@ -219,4 +219,9 @@ public struct DirectoryCacheKey: Hashable {
     public var parentInode: UInt32
     /// The name of the file in its directory, such as `some file.txt`, in binary form.
     public var pathComponent: Data
+
+    public init(parentInode: UInt32, pathComponent: Data) {
+        self.parentInode = parentInode
+        self.pathComponent = pathComponent
+    }
 }

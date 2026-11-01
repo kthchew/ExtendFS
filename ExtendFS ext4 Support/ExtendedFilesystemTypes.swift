@@ -3,7 +3,7 @@
 
 import Foundation
 
-enum ExtendedFilesystemTypes: Int {
+public enum ExtendedFilesystemTypes: Int {
     case ext2 = 0
     case ext3 = 1
     case ext4 = 2

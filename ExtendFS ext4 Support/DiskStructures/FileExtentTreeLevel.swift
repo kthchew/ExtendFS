@@ -3,6 +3,7 @@
 
 import Algorithms
 import Foundation
+import FSKit
 import os.log
 
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "FileExtentTree")
@@ -10,25 +11,25 @@ fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", 
 /// A value that represents a level of an extent tree.
 ///
 /// If this is not a level embedded in an inode, then this represents an extent block.
-struct FileExtentTreeLevel {
-    var numberOfEntries: UInt16
-    var maxNumberOfEntries: UInt16
-    var depth: UInt16
-    var generation: UInt32
-    var checksum: UInt32?
+public struct FileExtentTreeLevel {
+    public var numberOfEntries: UInt16
+    public var maxNumberOfEntries: UInt16
+    public var depth: UInt16
+    public var generation: UInt32
+    public var checksum: UInt32?
     
     /// A list of extent nodes contained in this level.
     ///
     /// > Important: This array contains ``maxNumberOfEntries`` nodes, but only the first ``numberOfEntries`` nodes are valid.
     fileprivate var allNodes: [FileExtentNode]
     
-    var nodes: ArraySlice<FileExtentNode> {
+    public var nodes: ArraySlice<FileExtentNode> {
         allNodes.prefix(Int(numberOfEntries))
     }
     
-    let inodeChecksumSeed: UInt32?
+    public let inodeChecksumSeed: UInt32?
     
-    init?(from data: Data, inodeChecksumSeed: UInt32?) {
+    public init?(from data: Data, inodeChecksumSeed: UInt32?) {
         self.inodeChecksumSeed = inodeChecksumSeed
         
         var offset = 0
@@ -76,11 +77,11 @@ struct FileExtentTreeLevel {
         }
     }
     
-    var isLeaf: Bool {
+    public var isLeaf: Bool {
         depth == 0
     }
     
-    func toData() throws -> Data {
+    public func toData() throws -> Data {
         var data = Data()
         data.reserveCapacity(12 + Int(maxNumberOfEntries) * 12 + (checksum != nil ? 4 : 0))
         
@@ -111,7 +112,7 @@ struct FileExtentTreeLevel {
     ///   - volume: The volume for this filesystem.
     ///   - performAdditionalIO: A boolean that determines whether performing additional IO to fetch extents is allowed. If `false`, only extents that do not require performing additional IO to the disk are fetched, if any.
     /// - Returns: An array of extents.
-    func findExtentsCovering(_ fileBlock: UInt64, with blockLength: Int, in volume: Ext4VolumeBase, performAdditionalIO: Bool = true) throws -> [FileExtentNode] {
+    public func findExtentsCovering(_ fileBlock: UInt64, with blockLength: Int, in resource: FSBlockDeviceResource, blockSize: Int, performAdditionalIO: Bool = true) throws -> [FileExtentNode] {
         let firstBlock = fileBlock
         let lastBlock = Int(fileBlock) + blockLength - 1
         
@@ -143,12 +144,12 @@ struct FileExtentTreeLevel {
                 result.append(node)
             } else if performAdditionalIO {
                 let range = node.physicalBlock..<node.physicalBlock+1
-                let lowerLevelData = try BlockDeviceReader.fetchExtent(from: volume.resource, blockNumbers: range, blockSize: volume.superblock.blockSize)
+                let lowerLevelData = try BlockDeviceReader.fetchExtent(from: resource, blockNumbers: range, blockSize: blockSize)
                 guard let lowerLevel = FileExtentTreeLevel(from: lowerLevelData, inodeChecksumSeed: inodeChecksumSeed) else {
                     logger.error("Next level down in file extent tree was not valid")
                     throw POSIXError(.EIO)
                 }
-                let childResult = try lowerLevel.findExtentsCovering(fileBlock, with: blockLength, in: volume)
+                let childResult = try lowerLevel.findExtentsCovering(fileBlock, with: blockLength, in: resource, blockSize: blockSize)
                 if childResult.isEmpty {
                     break
                 }
@@ -166,7 +167,7 @@ struct FileExtentTreeLevel {
     /// This is only valid for extent blocks. Extents stored in an inode do not store a checksum, as they are protected by the inode's checksum.
     /// - Parameter seed: The inode's checksum seed.
     /// - Returns: The CRC32C checksum value.
-    func calculateChecksum(seed: UInt32) throws -> UInt32 {
+    public func calculateChecksum(seed: UInt32) throws -> UInt32 {
         let data = try self.toData().dropLast(MemoryLayout<UInt32>.size)
         return ~data.crc32c(seed: seed)
     }

@@ -32,7 +32,7 @@ public struct HashTreeDirectoryEntry: Hashable {
 
 /// A structure containing the optional checksum of an htree.
 public struct HashTreeDirectoryTail: Hashable {
-    var reservedZero: UInt32
+    public var reservedZero: UInt32
     /// The checksum of the directory block.
     public var checksum: UInt32
     
@@ -55,15 +55,15 @@ public struct HashTreeDirectoryTail: Hashable {
 
 /// A structure containing information about a hash tree directory root block.
 public struct HashTreeDirectoryRootInfo: Hashable {
-    var reservedZero: UInt32
+    public var reservedZero: UInt32
     /// The type of hash that should be used in this hash tree.
     public var hashVersion: Superblock.HashVersion
     /// The length of the info field. Should be 8.
-    var infoLength: UInt8
+    public var infoLength: UInt8
     /// The depth of the hash tree.
     public var indirectLevels: UInt8
     /// Unused.
-    var flags: UInt8
+    public var flags: UInt8
     
     public init?(from data: Data) {
         var offset = 0
@@ -94,9 +94,9 @@ public struct HashTreeDirectoryRootInfo: Hashable {
 /// The root of a hash tree representing a directory.
 public struct HashTreeDirectoryRoot {
     /// The directory entry representing `.`, the current directory.
-    var dotEntry: DirectoryEntry
+    public var dotEntry: DirectoryEntry
     /// The directory entry representing `..`, the parent directory.
-    var dotDotEntry: DirectoryEntry
+    public var dotDotEntry: DirectoryEntry
     /// Information about the hash tree.
     public var info: HashTreeDirectoryRootInfo
     /// The maximum ``HashTreeDirectoryEntry`` count that can be stored in this node.
@@ -206,7 +206,7 @@ public struct HashTreeDirectoryRoot {
 /// A node in a hash tree, which contains ``HashTreeDirectoryEntry``s mapping hashes to logical blocks of the directory data.
 public struct HashTreeDirectoryNode {
     /// A fake directory entry that holds no important data.
-    var placeholderEntry: DirectoryEntry
+    public var placeholderEntry: DirectoryEntry
     /// The maximum ``HashTreeDirectoryEntry`` count that can be stored in this node.
     public var limit: UInt16
     /// The actual number of ``HashTreeDirectoryEntry``s stored in this node.

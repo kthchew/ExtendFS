@@ -3,8 +3,8 @@
 
 import Foundation
 
-struct ExtendedAttrEntry {
-    init?(from data: Data) {
+public struct ExtendedAttrEntry {
+    public init?(from data: Data) {
         var offset = 0
         
         guard let nameLen: UInt8 = try? data.readLittleEndian(at: &offset) else { return nil }
@@ -23,9 +23,9 @@ struct ExtendedAttrEntry {
         self.storedName = storedName
     }
     
-    var nameLength: UInt8
+    public var nameLength: UInt8
     
-    enum NamePrefix: UInt8 {
+    public enum NamePrefix: UInt8 {
         case none = 0
         case user = 1
         case posixAclAccess = 2
@@ -35,7 +35,7 @@ struct ExtendedAttrEntry {
         case system = 7
         case richAcl = 8
         
-        var prefix: String {
+        public var prefix: String {
             switch self {
             case .none:
                 ""
@@ -56,16 +56,16 @@ struct ExtendedAttrEntry {
             }
         }
     }
-    var namePrefix: NamePrefix
+    public var namePrefix: NamePrefix
     
-    var valueOffset: UInt16
-    var valueInodeNumber: UInt32
-    var valueLength: UInt32
+    public var valueOffset: UInt16
+    public var valueInodeNumber: UInt32
+    public var valueLength: UInt32
     
-    var hash: UInt32
-    var storedName: String
+    public var hash: UInt32
+    public var storedName: String
     
-    var name: String {
+    public var name: String {
         namePrefix.prefix + storedName
     }
 }

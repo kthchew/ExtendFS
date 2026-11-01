@@ -5,6 +5,7 @@ import AppKit
 import Algorithms
 import Foundation
 import FSKit
+import ExtendFSext4Support
 
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Volume")
 

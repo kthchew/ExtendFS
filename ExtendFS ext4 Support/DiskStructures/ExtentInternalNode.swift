@@ -3,8 +3,8 @@
 
 import Foundation
 
-struct ExtentInternalNode {
-    init?(from data: Data) {
+public struct ExtentInternalNode {
+    public init?(from data: Data) {
         var offset = 0
         
         guard let block: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
@@ -14,6 +14,6 @@ struct ExtentInternalNode {
         self.nextLevelBlock = UInt64.combine(upper: leafUpper, lower: leafLower)
     }
     
-    var firstBlock: UInt32
-    var nextLevelBlock: UInt64
+    public var firstBlock: UInt32
+    public var nextLevelBlock: UInt64
 }

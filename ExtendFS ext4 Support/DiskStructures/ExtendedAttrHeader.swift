@@ -3,8 +3,8 @@
 
 import Foundation
 
-struct ExtendedAttrHeader {
-    init?(from data: Data) {
+public struct ExtendedAttrHeader {
+    public init?(from data: Data) {
         var offset = 0
         
         guard let magic: UInt32 = try? data.readLittleEndian(at: &offset), magic == 0xEA020000 else { return nil }
@@ -19,8 +19,8 @@ struct ExtendedAttrHeader {
         self.checksum = checksum
     }
     
-    var referenceCount: UInt32
-    var diskBlockCount: UInt32
-    var hash: UInt32
-    var checksum: UInt32
+    public var referenceCount: UInt32
+    public var diskBlockCount: UInt32
+    public var hash: UInt32
+    public var checksum: UInt32
 }

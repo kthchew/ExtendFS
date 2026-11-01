@@ -8,7 +8,7 @@ import os.log
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "Superblock")
 
 public struct Superblock {
-    init?(from data: Data) {
+    public init?(from data: Data) {
         var offset = 0
         func nextLE<T: FixedWidthInteger>() -> T? {
             try? data.readLittleEndian(at: &offset)
@@ -322,30 +322,31 @@ public struct Superblock {
         self.checksum = checksum
     }
     
-    var initialData: Data?
+    public var initialData: Data?
     
-    init?(blockDevice: FSBlockDeviceResource, offset: Int64) throws {
+    public init?(blockDevice: FSBlockDeviceResource, offset: Int64) throws {
         let superblockData = try BlockDeviceReader.fetchSuperblockData(from: blockDevice, at: offset)
         self.init(from: superblockData)
         self.initialData = superblockData
     }
     
-    struct State: OptionSet {
-        let rawValue: UInt16
+    public struct State: OptionSet {
+        public let rawValue: UInt16
+        public init(rawValue: UInt16) { self.rawValue = rawValue }
         
-        static let cleanlyUnmounted = Superblock.State(rawValue: 0x1)
-        static let errorsDetected = Superblock.State(rawValue: 0x2)
-        static let orphansBeingRecovered = Superblock.State(rawValue: 0x4)
+        public static let cleanlyUnmounted = Superblock.State(rawValue: 0x1)
+        public static let errorsDetected = Superblock.State(rawValue: 0x2)
+        public static let orphansBeingRecovered = Superblock.State(rawValue: 0x4)
     }
     
-    enum ErrorPolicy: UInt16 {
+    public enum ErrorPolicy: UInt16 {
         case `continue` = 1
         case remountReadOnly = 2
         case panic = 3
         case unknown = 65535
     }
     
-    enum FilesystemCreator: UInt32 {
+    public enum FilesystemCreator: UInt32 {
         case linux = 0
         case hurd = 1
         case masix = 2
@@ -354,8 +355,8 @@ public struct Superblock {
         case unknown = 4294967295
     }
     
-    enum Revision: UInt32, Comparable {
-        static func < (lhs: Superblock.Revision, rhs: Superblock.Revision) -> Bool {
+    public enum Revision: UInt32, Comparable {
+        public static func < (lhs: Superblock.Revision, rhs: Superblock.Revision) -> Bool {
             lhs.rawValue < rhs.rawValue
         }
         
@@ -365,83 +366,86 @@ public struct Superblock {
         case unknown = 4294967295
     }
     
-    struct CompatibleFeatures: OptionSet {
-        let rawValue: UInt32
+    public struct CompatibleFeatures: OptionSet {
+        public let rawValue: UInt32
+        public init(rawValue: UInt32) { self.rawValue = rawValue }
         
-        static let directoryPreallocation = CompatibleFeatures(rawValue: 1 << 0)
-        static let imagicInodes = CompatibleFeatures(rawValue: 1 << 1)
-        static let journal = CompatibleFeatures(rawValue: 1 << 2)
-        static let extendedAttributes = CompatibleFeatures(rawValue: 1 << 3)
+        public static let directoryPreallocation = CompatibleFeatures(rawValue: 1 << 0)
+        public static let imagicInodes = CompatibleFeatures(rawValue: 1 << 1)
+        public static let journal = CompatibleFeatures(rawValue: 1 << 2)
+        public static let extendedAttributes = CompatibleFeatures(rawValue: 1 << 3)
         /// Requires `sparseSuperBlockVersion2`.
-        static let reservedGDTBlocksForExpansion = CompatibleFeatures(rawValue: 1 << 4)
-        static let directoryIndices = CompatibleFeatures(rawValue: 1 << 5)
-        static let lazyBG = CompatibleFeatures(rawValue: 1 << 6)
+        public static let reservedGDTBlocksForExpansion = CompatibleFeatures(rawValue: 1 << 4)
+        public static let directoryIndices = CompatibleFeatures(rawValue: 1 << 5)
+        public static let lazyBG = CompatibleFeatures(rawValue: 1 << 6)
         /// Not used.
-        static let excludeInode = CompatibleFeatures(rawValue: 1 << 7)
-        static let excludeBitmap = CompatibleFeatures(rawValue: 1 << 8)
-        static let sparseSuperBlockVersion2 = CompatibleFeatures(rawValue: 1 << 9)
-        static let fastCommits = CompatibleFeatures(rawValue: 0x400)
-        static let orphanFileAllocated = CompatibleFeatures(rawValue: 0x1000)
+        public static let excludeInode = CompatibleFeatures(rawValue: 1 << 7)
+        public static let excludeBitmap = CompatibleFeatures(rawValue: 1 << 8)
+        public static let sparseSuperBlockVersion2 = CompatibleFeatures(rawValue: 1 << 9)
+        public static let fastCommits = CompatibleFeatures(rawValue: 0x400)
+        public static let orphanFileAllocated = CompatibleFeatures(rawValue: 0x1000)
     }
     
-    struct IncompatibleFeatures: OptionSet {
-        let rawValue: UInt32
+    public struct IncompatibleFeatures: OptionSet {
+        public let rawValue: UInt32
+        public init(rawValue: UInt32) { self.rawValue = rawValue }
         
-        static let compression = IncompatibleFeatures(rawValue: 0x1)
+        public static let compression = IncompatibleFeatures(rawValue: 0x1)
         /// Directory entries record the file type.
-        static let filetype = IncompatibleFeatures(rawValue: 0x2)
-        static let needsRecovery = IncompatibleFeatures(rawValue: 0x4)
-        static let separateJournalDevice = IncompatibleFeatures(rawValue: 0x8)
-        static let metaBlockGroups = IncompatibleFeatures(rawValue: 0x10)
-        static let extents = IncompatibleFeatures(rawValue: 0x40)
-        static let enable64BitSize = IncompatibleFeatures(rawValue: 0x80)
-        static let multipleMountProtection = IncompatibleFeatures(rawValue: 0x100)
-        static let flexibleBlockGroups = IncompatibleFeatures(rawValue: 0x200)
-        static let inodesCanStoreLargeExtendedAttributes = IncompatibleFeatures(rawValue: 0x400)
-        static let dataInDirEntry = IncompatibleFeatures(rawValue: 0x1000)
-        static let metadataChecksumSeedInSuperblock = IncompatibleFeatures(rawValue: 0x2000)
-        static let largeDirectory = IncompatibleFeatures(rawValue: 0x4000)
-        static let inlineDataInInode = IncompatibleFeatures(rawValue: 0x8000)
-        static let encryptedInodes = IncompatibleFeatures(rawValue: 0x10000)
-        static let directoriesCanBeCaseInsensitive = IncompatibleFeatures(rawValue: 0x20000)
+        public static let filetype = IncompatibleFeatures(rawValue: 0x2)
+        public static let needsRecovery = IncompatibleFeatures(rawValue: 0x4)
+        public static let separateJournalDevice = IncompatibleFeatures(rawValue: 0x8)
+        public static let metaBlockGroups = IncompatibleFeatures(rawValue: 0x10)
+        public static let extents = IncompatibleFeatures(rawValue: 0x40)
+        public static let enable64BitSize = IncompatibleFeatures(rawValue: 0x80)
+        public static let multipleMountProtection = IncompatibleFeatures(rawValue: 0x100)
+        public static let flexibleBlockGroups = IncompatibleFeatures(rawValue: 0x200)
+        public static let inodesCanStoreLargeExtendedAttributes = IncompatibleFeatures(rawValue: 0x400)
+        public static let dataInDirEntry = IncompatibleFeatures(rawValue: 0x1000)
+        public static let metadataChecksumSeedInSuperblock = IncompatibleFeatures(rawValue: 0x2000)
+        public static let largeDirectory = IncompatibleFeatures(rawValue: 0x4000)
+        public static let inlineDataInInode = IncompatibleFeatures(rawValue: 0x8000)
+        public static let encryptedInodes = IncompatibleFeatures(rawValue: 0x10000)
+        public static let directoriesCanBeCaseInsensitive = IncompatibleFeatures(rawValue: 0x20000)
         
         /// The set of features supported by the driver.
         ///
         /// If a filesystem enables any features not included in this set, it should not be mounted.
-        static let supportedFeatures: IncompatibleFeatures = [.filetype, .needsRecovery, .separateJournalDevice, .extents, .enable64BitSize, .multipleMountProtection, .flexibleBlockGroups, .metadataChecksumSeedInSuperblock, .largeDirectory, .inlineDataInInode, .directoriesCanBeCaseInsensitive]
+        public static let supportedFeatures: IncompatibleFeatures = [.filetype, .needsRecovery, .separateJournalDevice, .extents, .enable64BitSize, .multipleMountProtection, .flexibleBlockGroups, .metadataChecksumSeedInSuperblock, .largeDirectory, .inlineDataInInode, .directoriesCanBeCaseInsensitive]
     }
     
-    struct ReadOnlyCompatibleFeatures: OptionSet {
-        let rawValue: UInt32
+    public struct ReadOnlyCompatibleFeatures: OptionSet {
+        public let rawValue: UInt32
+        public init(rawValue: UInt32) { self.rawValue = rawValue }
         
-        static let sparseSuperblocks = ReadOnlyCompatibleFeatures(rawValue: 1 << 0)
+        public static let sparseSuperblocks = ReadOnlyCompatibleFeatures(rawValue: 1 << 0)
         /// This filesystem was used to store a file greater than 2 GiB.
-        static let largeFile = ReadOnlyCompatibleFeatures(rawValue: 1 << 1)
+        public static let largeFile = ReadOnlyCompatibleFeatures(rawValue: 1 << 1)
         /// Not used in the Linux kernel or e2fsprogs.
-        static let btreeDir = ReadOnlyCompatibleFeatures(rawValue: 1 << 2)
+        public static let btreeDir = ReadOnlyCompatibleFeatures(rawValue: 1 << 2)
         /// This filesystem has files with sizes represented in units of logical blocks, not 512-byte sectors.
-        static let hugeFile = ReadOnlyCompatibleFeatures(rawValue: 1 << 3)
-        static let groupDescriptorsHaveChecksums = ReadOnlyCompatibleFeatures(rawValue: 1 << 4)
+        public static let hugeFile = ReadOnlyCompatibleFeatures(rawValue: 1 << 3)
+        public static let groupDescriptorsHaveChecksums = ReadOnlyCompatibleFeatures(rawValue: 1 << 4)
         /// ext3 had a subdirectory limit of 32,000.
-        static let ext3SubdirectoryLimitDoesNotApply = ReadOnlyCompatibleFeatures(rawValue: 1 << 5)
-        static let largeInodesExist = ReadOnlyCompatibleFeatures(rawValue: 1 << 6)
-        static let hasSnapshot = ReadOnlyCompatibleFeatures(rawValue: 1 << 7)
-        static let quota = ReadOnlyCompatibleFeatures(rawValue: 1 << 8)
+        public static let ext3SubdirectoryLimitDoesNotApply = ReadOnlyCompatibleFeatures(rawValue: 1 << 5)
+        public static let largeInodesExist = ReadOnlyCompatibleFeatures(rawValue: 1 << 6)
+        public static let hasSnapshot = ReadOnlyCompatibleFeatures(rawValue: 1 << 7)
+        public static let quota = ReadOnlyCompatibleFeatures(rawValue: 1 << 8)
         /// File extents are tracked in units of clusters of blocks instead of blocks.
-        static let supportsBigalloc = ReadOnlyCompatibleFeatures(rawValue: 1 << 9)
+        public static let supportsBigalloc = ReadOnlyCompatibleFeatures(rawValue: 1 << 9)
         /// This implies ``Superblock/ReadOnlyCompatibleFeatures/groupDescriptorsHaveChecksums``.
-        static let supportsMetadataChecksumming = ReadOnlyCompatibleFeatures(rawValue: 1 << 10)
+        public static let supportsMetadataChecksumming = ReadOnlyCompatibleFeatures(rawValue: 1 << 10)
         /// Not supported in the Linux kernel nor e2fsprogs.
-        static let supportsReplicas = ReadOnlyCompatibleFeatures(rawValue: 1 << 11)
-        static let readOnlyFileSystemImage = ReadOnlyCompatibleFeatures(rawValue: 1 << 12)
-        static let tracksProjectQuotas = ReadOnlyCompatibleFeatures(rawValue: 1 << 13)
-        static let verityInodes = ReadOnlyCompatibleFeatures(rawValue: 0x8000)
-        static let orphansPresent = ReadOnlyCompatibleFeatures(rawValue: 0x10000)
+        public static let supportsReplicas = ReadOnlyCompatibleFeatures(rawValue: 1 << 11)
+        public static let readOnlyFileSystemImage = ReadOnlyCompatibleFeatures(rawValue: 1 << 12)
+        public static let tracksProjectQuotas = ReadOnlyCompatibleFeatures(rawValue: 1 << 13)
+        public static let verityInodes = ReadOnlyCompatibleFeatures(rawValue: 0x8000)
+        public static let orphansPresent = ReadOnlyCompatibleFeatures(rawValue: 0x10000)
         
         /// The set of features supported by the driver.
         ///
         /// If a filesystem enables any features not included in this set, it can still mount as read-only.
-        static let supportedFeatures: ReadOnlyCompatibleFeatures = []
+        public static let supportedFeatures: ReadOnlyCompatibleFeatures = []
     }
     
     public enum HashVersion: UInt8 {
@@ -466,24 +470,25 @@ public struct Superblock {
         }
     }
     
-    struct DefaultMountOptions: OptionSet {
-        let rawValue: UInt32
+    public struct DefaultMountOptions: OptionSet {
+        public let rawValue: UInt32
+        public init(rawValue: UInt32) { self.rawValue = rawValue }
         
-        static let printDebuggingInfoOnMount = DefaultMountOptions(rawValue: 1 << 0)
+        public static let printDebuggingInfoOnMount = DefaultMountOptions(rawValue: 1 << 0)
         /// As opposed to the fsgid of the current process.
-        static let newFilesTakeGidOfContainingDirectory = DefaultMountOptions(rawValue: 1 << 1)
-        static let userspaceProvidedExtendedAttributes = DefaultMountOptions(rawValue: 1 << 2)
-        static let supportPosixAccessControlLists = DefaultMountOptions(rawValue: 1 << 3)
-        static let doNotSupport32BitUIDs = DefaultMountOptions(rawValue: 1 << 4)
-        static let commitDataAndMetadataToJournal = DefaultMountOptions(rawValue: 1 << 5)
-        static let flushDataBeforeCommittingMetadata = DefaultMountOptions(rawValue: 1 << 6)
-        static let dataOrderingNotPreserved = DefaultMountOptions(rawValue: 1 << 7)
-        static let disableWriteFlushes = DefaultMountOptions(rawValue: 1 << 8)
+        public static let newFilesTakeGidOfContainingDirectory = DefaultMountOptions(rawValue: 1 << 1)
+        public static let userspaceProvidedExtendedAttributes = DefaultMountOptions(rawValue: 1 << 2)
+        public static let supportPosixAccessControlLists = DefaultMountOptions(rawValue: 1 << 3)
+        public static let doNotSupport32BitUIDs = DefaultMountOptions(rawValue: 1 << 4)
+        public static let commitDataAndMetadataToJournal = DefaultMountOptions(rawValue: 1 << 5)
+        public static let flushDataBeforeCommittingMetadata = DefaultMountOptions(rawValue: 1 << 6)
+        public static let dataOrderingNotPreserved = DefaultMountOptions(rawValue: 1 << 7)
+        public static let disableWriteFlushes = DefaultMountOptions(rawValue: 1 << 8)
         /// Blocks that are metadata should not be used as data blocks.
-        static let trackMetadataBlocks = DefaultMountOptions(rawValue: 1 << 9)
+        public static let trackMetadataBlocks = DefaultMountOptions(rawValue: 1 << 9)
         /// The storage device is told about blocks becoming unused.
-        static let enabledDiscardSupport = DefaultMountOptions(rawValue: 1 << 10)
-        static let disableDelayedAllocation = DefaultMountOptions(rawValue: 1 << 11)
+        public static let enabledDiscardSupport = DefaultMountOptions(rawValue: 1 << 10)
+        public static let disableDelayedAllocation = DefaultMountOptions(rawValue: 1 << 11)
     }
     
     /// An encoding used for file names in casefolded directories.
@@ -532,113 +537,113 @@ public struct Superblock {
         }
         
         /// Inputted file names that are not in the correct encoding should be rejected.
-        static let strictMode = EncodingFlags(rawValue: 1 << 0)
+        public static let strictMode = EncodingFlags(rawValue: 1 << 0)
         /// If a file name is not in the correct encoding, do not fall back to non-casefolded behavior.
-        static let noCompatFallback = EncodingFlags(rawValue: 1 << 1)
+        public static let noCompatFallback = EncodingFlags(rawValue: 1 << 1)
     }
     
     /// Total inode count.
-    var inodeCount: UInt32
+    public var inodeCount: UInt32
     /// Total block count.
-    var blockCount: UInt64
+    public var blockCount: UInt64
     /// This number of blocks can only be allocated by the super-user.
-    var superUserBlockCount: UInt64
-    var freeBlockCount: UInt64
-    var freeInodeCount: UInt32
+    public var superUserBlockCount: UInt64
+    public var freeBlockCount: UInt64
+    public var freeInodeCount: UInt32
     /// First data block.
     ///
     /// This must be at least 1 for 1k-block filesystems and is typically 0 for all other block sizes.
-    var firstDataBlock: UInt32
+    public var firstDataBlock: UInt32
     /// Block size is 2 ^ (10 + `logBlockSize`).
-    var logBlockSize: UInt32
-    var blockSize: Int {
+    public var logBlockSize: UInt32
+    public var blockSize: Int {
         get {
             Int(pow(2, 10 + Double(logBlockSize)))
         }
     }
     /// Cluster size is (2 ^ `logClusterSize`) blocks if bigalloc is enabled. Otherwise `logClusterSize` must equal `logBlockSize`.
-    var logClusterSize: UInt32
-    var clusterSize: Int {
+    public var logClusterSize: UInt32
+    public var clusterSize: Int {
         get throws {
             Int(pow(2, Double(logClusterSize)))
         }
     }
-    var blocksPerGroup: UInt32
-    var clustersPerGroup: UInt32
-    var inodesPerGroup: UInt32
+    public var blocksPerGroup: UInt32
+    public var clustersPerGroup: UInt32
+    public var inodesPerGroup: UInt32
     /// Mount time, in seconds since the epoch.
-    var mountTime: UInt64
+    public var mountTime: UInt64
     /// Write time, in seconds since the epoch.
-    var writeTime: UInt64
+    public var writeTime: UInt64
     /// Number of mounts since the last `fsck`.
-    var mountsSinceLastFsck: UInt16
+    public var mountsSinceLastFsck: UInt16
     /// Number of mounts beyond which a `fsck` is needed.
-    var maxMountsSinceLastFsck: UInt16
+    public var maxMountsSinceLastFsck: UInt16
     /// Magic signature, should be `0xEF53`.
-    var magic: UInt16
-    var state: State
-    var errorPolicy: ErrorPolicy
-    var minorRevisionLevel: UInt16
+    public var magic: UInt16
+    public var state: State
+    public var errorPolicy: ErrorPolicy
+    public var minorRevisionLevel: UInt16
     /// Time of last check, in seconds since the epoch.
-    var lastCheckTime: UInt32
-    var maxSecondsBetweenChecks: UInt32
-    var creatorOS: FilesystemCreator
-    var revisionLevel: Revision
-    var defaultUidForReservedBlocks: UInt16
-    var defaultGidForReservedBlocks: UInt16
+    public var lastCheckTime: UInt32
+    public var maxSecondsBetweenChecks: UInt32
+    public var creatorOS: FilesystemCreator
+    public var revisionLevel: Revision
+    public var defaultUidForReservedBlocks: UInt16
+    public var defaultGidForReservedBlocks: UInt16
     
     // MARK: - `EXT4_DYNAMIC_REV` superblocks only
-    var revisionSupportsDynamicInodeSizes: Bool {
+    public var revisionSupportsDynamicInodeSizes: Bool {
         get {
             revisionLevel != .unknown && revisionLevel >= Revision.version2
         }
     }
-    var firstNonReservedInode: UInt32
+    public var firstNonReservedInode: UInt32
     /// Size of inode structure, in bytes.
-    var inodeSize: UInt16
-    var blockGroupNumber: UInt16?
-    var compatibleFeatures: CompatibleFeatures
-    var incompatibleFeatures: IncompatibleFeatures
-    var readOnlyCompatibleFeatures: ReadOnlyCompatibleFeatures
-    var uuid: UUID?
+    public var inodeSize: UInt16
+    public var blockGroupNumber: UInt16?
+    public var compatibleFeatures: CompatibleFeatures
+    public var incompatibleFeatures: IncompatibleFeatures
+    public var readOnlyCompatibleFeatures: ReadOnlyCompatibleFeatures
+    public var uuid: UUID?
     /// Volume label, maximum length 16.
-    var volumeName: Data?
+    public var volumeName: Data?
     /// Directory where filesystem was last mounted, maximum length 64.
-    var lastMountDirectory: Data?
-    var compressionAlgorithmUsageBitmap: UInt32?
+    public var lastMountDirectory: Data?
+    public var compressionAlgorithmUsageBitmap: UInt32?
     
     // MARK: - Performance hints
-    var preallocateBlocks: UInt8?
-    var preallocateDirectoryBlocks: UInt8?
-    var reservedGDTBlocks: UInt16?
+    public var preallocateBlocks: UInt8?
+    public var preallocateDirectoryBlocks: UInt8?
+    public var reservedGDTBlocks: UInt16?
     
     // MARK: - Journalling support
-    var journalUUID: UUID?
-    var journalInodeNumber: UInt32?
-    var journalDeviceNumber: UInt32?
+    public var journalUUID: UUID?
+    public var journalInodeNumber: UInt32?
+    public var journalDeviceNumber: UInt32?
     
-    var lastOrphan: UInt32?
-    var hashSeed: [UInt32]? // size 4
-    var defaultHashAlgorithm: HashVersion?
-    var journalBackupType: UInt8?
-    var groupDescriptorSizeInBytes: UInt16?
-    var defaultMountOptions: UInt32?
-    var firstMetablockBlockGroup: UInt32?
+    public var lastOrphan: UInt32?
+    public var hashSeed: [UInt32]? // size 4
+    public var defaultHashAlgorithm: HashVersion?
+    public var journalBackupType: UInt8?
+    public var groupDescriptorSizeInBytes: UInt16?
+    public var defaultMountOptions: UInt32?
+    public var firstMetablockBlockGroup: UInt32?
     /// When the filesystem was created, in seconds since the epoch.
-    var mkfsTime: UInt32?
-    var backupJournalBlocks: [UInt32]? // size 17
+    public var mkfsTime: UInt32?
+    public var backupJournalBlocks: [UInt32]? // size 17
     
     // MARK: - 64-bit support
     /// All inodes have at least `minimumExtraInodeSize` bytes.
-    var minimumExtraInodeSize: UInt16?
+    public var minimumExtraInodeSize: UInt16?
     /// New inodes should reserve `wantExtraInodeSize` bytes.
-    var wantExtraInodeSize: UInt16?
-    var flags: UInt32?
-    var raidStride: UInt16?
-    var mmpIntervalInSeconds: UInt16?
-    var mmpBlock: UInt64?
-    var raidStripeWidth: UInt32?
-    var logGroupsPerFlexibleGroup: UInt8?
+    public var wantExtraInodeSize: UInt16?
+    public var flags: UInt32?
+    public var raidStride: UInt16?
+    public var mmpIntervalInSeconds: UInt16?
+    public var mmpBlock: UInt64?
+    public var raidStripeWidth: UInt32?
+    public var logGroupsPerFlexibleGroup: UInt8?
     /// The number of block groups in a single logical block group (referred to as a flexible block group).
     ///
     /// The bitmap spaces and the inode table space in the first block group of a given flexible block group are expanded to include the bitmaps and inode tables of all other block groups in that flexible group. For example, group 0 contains the data block bitmaps, inode bitmaps, and inode tables for itself as well as other block groups in its flexible group.
@@ -646,7 +651,7 @@ public struct Superblock {
     /// Backup copies of the superblock and group descriptors will always be at the beginning of block groups even with flexible block groups enabled.
     ///
     /// If flexible block groups are disabled, this returns `nil`.
-    var groupsPerFlexibleGroup: UInt64? {
+    public var groupsPerFlexibleGroup: UInt64? {
         get {
             guard let logGroupsPerFlexibleGroup = logGroupsPerFlexibleGroup else {
                 return nil
@@ -654,56 +659,56 @@ public struct Superblock {
             return UInt64(pow(2, Double(logGroupsPerFlexibleGroup)))
         }
     }
-    var checksumType: UInt8?
-    var reservedPad: UInt16?
-    var kbytesWritten: UInt64?
-    var snapshotInodeNumber: UInt32?
-    var snapshotId: UInt32?
-    var snapshotReservedBlockCount: UInt64?
-    var snapshotListInodeNumber: UInt32?
-    var errorCount: UInt32?
-    var firstErrorTime: UInt32?
-    var firstErrorInode: UInt32?
-    var firstErrorBlock: UInt64?
-    var firstErrorFunctionName: String?
-    var firstErrorLineNumber: UInt32?
-    var lastErrorTime: UInt32?
-    var lastErrorInodeNumber: UInt32?
-    var lastErrorLine: UInt32?
-    var lastErrorBlock: UInt64?
-    var lastErrorFunctionName: String?
+    public var checksumType: UInt8?
+    public var reservedPad: UInt16?
+    public var kbytesWritten: UInt64?
+    public var snapshotInodeNumber: UInt32?
+    public var snapshotId: UInt32?
+    public var snapshotReservedBlockCount: UInt64?
+    public var snapshotListInodeNumber: UInt32?
+    public var errorCount: UInt32?
+    public var firstErrorTime: UInt32?
+    public var firstErrorInode: UInt32?
+    public var firstErrorBlock: UInt64?
+    public var firstErrorFunctionName: String?
+    public var firstErrorLineNumber: UInt32?
+    public var lastErrorTime: UInt32?
+    public var lastErrorInodeNumber: UInt32?
+    public var lastErrorLine: UInt32?
+    public var lastErrorBlock: UInt64?
+    public var lastErrorFunctionName: String?
 
-    var mountOptions: String?
+    public var mountOptions: String?
 
-    var userQuotaInode: UInt32?
-    var groupQuotaInode: UInt32?
-    var overheadBlocks: UInt32?
+    public var userQuotaInode: UInt32?
+    public var groupQuotaInode: UInt32?
+    public var overheadBlocks: UInt32?
 
-    var superblockBackupGroups: [UInt32]?
-    var encryptionAlgorithms: [UInt8]?
-    var encryptionSalt: [UInt8]?
+    public var superblockBackupGroups: [UInt32]?
+    public var encryptionAlgorithms: [UInt8]?
+    public var encryptionSalt: [UInt8]?
 
-    var lostAndFoundInode: UInt32?
-    var projectQuotaInode: UInt32?
-    var checksumSeed: UInt32?
+    public var lostAndFoundInode: UInt32?
+    public var projectQuotaInode: UInt32?
+    public var checksumSeed: UInt32?
 
-    var writeTimeHigh: UInt8?
-    var mountTimeHigh: UInt8?
-    var mkfsTimeHigh: UInt8?
-    var lastCheckTimeHigh: UInt8?
-    var firstErrorTimeHigh: UInt8?
-    var lastErrorTimeHigh: UInt8?
+    public var writeTimeHigh: UInt8?
+    public var mountTimeHigh: UInt8?
+    public var mkfsTimeHigh: UInt8?
+    public var lastCheckTimeHigh: UInt8?
+    public var firstErrorTimeHigh: UInt8?
+    public var lastErrorTimeHigh: UInt8?
     
-    var pad: [UInt8]?
-    var encoding: Encoding?
-    var encodingFlags: EncodingFlags?
-    var orphanFileInodeNumber: UInt32?
+    public var pad: [UInt8]?
+    public var encoding: Encoding?
+    public var encodingFlags: EncodingFlags?
+    public var orphanFileInodeNumber: UInt32?
 
-    var reservedPadding: [UInt32]?
+    public var reservedPadding: [UInt32]?
 
-    var checksum: UInt32?
+    public var checksum: UInt32?
     
-    func toData() throws -> Data {
+    public func toData() throws -> Data {
         var data = Data()
         data.reserveCapacity(1024)
         
@@ -869,7 +874,7 @@ public struct Superblock {
         return data
     }
     
-    func calculateChecksum() throws -> UInt32 {
+    public func calculateChecksum() throws -> UInt32 {
         let data = try self.toData().dropLast(MemoryLayout<UInt32>.size)
         
         return ~data.crc32c()

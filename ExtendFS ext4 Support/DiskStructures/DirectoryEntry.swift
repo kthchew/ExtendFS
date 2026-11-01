@@ -86,12 +86,12 @@ public class DirectoryEntry {
         return data
     }
     
-    var inodePointee: UInt32
-    var directoryEntryLength: UInt16
-    var nameLength: UInt8
-    var fileType: Filetype?
+    public var inodePointee: UInt32
+    public var directoryEntryLength: UInt16
+    public var nameLength: UInt8
+    public var fileType: Filetype?
     #if canImport(FSKit)
-    var fskitFileType: FSItem.ItemType? {
+    public var fskitFileType: FSItem.ItemType? {
         guard let fileType else { return nil }
         switch fileType {
         case .unknown:
@@ -115,17 +115,17 @@ public class DirectoryEntry {
         }
     }
     #endif
-    var name: Data
-    var nameUTF8: String? {
+    public var name: Data
+    public var nameUTF8: String? {
         String(data: name, encoding: .utf8)
     }
     
-    var checksum: UInt32?
+    public var checksum: UInt32?
     
     // MARK: - dcache properties
-    var parentInode: UInt32?
+    public var parentInode: UInt32?
     
-    var referenceCount: Int = 0
+    public var referenceCount: Int = 0
     
     /// The previous node in the linked list of entries in the cache.
     ///

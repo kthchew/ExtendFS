@@ -6,16 +6,17 @@ import Foundation
 /// A structure that describes a block group.
 ///
 /// There's one descriptor per "real" block group (as opposed to one per flexible block group).
-struct BlockGroupDescriptor {
-    struct Flags: OptionSet {
-        let rawValue: UInt16
+public struct BlockGroupDescriptor {
+    public struct Flags: OptionSet {
+        public let rawValue: UInt16
+        public init(rawValue: UInt16) { self.rawValue = rawValue }
         
-        static let inodeTableAndBitmapNotInitialized = Flags(rawValue: 1 << 0)
-        static let blockBitmapNotInitialized = Flags(rawValue: 1 << 1)
-        static let inodeTableZeroed = Flags(rawValue: 1 << 2)
+        public static let inodeTableAndBitmapNotInitialized = Flags(rawValue: 1 << 0)
+        public static let blockBitmapNotInitialized = Flags(rawValue: 1 << 1)
+        public static let inodeTableZeroed = Flags(rawValue: 1 << 2)
     }
     
-    init?(from data: Data) {
+    public init?(from data: Data) {
         var offset = 0
         
         guard let lowerBlockBitmapLocation: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
@@ -66,59 +67,59 @@ struct BlockGroupDescriptor {
         self.upperInodeBitmapChecksum = upperInodeBitmapChecksum
     }
     
-    var lowerBlockBitmapLocation: UInt32
-    var lowerInodeBitmapLocation: UInt32
-    var lowerInodeTableLocation: UInt32
-    var lowerFreeBlockCountLocation: UInt16
-    var lowerFreeInodeCountLocation: UInt16
-    var lowerUsedDirectoryCountLocation: UInt16
-    var flags: Flags
-    var lowerSnapshotExclusionBitmapLocation: UInt32
-    var lowerBlockBitmapChecksum: UInt16
-    var lowerInodeBitmapChecksum: UInt16
-    var lowerUnusedInodeCount: UInt16
-    var checksum: UInt16
+    public var lowerBlockBitmapLocation: UInt32
+    public var lowerInodeBitmapLocation: UInt32
+    public var lowerInodeTableLocation: UInt32
+    public var lowerFreeBlockCountLocation: UInt16
+    public var lowerFreeInodeCountLocation: UInt16
+    public var lowerUsedDirectoryCountLocation: UInt16
+    public var flags: Flags
+    public var lowerSnapshotExclusionBitmapLocation: UInt32
+    public var lowerBlockBitmapChecksum: UInt16
+    public var lowerInodeBitmapChecksum: UInt16
+    public var lowerUnusedInodeCount: UInt16
+    public var checksum: UInt16
     
     // MARK: - 64-bit only
-    var upperBlockBitmapLocation: UInt32? = nil
-    var upperInodeBitmapLocation: UInt32? = nil
-    var upperInodeTableLocation: UInt32? = nil
-    var upperFreeBlockCountLocation: UInt16? = nil
-    var upperFreeInodeCountLocation: UInt16? = nil
-    var upperUsedDirectoryCountLocation: UInt16? = nil
-    var upperUnusedInodeCount: UInt16? = nil
-    var upperSnapshotExclusionBitmapLocation: UInt32? = nil
-    var upperBlockBitmapChecksum: UInt16? = nil
-    var upperInodeBitmapChecksum: UInt16? = nil
+    public var upperBlockBitmapLocation: UInt32? = nil
+    public var upperInodeBitmapLocation: UInt32? = nil
+    public var upperInodeTableLocation: UInt32? = nil
+    public var upperFreeBlockCountLocation: UInt16? = nil
+    public var upperFreeInodeCountLocation: UInt16? = nil
+    public var upperUsedDirectoryCountLocation: UInt16? = nil
+    public var upperUnusedInodeCount: UInt16? = nil
+    public var upperSnapshotExclusionBitmapLocation: UInt32? = nil
+    public var upperBlockBitmapChecksum: UInt16? = nil
+    public var upperInodeBitmapChecksum: UInt16? = nil
     
-    var blockBitmapLocation: UInt64? {
+    public var blockBitmapLocation: UInt64? {
         get { UInt64.combine(upper: upperBlockBitmapLocation, lower: lowerBlockBitmapLocation) }
     }
-    var inodeBitmapLocation: UInt64? {
+    public var inodeBitmapLocation: UInt64? {
         get { UInt64.combine(upper: upperInodeBitmapLocation, lower: lowerInodeBitmapLocation) }
     }
-    var inodeTableLocation: UInt64? {
+    public var inodeTableLocation: UInt64? {
         get { UInt64.combine(upper: upperInodeTableLocation, lower: lowerInodeTableLocation) }
     }
-    var freeBlockCountLocation: UInt32? {
+    public var freeBlockCountLocation: UInt32? {
         get { UInt32.combine(upper: upperFreeBlockCountLocation, lower: lowerFreeBlockCountLocation) }
     }
-    var freeInodeCountLocation: UInt32? {
+    public var freeInodeCountLocation: UInt32? {
         get { UInt32.combine(upper: upperFreeInodeCountLocation, lower: lowerFreeInodeCountLocation) }
     }
-    var usedDirectoryCountLocation: UInt32? {
+    public var usedDirectoryCountLocation: UInt32? {
         get { UInt32.combine(upper: upperUsedDirectoryCountLocation, lower: lowerUsedDirectoryCountLocation) }
     }
-    var unusedInodeCount: UInt32? {
+    public var unusedInodeCount: UInt32? {
         get { UInt32.combine(upper: upperUnusedInodeCount, lower: lowerUnusedInodeCount) }
     }
-    var snapshotExclusionBitmapLocation: UInt64? {
+    public var snapshotExclusionBitmapLocation: UInt64? {
         get { UInt64.combine(upper: upperSnapshotExclusionBitmapLocation, lower: lowerSnapshotExclusionBitmapLocation) }
     }
-    var blockBitmapChecksum: UInt32? {
+    public var blockBitmapChecksum: UInt32? {
         get { UInt32.combine(upper: upperBlockBitmapChecksum, lower: lowerBlockBitmapChecksum) }
     }
-    var inodeBitmapChecksum: UInt32? {
+    public var inodeBitmapChecksum: UInt32? {
         get { UInt32.combine(upper: upperInodeBitmapChecksum, lower: lowerInodeBitmapChecksum) }
     }
 }

@@ -17,7 +17,7 @@ public struct IndexNode {
         public var modeUpper: UInt16 = 0
         public var author: UInt32 = 0
         
-        init?(from data: Data, creator: Superblock.FilesystemCreator) {
+        public init?(from data: Data, creator: Superblock.FilesystemCreator) {
             var offset = 0
             func nextLE<T: FixedWidthInteger>() -> T? {
                 try? data.readLittleEndian(at: &offset)
@@ -59,7 +59,7 @@ public struct IndexNode {
         }
     }
     
-    init() {
+    public init() {
         self.inodeNumber = 0
         self.mode = Mode()
         self.uid = 0
@@ -82,7 +82,7 @@ public struct IndexNode {
         self.metadataChecksumSeed = nil
     }
     
-    init?(from data: Data, creator: Superblock.FilesystemCreator, inodeNumber: UInt32, fsMetadataSeed: UInt32?) {
+    public init?(from data: Data, creator: Superblock.FilesystemCreator, inodeNumber: UInt32, fsMetadataSeed: UInt32?) {
         self.inodeNumber = inodeNumber
         
         var offset = 0
@@ -300,7 +300,7 @@ public struct IndexNode {
     public var version: UInt64
     public var projectID: UInt32?
     
-    var embeddedExtendedAttributes: [ExtendedAttrEntry]?
+    public var embeddedExtendedAttributes: [ExtendedAttrEntry]?
     public var embeddedXattrEntryBytes: UInt16 = 0
     public var remainingData: Data = Data()
     

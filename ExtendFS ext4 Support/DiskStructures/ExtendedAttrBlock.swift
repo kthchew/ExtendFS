@@ -3,17 +3,18 @@
 
 import Foundation
 import os.log
+import FSKit
 
 fileprivate let logger = Logger(subsystem: "com.kpchew.ExtendFS.ext4Extension", category: "ExtendedAttrBlock")
 
-struct ExtendedAttrBlock {
-    var header: ExtendedAttrHeader
-    var entries: [ExtendedAttrEntry]
-    var remainingData: Data
+public struct ExtendedAttrBlock {
+    public var header: ExtendedAttrHeader
+    public var entries: [ExtendedAttrEntry]
+    public var remainingData: Data
     /// The offset in the block at which ``remainingData`` starts, in bytes.
-    var remainingDataOffset: UInt32
+    public var remainingDataOffset: UInt32
     
-    init?(from data: Data) {
+    public init?(from data: Data) {
         guard let header = ExtendedAttrHeader(from: data) else { return nil }
         self.header = header
         
@@ -39,11 +40,10 @@ struct ExtendedAttrBlock {
         self.remainingDataOffset = remainingOffset
     }
     
-    init?(blockAt blockNumber: UInt32, in volume: Ext4VolumeBase) throws {
-        let blockSize = volume.superblock.blockSize
+    public init?(blockAt blockNumber: UInt32, in resource: FSBlockDeviceResource, blockSize: Int) throws {
         var blockData = Data(count: blockSize)
         try blockData.withUnsafeMutableBytes { ptr in
-            try volume.resource.metadataRead(into: ptr, startingAt: off_t(blockNumber) * off_t(blockSize), length: blockSize)
+            try resource.metadataRead(into: ptr, startingAt: off_t(blockNumber) * off_t(blockSize), length: blockSize)
         }
         guard let header = ExtendedAttrHeader(from: blockData[0..<32]) else {
             logger.error("Could not form valid extended attribute block from data because the header was invalid")
@@ -54,7 +54,7 @@ struct ExtendedAttrBlock {
         if additionalBlocks > 0 {
             var additionalBlockData = Data(count: blockSize * additionalBlocks)
             try additionalBlockData.withUnsafeMutableBytes { ptr in
-                try volume.resource.metadataRead(into: ptr, startingAt: off_t(blockNumber + 1) * off_t(blockSize), length: blockSize * additionalBlocks)
+                try resource.metadataRead(into: ptr, startingAt: off_t(blockNumber + 1) * off_t(blockSize), length: blockSize * additionalBlocks)
             }
             blockData += additionalBlockData
         }
@@ -62,13 +62,13 @@ struct ExtendedAttrBlock {
         self.init(from: blockData)
     }
     
-    var extendedAttributeNames: [String] {
+    public var extendedAttributeNames: [String] {
         entries.map { entry in
             entry.name
         }
     }
     
-    var extendedAttributes: [String: Data] {
+    public var extendedAttributes: [String: Data] {
         get throws {
             var attrs: [String: Data] = [:]
             attrs.reserveCapacity(entries.count)
@@ -85,7 +85,7 @@ struct ExtendedAttrBlock {
         }
     }
     
-    func value(for entry: ExtendedAttrEntry) throws -> Data {
+    public func value(for entry: ExtendedAttrEntry) throws -> Data {
         let offset = Int(entry.valueOffset) - Int(remainingDataOffset)
         guard offset >= 0 else {
             logger.error("Offset for extended attribute entry was negative")

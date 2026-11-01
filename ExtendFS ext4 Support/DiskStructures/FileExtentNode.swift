@@ -5,12 +5,12 @@ import Foundation
 import FSKit
 
 /// A type that represents a node in an ext4 extent tree.
-struct FileExtentNode: Hashable, Comparable {
-    static func < (lhs: FileExtentNode, rhs: FileExtentNode) -> Bool {
+public struct FileExtentNode: Hashable, Comparable {
+    public static func < (lhs: FileExtentNode, rhs: FileExtentNode) -> Bool {
         lhs.logicalBlock < rhs.logicalBlock
     }
     
-    init?(from data: Data, isLeaf: Bool) {
+    public init?(from data: Data, isLeaf: Bool) {
         var offset = 0
         
         guard let logicalBlock: UInt32 = try? data.readLittleEndian(at: &offset) else { return nil }
@@ -42,14 +42,14 @@ struct FileExtentNode: Hashable, Comparable {
     ///   - logicalBlock: The offset within the file, in blocks.
     ///   - lengthInBlocks: The length that this extent covers, in blocks.
     ///   - type: The type of extent, indicating whether it contains valid data.
-    init(physicalBlock: off_t, logicalBlock: off_t, lengthInBlocks: UInt16, type: FSExtentType) {
+    public init(physicalBlock: off_t, logicalBlock: off_t, lengthInBlocks: UInt16, type: FSExtentType) {
         self.physicalBlock = physicalBlock
         self.logicalBlock = logicalBlock
         self.lengthInBlocks = lengthInBlocks
         self.type = type
     }
     
-    func toData() throws -> Data {
+    public func toData() throws -> Data {
         var data = Data()
         data.reserveCapacity(12)
         
@@ -76,13 +76,13 @@ struct FileExtentNode: Hashable, Comparable {
     }
     
     /// The extent offset on disk, in blocks, or the block number of the child level.
-    var physicalBlock: off_t
+    public var physicalBlock: off_t
     /// The extent offset within the file, in blocks.
-    var logicalBlock: off_t
+    public var logicalBlock: off_t
     /// The extent length, in blocks, if this is a leaf node.
-    var lengthInBlocks: UInt16?
+    public var lengthInBlocks: UInt16?
     /// The type of extent, indicating whether it contains valid data, if this is a leaf node.
-    var type: FSExtentType?
+    public var type: FSExtentType?
     /// The value of `ei_unused`, if present.
-    var unused: UInt16?
+    public var unused: UInt16?
 }
